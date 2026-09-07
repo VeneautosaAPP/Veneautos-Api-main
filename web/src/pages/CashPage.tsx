@@ -226,7 +226,7 @@ export function CashPage() {
     }
     const amt = amtNorm
     const noteLine = `\nNota: ${openNote.trim()}`
-    const msgOpen = `¿Abrir sesión de caja con monto inicial $${amt}?${noteLine}\n\nSolo podrás registrar movimientos con la sesión abierta. Revisá el monto antes de confirmar.`
+    const msgOpen = `¿Abrir sesión de caja con monto inicial $${formatCopFromString(amt)}?${noteLine}\n\nSolo podrás registrar movimientos con la sesión abierta. Revisá el monto antes de confirmar.`
     const ok = await confirm({
       title: 'Abrir sesión de caja',
       message: msgOpen,
@@ -289,8 +289,8 @@ export function CashPage() {
     const summary = [
       '¿Cerrar la sesión de caja?',
       '',
-      `Monto apertura: $${current.openingAmount}`,
-      `Conteo físico (arqueo): $${counted}`,
+      `Monto apertura: $${formatCopFromString(current.openingAmount)}`,
+      `Conteo físico (arqueo): $${formatCopFromString(counted)}`,
       diffNote ? `Nota de diferencia: ${diffNote}` : '',
       '',
       'El cierre queda registrado. Si el conteo no coincide, aclarálo en la nota antes de confirmar.',
