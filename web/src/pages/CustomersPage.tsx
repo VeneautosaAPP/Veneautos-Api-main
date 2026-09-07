@@ -532,17 +532,21 @@ export function CustomersPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const createBtnClass = 'va-btn-primary'
 
+  /**
+   * Sin listado general: solo se consulta el maestro cuando el usuario escribe (autocompletado).
+   * Con menos de 2 caracteres no se muestra ningún cliente.
+   */
   async function load(search = '') {
     const q = search.trim()
+    if (q.length < 2) {
+      setRows(null)
+      setExpandedId(null)
+      return
+    }
     setBusy(true)
     try {
-      if (q.length >= 2) {
-        const data = await api<Customer[]>(`/customers/search?q=${encodeURIComponent(q)}`)
-        setRows(data)
-      } else {
-        const data = await api<Customer[]>('/customers')
-        setRows(data)
-      }
+      const data = await api<Customer[]>(`/customers/search?q=${encodeURIComponent(q)}`)
+      setRows(data)
     } catch {
       setMsg('Error al cargar clientes')
     } finally {
@@ -550,9 +554,30 @@ export function CustomersPage() {
     }
   }
 
+  /** Autocompletado: busca solo mientras se escribe, con pequeño retardo para no saturar el API. */
   useEffect(() => {
-    void load().catch(() => setMsg('Error al cargar clientes'))
-  }, [])
+    const q = query.trim()
+    if (q.length < 2) {
+      setRows(null)
+      setExpandedId(null)
+      return
+    }
+    setBusy(true)
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const data = await api<Customer[]>(`/customers/search?q=${encodeURIComponent(q)}`)
+          setRows(data)
+          setExpandedId(null)
+        } catch {
+          setMsg('Error al cargar clientes')
+        } finally {
+          setBusy(false)
+        }
+      })()
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query])
 
   async function create(e: React.FormEvent) {
     e.preventDefault()
@@ -566,10 +591,11 @@ export function CustomersPage() {
         }),
       })
       setOpen(false)
+      setMsg('Cliente creado')
+      // Deja el nombre en el buscador: el autocompletado muestra el cliente recién creado.
+      setQuery(displayName.trim())
       setDisplayName('')
       setPhone('')
-      setMsg('Cliente creado')
-      await load(query)
     } catch (err) {
       setMsg(err instanceof Error ? err.message : 'Error')
     }
@@ -702,11 +728,11 @@ export function CustomersPage() {
         )}
       </div>
 
-      {!rows ? (
-        <p className="text-slate-500 dark:text-slate-300">Cargando…</p>
+      {query.trim().length < 2 ? null : !rows ? (
+        <p className="text-slate-500 dark:text-slate-300">Buscando…</p>
       ) : rows.length === 0 ? (
         <p className="text-slate-500 dark:text-slate-300">
-          {query.trim().length >= 2 ? 'Sin resultados para esa búsqueda.' : 'Sin clientes aún. Creá el primero.'}
+          Sin resultados para «{query.trim()}».
         </p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
