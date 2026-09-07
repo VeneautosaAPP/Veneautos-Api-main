@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, Pencil, Trash2, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, openAuthenticatedHtml } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
@@ -55,7 +56,6 @@ import type {
   WorkOrderLineType,
   WorkOrderPatchResult,
   WorkOrderStatus,
-  WorkOrderTotals,
 } from '../api/types'
 
 type CashCat = { slug: string; name: string; direction: string }
@@ -76,73 +76,6 @@ type TaxRateCatalogRow = {
  * oculta las filas vacías; cuando se activa DIAN / impuestos por línea, aparecen automáticamente.
  * `canSeeCosts` habilita costo y utilidad (administración / dueño con `reports:read`).
  */
-function WorkOrderTotalsPanel({
-  totals,
-  canSeeCosts,
-}: {
-  totals: WorkOrderTotals
-  canSeeCosts: boolean
-}) {
-  const hasDiscount = Number(totals.totalDiscount) > 0
-  const hasVat = Number(totals.taxVatAmount) > 0
-  const hasInc = Number(totals.taxIncAmount) > 0
-  const hasAnyTax = hasVat || hasInc
-  const hasAnyExtra = hasDiscount || hasAnyTax
-  const hasCosts =
-    canSeeCosts && totals.totalCost !== null && totals.totalProfit !== null
-
-  // Si no hay descuentos ni impuestos ni costos disponibles, el desglose no aporta
-  // info nueva frente al tile «Subtotal líneas»: evitamos ruido visual.
-  if (!hasAnyExtra && !hasCosts) return null
-
-  const row = (label: string, value: string, accent?: 'muted' | 'strong') => (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <span
-        className={
-          accent === 'strong'
-            ? 'text-sm font-semibold text-slate-800 dark:text-slate-100'
-            : accent === 'muted'
-              ? 'text-xs text-slate-500 dark:text-slate-400'
-              : 'text-sm text-slate-600 dark:text-slate-300'
-        }
-      >
-        {label}
-      </span>
-      <span
-        className={
-          accent === 'strong'
-            ? 'font-mono text-base font-semibold tabular-nums text-slate-900 dark:text-slate-50'
-            : 'font-mono text-sm tabular-nums text-slate-800 dark:text-slate-100'
-        }
-      >
-        ${formatCopFromString(value)}
-      </span>
-    </div>
-  )
-
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
-      <div className="flex items-center justify-between">
-        <h3 className="va-section-title text-sm">Desglose de la orden</h3>
-      </div>
-      <div className="mt-2 divide-y divide-slate-200 dark:divide-slate-700">
-        {row('Subtotal (bruto)', totals.linesSubtotal)}
-        {hasDiscount ? row('Descuentos', `-${totals.totalDiscount}`) : null}
-        {hasAnyExtra ? row('Base imponible', totals.taxableBase, 'muted') : null}
-        {hasVat ? row(`IVA`, totals.taxVatAmount) : null}
-        {hasInc ? row('INC', totals.taxIncAmount) : null}
-        {row('Total a cobrar', totals.grandTotal, 'strong')}
-        {hasCosts ? (
-          <>
-            {row('Costo estimado (repuestos)', totals.totalCost ?? '0', 'muted')}
-            {row('Utilidad estimada', totals.totalProfit ?? '0', 'strong')}
-          </>
-        ) : null}
-      </div>
-    </section>
-  )
-}
-
 /** Conflictos / permisos: mejor modal que aviso discreto bajo el título. */
 function isBlockingWorkOrderApiError(err: unknown): boolean {
   if (err instanceof ApiError && (err.status === 409 || err.status === 403)) return true
@@ -296,7 +229,10 @@ export function WorkOrderDetailPage() {
   const [editPrice, setEditPrice] = useState('')
   const [editDesc, setEditDesc] = useState('')
   const [editDiscount, setEditDiscount] = useState('')
+  const [editCost, setEditCost] = useState('')
   const [editTaxRateId, setEditTaxRateId] = useState<string>('')
+  /** Línea recién agregada: su fila queda editable hasta que se sale de los campos o se agrega otra. */
+  const [autoEditLineId, setAutoEditLineId] = useState<string | null>(null)
 
   // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
   const [taxRatesCatalog, setTaxRatesCatalog] = useState<TaxRateCatalogRow[]>([])
@@ -318,8 +254,19 @@ export function WorkOrderDetailPage() {
   /** Errores del flujo de cobro: se muestran en esta sección (el `msg` global queda arriba y casi no se ve). */
   const [payFormError, setPayFormError] = useState<string | null>(null)
   const [paymentBusy, setPaymentBusy] = useState(false)
-  const paymentsSectionRef = useRef<HTMLElement | null>(null)
+  const cashModalBodyRef = useRef<HTMLDivElement | null>(null)
+  /** Ventana flotante de cobros: reemplaza la sección «Cobros en caja» que vivía dentro de la página. */
+  const [cashModalOpen, setCashModalOpen] = useState(false)
   const { open: cashOpen, loadStatus: cashOpenLoadStatus, refresh: refreshCashOpen } = useCashSessionOpen()
+
+  useEffect(() => {
+    if (!cashModalOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCashModalOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [cashModalOpen])
 
   const [woDesc, setWoDesc] = useState('')
   const [woCustomerName, setWoCustomerName] = useState('')
@@ -447,7 +394,11 @@ export function WorkOrderDetailPage() {
     }
   }, [detailQuery.isError, detailQuery.error])
 
-  /** Lista y subtotal desde endpoints dedicados (evita JSON del detalle de OT en caché tras mutar líneas). */
+  /**
+   * Tras mutar líneas: lista (tabla) + resumen del servidor (subtotal, totales y saldo del
+   * encabezado). Se actualiza el detalle a mano y no con `load()` para no pisar el formulario
+   * de datos de la orden si el usuario tiene cambios sin guardar.
+   */
   const refreshLinesOnWorkOrder = useCallback(async () => {
     if (!id) return
     const lines = await api<WorkOrderLine[]>(`/work-orders/${id}/lines`)
@@ -472,6 +423,23 @@ export function WorkOrderDetailPage() {
         linesSubtotal: linesSubtotal ?? prev.linesSubtotal,
       }
     })
+    // Totales y saldo los calcula el servidor: sin esto el encabezado queda desfasado hasta recargar.
+    try {
+      const detail = await api<WorkOrderDetail>(`/work-orders/${id}`)
+      const summaryPatch = (prev: WorkOrderDetail) => ({
+        lines,
+        linesSubtotal: detail.linesSubtotal ?? linesSubtotal ?? prev.linesSubtotal,
+        totals: detail.totals ?? prev.totals,
+        amountDue: detail.amountDue ?? prev.amountDue,
+        paymentSummary: detail.paymentSummary ?? prev.paymentSummary,
+      })
+      setWo((prev) => (prev ? { ...prev, ...summaryPatch(prev) } : prev))
+      queryClient.setQueryData<WorkOrderDetail>(queryKeys.workOrders.detail(id), (prev) =>
+        prev ? { ...prev, ...summaryPatch(prev) } : prev,
+      )
+    } catch {
+      /* si falla el resumen, igual quedaron actualizadas las líneas */
+    }
   }, [id, queryClient])
 
   useEffect(() => {
@@ -537,6 +505,8 @@ export function WorkOrderDetailPage() {
       can('work_orders:record_payment'),
     [can],
   )
+  /** Precio proveedor / costo: alineado con `actorMayViewWorkOrderCosts` (solo `reports:read`). */
+  const canViewWoCosts = useMemo(() => can('reports:read'), [can])
   /**
    * Mostrar formulario abono / pago total: permisos + caja abierta (no exigir estado aquí: si la OT está en
    * «Sin asignar» u otra etapa no cobrable, el usuario igual ve el bloque con aviso y el botón deshabilitado).
@@ -553,6 +523,9 @@ export function WorkOrderDetailPage() {
 
   const canSubmitWorkOrderPayment =
     paymentFormOpen && workOrderStatusAllowsPayment && wo != null && wo.amountDue != null
+
+  /** Saldo pendiente (numérico) para el resumen financiero del banner superior. */
+  const woAmountDueNum = wo?.amountDue != null ? Number(wo.amountDue) : 0
 
   /** Cobros en OT: solo con sesión de caja abierta (todos los roles; capa global). */
   const showCobrosCajaFull = !hideWorkOrderCashUi && cashOpen === true
@@ -636,13 +609,18 @@ export function WorkOrderDetailPage() {
   ])
 
   const detailRootClass = isSaas ? 'space-y-7' : 'space-y-8'
+  /**
+   * Cabecera fija al hacer scroll: se pega debajo de la barra superior del panel
+   * (`--va-app-header-h`) y por debajo de ella en `z-index` para no taparla.
+   */
+  const stickyHeaderClass = isSaas
+    ? 'sticky top-[var(--va-app-header-h,0px)] z-20 shadow-sm'
+    : 'sticky top-[var(--va-app-header-h,0px)] z-20 rounded-2xl border border-slate-200/85 bg-white/95 px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/95'
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
   const sectionCardClass = isSaas ? 'va-saas-page-section' : 'va-card'
   const sectionFlushClass = isSaas ? 'va-saas-page-section va-saas-page-section--flush' : 'va-card-flush overflow-hidden'
-  const financialStatTileClass = isSaas ? 'va-saas-panel-tile !p-4' : 'va-card !p-4'
-  const sectionHeadClass = isSaas ? 'va-saas-section-head' : 'border-b border-slate-100 px-4 py-3 sm:px-6 dark:border-slate-800'
 
   const canReopenDelivered =
     wo?.status === 'DELIVERED' && can('work_orders:reopen_delivered') && !cashierOnly
@@ -700,17 +678,13 @@ export function WorkOrderDetailPage() {
     return `Vuelto a entregar: $${formatCopFromString(String(ch))}.`
   }, [payAmt, payTender])
 
-  const editQtyIssue = useMemo(() => {
-    if (!editLine) return null
-    const q = Number(editQty)
-    if (editQty.trim() === '' || !Number.isFinite(q) || q < 0) return 'Cantidad inválida.'
-    return null
-  }, [editLine, editQty])
-
   async function addPartLine(opts: {
     description: string
     sku?: string | null
     unitPrice?: string
+    quantity?: string
+    discountAmount?: string
+    costSnapshot?: string
   }): Promise<false | 'added' | 'merged'> {
     if (!id || !canMutateLines) return false
     setMsg(null)
@@ -729,6 +703,7 @@ export function WorkOrderDetailPage() {
         } catch {
           await load()
         }
+        openLineEditor({ ...existingSkuLine, quantity: nextQty })
         return 'merged'
       }
       const payload: Record<string, unknown> = {
@@ -738,12 +713,13 @@ export function WorkOrderDetailPage() {
       }
       if (targetSku) payload.sparePartSku = targetSku
       if (opts.unitPrice) payload.unitPrice = opts.unitPrice
-      await postLine.mutateAsync(payload)
+      const created = (await postLine.mutateAsync(payload)) as WorkOrderLine
       try {
         await refreshLinesOnWorkOrder()
       } catch {
         await load()
       }
+      if (created?.id) openLineEditor(created)
       return 'added'
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
@@ -1073,8 +1049,8 @@ export function WorkOrderDetailPage() {
     }
   }
 
-  function scrollPaymentsIntoView() {
-    paymentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  function scrollCashModalToError() {
+    cashModalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function recordPayment(e: React.FormEvent) {
@@ -1086,20 +1062,20 @@ export function WorkOrderDetailPage() {
       setPayFormError(
         'Solo se puede cobrar con la orden en Recibida, En taller, Esperando repuestos o Lista. Cambiá el estado de la orden y reintentá.',
       )
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     if (!payAck) {
       setPayFormError(
         'Marcá la casilla de confirmación: revisaste tipo de cobro (abono o pago total), categoría, monto, efectivo recibido (si aplica), nota y saldo antes de registrar el cobro.',
       )
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     const pn = payNote.trim()
     if (pn.length < notesMinPayment) {
       setPayFormError(`Nota del cobro: al menos ${notesMinPayment} caracteres (política del taller).`)
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     const payAmtNorm = normalizeMoneyDecimalStringForApi(payAmt)
@@ -1107,13 +1083,13 @@ export function WorkOrderDetailPage() {
       setPayFormError(
         'Monto del cobro: solo pesos enteros; podés separar miles con punto (ej. 2.550.356).',
       )
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     const payN = Number(payAmtNorm)
     if (!Number.isFinite(payN) || payN <= 0) {
       setPayFormError('Ingresá un monto de cobro válido mayor a cero.')
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     const tenNorm = normalizeMoneyDecimalStringForApi(payTender)
@@ -1121,18 +1097,18 @@ export function WorkOrderDetailPage() {
       setPayFormError(
         'Efectivo recibido: solo pesos enteros; miles con punto (mismo criterio que el monto del cobro).',
       )
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     if (wo.amountDue == null) {
       setPayFormError('Tu perfil no puede ver importes de esta orden; el cobro lo registra caja.')
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     const dueNum = Number(normalizeMoneyDecimalStringForApi(wo.amountDue) || wo.amountDue)
     if (!Number.isFinite(dueNum) || dueNum <= 0) {
       setPayFormError('No hay saldo pendiente según el sistema; no se puede registrar un cobro desde acá.')
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     if (payKind === 'full') {
@@ -1140,14 +1116,14 @@ export function WorkOrderDetailPage() {
         setPayFormError(
           `Pago total: el monto debe ser exactamente el saldo pendiente ($${formatCopFromString(normalizeMoneyDecimalStringForApi(wo.amountDue) || wo.amountDue)}). Ajustá el importe o elegí «Abono».`,
         )
-        scrollPaymentsIntoView()
+        scrollCashModalToError()
         return
       }
     } else if (payN >= dueNum) {
       setPayFormError(
         'Con «Abono» el monto tiene que ser menor al saldo pendiente. Si querés liquidar todo, elegí «Pago total» (el monto se ajusta solo al saldo).',
       )
-      scrollPaymentsIntoView()
+      scrollCashModalToError()
       return
     }
     const catName = incomeCats.find((c) => c.slug === payCat)?.name ?? payCat
@@ -1192,13 +1168,13 @@ export function WorkOrderDetailPage() {
                 </span>
               </p>
               <p>
-                Subtotal líneas: <span className="font-mono font-medium">${wo.linesSubtotal}</span>
+                Subtotal líneas: <span className="font-mono font-medium">${formatCopFromString(wo.linesSubtotal ?? '0')}</span>
               </p>
               <p>
-                Ya cobrado en OT: <span className="font-mono font-medium">${wo.paymentSummary.totalPaid}</span>
+                Ya cobrado en OT: <span className="font-mono font-medium">${formatCopFromString(wo.paymentSummary.totalPaid ?? '0')}</span>
               </p>
               <p>
-                Saldo pendiente (cobro): <span className="font-mono font-medium">${wo.amountDue}</span>
+                Saldo pendiente (cobro): <span className="font-mono font-medium">${formatCopFromString(wo.amountDue ?? '0')}</span>
               </p>
             </div>
             {ten ? (
@@ -1261,7 +1237,7 @@ export function WorkOrderDetailPage() {
       const m = err instanceof Error ? err.message : 'Error al registrar el cobro'
       if (!(await showBlockingConflictModal(err))) {
         setPayFormError(m)
-        scrollPaymentsIntoView()
+        scrollCashModalToError()
       } else {
         setPayFormError(null)
       }
@@ -1315,66 +1291,102 @@ export function WorkOrderDetailPage() {
 
   function startEdit(ln: WorkOrderLine) {
     setEditLine(ln)
-    setEditQty(ln.quantity)
+    setEditQty(String(Number(ln.quantity)))
     setEditPrice(
-      ln.unitPrice != null ? normalizeMoneyDecimalStringForApi(String(ln.unitPrice)) : '',
+      ln.unitPrice != null && Number(ln.unitPrice) > 0
+        ? normalizeMoneyDecimalStringForApi(String(ln.unitPrice))
+        : '',
     )
     setEditDesc(ln.description ?? '')
-    setEditDiscount(ln.discountAmount ? normalizeMoneyDecimalStringForApi(String(ln.discountAmount)) : '')
+    setEditDiscount(
+      ln.discountAmount && Number(ln.discountAmount) > 0
+        ? normalizeMoneyDecimalStringForApi(String(ln.discountAmount))
+        : '',
+    )
+    setEditCost(
+      ln.costSnapshot && Number(ln.costSnapshot) > 0
+        ? normalizeMoneyDecimalStringForApi(String(ln.costSnapshot))
+        : '',
+    )
     setEditTaxRateId(ln.taxRateId ?? '')
+    setAutoEditLineId(null)
+  }
+
+  /** Repuesto recién agregado: la fila queda abierta para cargar cantidad/valor/descuento. */
+  function openLineEditor(ln: WorkOrderLine) {
+    startEdit(ln)
+    setAutoEditLineId(ln.id)
+  }
+
+  function cancelEdit() {
+    setEditLine(null)
+    setAutoEditLineId(null)
   }
 
   async function saveEdit() {
     if (!id || !editLine || !canUpdateLine) return
+    // Si mientras guarda el usuario abrió otra fila, no se la cerramos al terminar.
+    const editingId = editLine.id
     setMsg(null)
-    if (editQtyIssue) {
-      setMsg(editQtyIssue)
+    if (!editDesc.trim()) {
+      setMsg('La descripción de la línea no puede quedar vacía.')
       return
     }
-    const editUp = canViewWoFinancials ? normalizeMoneyDecimalStringForApi(editPrice) : ''
-    if (canViewWoFinancials && editUp && !API_MONEY_DECIMAL_REGEX.test(editUp)) {
-      setMsg('Precio unitario: solo pesos enteros; miles con punto.')
+    const qty = editQty.trim()
+    if (!qty || !Number.isFinite(Number(qty)) || Number(qty) <= 0) {
+      setMsg('La cantidad debe ser mayor a cero.')
       return
     }
-    const editDiscountNorm = canViewWoFinancials && editDiscount.trim()
-      ? normalizeMoneyDecimalStringForApi(editDiscount)
-      : ''
-    if (editDiscountNorm && !API_MONEY_DECIMAL_REGEX.test(editDiscountNorm)) {
-      setMsg('Descuento: solo pesos enteros; miles con punto.')
+    const up = canViewWoFinancials && editPrice.trim() ? normalizeMoneyDecimalStringForApi(editPrice) : ''
+    if (up && !API_MONEY_DECIMAL_REGEX.test(up)) {
+      setMsg('Valor: solo pesos enteros; los miles con punto.')
+      return
+    }
+    const disc = canViewWoFinancials && editDiscount.trim() ? normalizeMoneyDecimalStringForApi(editDiscount) : ''
+    if (disc && !API_MONEY_DECIMAL_REGEX.test(disc)) {
+      setMsg('Descuento: solo pesos enteros; los miles con punto.')
+      return
+    }
+    const cost = canViewWoCosts && editCost.trim() ? normalizeMoneyDecimalStringForApi(editCost) : ''
+    if (cost && !API_MONEY_DECIMAL_REGEX.test(cost)) {
+      setMsg('Precio proveedor: solo pesos enteros; los miles con punto.')
+      return
+    }
+    if (disc && up && Number(disc) > Number(up) * Number(qty)) {
+      setMsg('El descuento no puede superar el total de la línea.')
       return
     }
     // null explícito = borrar la tasa anterior; undefined = no tocar; string = setear.
     const taxRatePatch = editTaxRateId === '' ? null : editTaxRateId
-    const discountPatch = canViewWoFinancials
-      ? editDiscountNorm
-        ? editDiscountNorm
-        : editDiscount === ''
-          ? null
-          : undefined
-      : undefined
 
     try {
       const body: Record<string, unknown> = {
-        quantity: editQty,
+        quantity: qty,
+        description: editDesc.trim(),
       }
       if (canViewWoFinancials) {
-        body.unitPrice = editUp || null
-        if (discountPatch !== undefined) body.discountAmount = discountPatch
+        body.unitPrice = up || null
+        body.discountAmount = disc || null
       }
-      body.description = editDesc.trim()
+      if (canViewWoCosts) body.costSnapshot = cost || null
       // Solo emitimos taxRateId cuando cambió respecto al valor actual (evita escribir por nada).
       if ((editLine.taxRateId ?? null) !== taxRatePatch) body.taxRateId = taxRatePatch
       await patchLine.mutateAsync({
         lineId: editLine.id,
         body,
       })
-      setEditLine(null)
+      setEditLine((cur) => (cur?.id === editingId ? null : cur))
+      setAutoEditLineId((cur) => (cur === editingId ? null : cur))
       try {
         await refreshLinesOnWorkOrder()
       } catch {
         await load()
       }
-      setMsg('Línea actualizada')
+      setMsg(
+        canViewWoFinancials && !up
+          ? 'Línea guardada sin valor unitario: la orden no se podrá cobrar hasta que lo cargues.'
+          : 'Línea actualizada',
+      )
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al guardar')
@@ -1403,8 +1415,12 @@ export function WorkOrderDetailPage() {
   const showLineActionsColumn =
     !closed &&
     wo.lines.some(() => Boolean(canUpdateLine || canDeleteLine))
-  const linePriceColCount = canViewWoFinancials ? 2 : 0
-  const lineTableColSpan = 3 + linePriceColCount + (showLineActionsColumn ? 1 : 0)
+  /** Cant. + Detalle + Tipo (3) · P. unit. + Descuento + Importe (3) · P. proveedor (1) · acciones (1). */
+  const lineTableColSpan =
+    3 +
+    (canViewWoFinancials ? 3 : 0) +
+    (canViewWoCosts ? 1 : 0) +
+    (showLineActionsColumn ? 1 : 0)
 
   const workshopAssignmentBlock = () => (
     <Fragment>
@@ -1461,6 +1477,7 @@ export function WorkOrderDetailPage() {
   return (
     <div className={detailRootClass}>
       <PageHeader
+        rootClassName={stickyHeaderClass}
         beforeTitle={
           <Link to={portalPath('/ordenes')} className={backLinkClass}>
             ← Órdenes
@@ -1515,34 +1532,91 @@ export function WorkOrderDetailPage() {
             )}
           </>
         }
+        actions={
+          <div className="flex flex-col items-end gap-3">
+            {!hideWorkOrderCashUi && canViewWoFinancials ? (
+              <div className="flex flex-wrap items-start justify-end gap-x-6 gap-y-2">
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Subtotal líneas
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50 sm:text-3xl">
+                    ${formatCopFromString(wo.linesSubtotal ?? '0')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Cobrado
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50 sm:text-3xl">
+                    ${formatCopFromString(wo.paymentSummary.totalPaid ?? '0')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Saldo pendiente
+                  </p>
+                  <p
+                    className={`mt-1 font-mono text-2xl font-semibold tabular-nums sm:text-3xl ${
+                      woAmountDueNum > 0
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}
+                  >
+${formatCopFromString(wo.amountDue ?? '0')}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void openAuthenticatedHtml(
+                    `/work-orders/${wo.id}/receipt?autoprint=1`,
+                    `Comprobante OT ${wo.publicCode}`,
+                  ).catch((err) => {
+                    setMsg(
+                      err instanceof Error
+                        ? err.message
+                        : 'No se pudo abrir el comprobante',
+                    )
+                  })
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                title="Abrir comprobante interno imprimible (no es factura electrónica)"
+              >
+                Imprimir comprobante
+              </button>
+              {canPatchWo ? (
+                <button
+                  type="button"
+                  onClick={() => setOrderDataModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-800 shadow-sm hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950/60 dark:text-brand-200 dark:hover:bg-brand-900/70"
+                  title="Editar datos de la orden (descripción, cliente, vehículo y kilometraje)"
+                >
+                  Editar datos de la orden
+                </button>
+              ) : null}
+              {!hideWorkOrderCashUi ? (
+                <button
+                  type="button"
+                  onClick={() => setCashModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200 dark:hover:bg-emerald-900/70"
+                  title="Ver cobros de esta orden y registrar abonos o pago total"
+                >
+                  Cobros en caja
+                </button>
+              ) : null}
+            </div>
+          </div>
+        }
       />
       {msg && (
         <p className="va-card-muted" role="status" aria-live="polite">
           {msg}
         </p>
       )}
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            void openAuthenticatedHtml(
-              `/work-orders/${wo.id}/receipt?autoprint=1`,
-              `Comprobante OT ${wo.publicCode}`,
-            ).catch((err) => {
-              setMsg(
-                err instanceof Error
-                  ? err.message
-                  : 'No se pudo abrir el comprobante',
-              )
-            })
-          }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-          title="Abrir comprobante interno imprimible (no es factura electrónica)"
-        >
-          Imprimir comprobante
-        </button>
-      </div>
 
       {wo.parentWorkOrder ? (
           <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/90 px-4 py-3 text-sm text-violet-950 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-50">
@@ -1623,19 +1697,6 @@ export function WorkOrderDetailPage() {
             </ul>
           </div>
         ) : null}
-
-      {canPatchWo && (
-        <section className={sectionCardClass}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="va-section-title">Datos de la orden</h2>
-            </div>
-            <button type="button" onClick={() => setOrderDataModalOpen(true)} className="va-btn-primary">
-              Editar datos de la orden
-            </button>
-          </div>
-        </section>
-      )}
 
       {canPatchWo && orderDataModalOpen && (
         <div className="va-modal-overlay" role="presentation" onClick={() => setOrderDataModalOpen(false)}>
@@ -1887,27 +1948,6 @@ export function WorkOrderDetailPage() {
         </div>
       ) : null}
 
-      {!hideWorkOrderCashUi && canViewWoFinancials && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className={financialStatTileClass}>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-300">Subtotal líneas</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">${wo.linesSubtotal}</p>
-          </div>
-          <div className={financialStatTileClass}>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-300">Cobrado</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">${wo.paymentSummary.totalPaid}</p>
-          </div>
-          <div className={financialStatTileClass}>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-300">Saldo pendiente</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">${wo.amountDue}</p>
-          </div>
-        </div>
-      )}
-
-      {!hideWorkOrderCashUi && canViewWoFinancials && wo.totals && (
-        <WorkOrderTotalsPanel totals={wo.totals} canSeeCosts={canRef.current('reports:read')} />
-      )}
-
       {closed && (
         <>
           <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/80 dark:bg-amber-950/40 dark:text-amber-100">
@@ -1970,12 +2010,41 @@ export function WorkOrderDetailPage() {
         </>
       )}
 
-      {showCobrosCajaBlocked && (
-        <section className={sectionFlushClass}>
-          <div className={sectionHeadClass}>
-            <h2 className="va-section-title">Cobros en caja</h2>
-          </div>
-          <div className="space-y-3 px-4 py-5 sm:px-6">
+      {cashModalOpen && !hideWorkOrderCashUi && (
+        <div
+          className="va-modal-overlay z-[70]"
+          role="presentation"
+          onClick={() => setCashModalOpen(false)}
+        >
+          <div
+            className="flex max-h-[min(92dvh,56rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wo-cash-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-6">
+              <div>
+                <h2 id="wo-cash-modal-title" className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+                  Cobros en caja · {wo.publicCode}{' '}
+                  <span className="text-sm font-normal text-slate-500 dark:text-slate-300">(#{wo.orderNumber})</span>
+                </h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Cobros de esta orden y alta de abonos o pago total.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCashModalOpen(false)}
+                aria-label="Cerrar ventana de cobros"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-lg leading-none text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                ×
+              </button>
+            </div>
+            <div ref={cashModalBodyRef} className="min-h-0 flex-1 overflow-y-auto">
+              {showCobrosCajaBlocked && (
+                <div className="space-y-3 px-4 py-5 sm:px-6">
             {cashOpen === null ? (
               <p className="text-sm text-slate-600 dark:text-slate-300">Consultando estado de caja…</p>
             ) : cashOpenLoadStatus === 'error' ? (
@@ -2022,16 +2091,11 @@ export function WorkOrderDetailPage() {
                 </div>
               </>
             )}
-          </div>
-        </section>
-      )}
-
-      {showCobrosCajaFull && (
-      <section ref={paymentsSectionRef} className={sectionFlushClass}>
-        <div className={sectionHeadClass}>
-          <h2 className="va-section-title">Cobros en caja</h2>
-        </div>
-        {payFormError && (
+              </div>
+              )}
+              {showCobrosCajaFull && (
+                <div>
+                  {payFormError && (
           <p
             className="va-alert-error-strip"
             role="alert"
@@ -2156,7 +2220,7 @@ export function WorkOrderDetailPage() {
               </div>
               {payKind === 'full' && (
                 <p className="mt-2 text-xs text-amber-800 dark:text-amber-200/90">
-                  El monto se fija al saldo pendiente (${wo.amountDue}). Al confirmar no se podrán editar líneas ni montos
+                  El monto se fija al saldo pendiente (${formatCopFromString(wo.amountDue ?? '0')}). Al confirmar no se podrán editar líneas ni montos
                   hasta una reapertura por administración o dueño.
                 </p>
               )}
@@ -2251,15 +2315,15 @@ export function WorkOrderDetailPage() {
               </div>
             </div>
           </form>
-        )}
-      </section>
+              )}
+              </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <section className={sectionFlushClass}>
-        <div className={sectionHeadClass}>
-          <h2 className="va-section-title">Líneas</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-300">Repuestos (stock) y mano de obra.</p>
-        </div>
         {canMutateLines && (
           <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-5">
             <div className="va-tabstrip max-w-md">
@@ -2429,7 +2493,7 @@ export function WorkOrderDetailPage() {
         )}
         <div className="va-table-scroll">
           <table
-            className={`va-table ${showLineActionsColumn || linePriceColCount ? 'min-w-[640px]' : 'min-w-[480px]'}`}
+            className={`va-table ${lineTableColSpan >= 7 ? 'min-w-[760px]' : 'min-w-[480px]'}`}
           >
             <thead>
               <tr className="va-table-head-row">
@@ -2439,9 +2503,11 @@ export function WorkOrderDetailPage() {
                 {canViewWoFinancials ? (
                   <>
                     <th className="va-table-th">P. unit.</th>
-                    <th className="va-table-th">Importe</th>
+                    <th className="va-table-th">Descuento</th>
                   </>
                 ) : null}
+                {canViewWoCosts ? <th className="va-table-th">P. proveedor</th> : null}
+                {canViewWoFinancials ? <th className="va-table-th">Importe</th> : null}
                 {showLineActionsColumn ? <th className="va-table-th" /> : null}
               </tr>
             </thead>
@@ -2456,8 +2522,27 @@ export function WorkOrderDetailPage() {
                   </td>
                 </tr>
               )}
-              {wo.lines.map((ln) => (
-                <tr key={ln.id} className="va-table-body-row">
+              {wo.lines.map((ln) => {
+                const editing = editLine?.id === ln.id
+                const lineInputClass = 'va-field px-2 py-1 text-right text-xs'
+                // Fila recién agregada: enfoca el valor si falta, si no la cantidad.
+                const focusTarget =
+                  editing && autoEditLineId === ln.id
+                    ? Number(ln.unitPrice ?? 0) > 0
+                      ? 'qty'
+                      : 'price'
+                    : null
+                return (
+                <tr
+                  key={ln.id}
+                  className="va-table-body-row"
+                  onBlur={(e) => {
+                    if (!editing) return
+                    const next = e.relatedTarget as Node | null
+                    if (next && e.currentTarget.contains(next)) return
+                    void saveEdit()
+                  }}
+                >
                   <td className="va-table-td">
                     <span
                       className={
@@ -2470,161 +2555,220 @@ export function WorkOrderDetailPage() {
                     </span>
                   </td>
                   <td className="va-table-td min-w-0 max-w-xs text-slate-700 dark:text-slate-300">
-                    <span className="line-clamp-2">{ln.description ?? '—'}</span>
-                    {ln.sparePartSku ? (
-                      <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900/70 dark:text-violet-100">
-                        {ln.sparePartSku}
-                      </span>
-                    ) : null}
+                    {editing ? (
+                      <>
+                        <input
+                          value={editDesc}
+                          onChange={(e) => setEditDesc(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              void saveEdit()
+                            }
+                          }}
+                          className="va-field px-2 py-1 text-xs"
+                          aria-label="Descripción de la línea"
+                        />
+                        {ln.lineType === 'LABOR' && canViewWoFinancials && taxRatesCatalog.length > 0 ? (
+                          <select
+                            value={editTaxRateId}
+                            onChange={(e) => setEditTaxRateId(e.target.value)}
+                            className="va-field mt-1 px-2 py-1 text-xs"
+                            aria-label="Impuesto de la línea"
+                          >
+                            <option value="">— Sin impuesto —</option>
+                            {taxRatesCatalog.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.kind})
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <span className="line-clamp-2">{ln.description ?? '—'}</span>
+                        {ln.sparePartSku ? (
+                          <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900/70 dark:text-violet-100">
+                            {ln.sparePartSku}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
                   </td>
                   <td className="va-table-td font-mono text-slate-800 dark:text-slate-200">
-                    {ln.quantity}
+                    {editing ? (
+                      <input
+                        value={editQty}
+                        onChange={(e) => setEditQty(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void saveEdit()
+                          }
+                        }}
+                        autoFocus={focusTarget === 'qty'}
+                        inputMode="decimal"
+                        autoComplete="off"
+                        className={lineInputClass}
+                        aria-label="Cantidad de la línea"
+                      />
+                    ) : (
+                      ln.quantity
+                    )}
                   </td>
                   {canViewWoFinancials ? (
                     <>
                       <td className="va-table-td font-mono text-slate-600 dark:text-slate-300">
-                        {ln.unitPrice != null ? (
+                        {editing ? (
+                          <input
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                void saveEdit()
+                              }
+                            }}
+                            autoFocus={focusTarget === 'price'}
+                            inputMode="decimal"
+                            autoComplete="off"
+                            className={lineInputClass}
+                            placeholder="0"
+                            aria-label="Precio unitario de la línea"
+                          />
+                        ) : ln.unitPrice != null ? (
                           <>
                             ${formatCopFromString(normalizeMoneyDecimalStringForApi(String(ln.unitPrice)))}
+                            {ln.taxRatePercentSnapshot && Number(ln.taxRatePercentSnapshot) > 0 ? (
+                              <span className="ml-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                +{Number(ln.taxRatePercentSnapshot).toString()}%
+                              </span>
+                            ) : null}
                           </>
                         ) : (
                           '—'
                         )}
-                        {ln.discountAmount && Number(ln.discountAmount) > 0 ? (
-                          <span className="ml-1 text-[10px] text-amber-700 dark:text-amber-300">
-                            −${formatCopFromString(String(ln.discountAmount))}
-                          </span>
-                        ) : null}
-                        {ln.taxRatePercentSnapshot && Number(ln.taxRatePercentSnapshot) > 0 ? (
-                          <span className="ml-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            +{Number(ln.taxRatePercentSnapshot).toString()}%
-                          </span>
-                        ) : null}
                       </td>
-                      <td className="va-table-td font-medium tabular-nums text-slate-900 dark:text-slate-50">
-                        {ln.totals
-                          ? `$${formatCopFromString(ln.totals.lineTotal)}`
-                          : lineMoney(ln) === '—'
-                            ? '—'
-                            : `$${formatCopFromString(lineMoney(ln))}`}
+                      <td className="va-table-td font-mono text-slate-600 dark:text-slate-300">
+                        {editing ? (
+                          <input
+                            value={editDiscount}
+                            onChange={(e) => setEditDiscount(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                void saveEdit()
+                              }
+                            }}
+                            inputMode="decimal"
+                            autoComplete="off"
+                            className={lineInputClass}
+                            placeholder="0"
+                            aria-label="Descuento de la línea"
+                          />
+                        ) : ln.discountAmount && Number(ln.discountAmount) > 0 ? (
+                          `−$${formatCopFromString(String(ln.discountAmount))}`
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     </>
                   ) : null}
+                  {canViewWoCosts ? (
+                    <td className="va-table-td font-mono text-slate-500 dark:text-slate-400">
+                      {editing && ln.lineType === 'PART' ? (
+                        <input
+                          value={editCost}
+                          onChange={(e) => setEditCost(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              void saveEdit()
+                            }
+                          }}
+                          inputMode="decimal"
+                          autoComplete="off"
+                          className={lineInputClass}
+                          placeholder="0"
+                          aria-label="Precio proveedor de la línea"
+                        />
+                      ) : ln.lineType === 'PART' && ln.costSnapshot && Number(ln.costSnapshot) > 0 ? (
+                        `$${formatCopFromString(String(ln.costSnapshot))}`
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  ) : null}
+                  {canViewWoFinancials ? (
+                    <td className="va-table-td font-medium tabular-nums text-slate-900 dark:text-slate-50">
+                      {ln.totals
+                        ? `$${formatCopFromString(ln.totals.lineTotal)}`
+                        : lineMoney(ln) === '—'
+                          ? '—'
+                          : `$${formatCopFromString(lineMoney(ln))}`}
+                    </td>
+                  ) : null}
                   {showLineActionsColumn ? (
                     <td className="va-table-td">
-                      <div className="flex flex-wrap gap-2">
-                        {canUpdateLine ? (
-                          <button
-                            type="button"
-                            onClick={() => startEdit(ln)}
-                            className="text-xs font-medium text-brand-700 hover:underline dark:text-brand-300"
-                          >
-                            Editar
-                          </button>
-                        ) : null}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {editing ? (
+                          <>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => void saveEdit()}
+                              title="Guardar línea"
+                              aria-label="Guardar línea"
+                              className="rounded-lg border border-brand-200 bg-white p-1.5 text-brand-700 hover:bg-brand-50 disabled:opacity-40 dark:border-brand-800/60 dark:bg-slate-800 dark:text-brand-300 dark:hover:bg-slate-700"
+                            >
+                              <Check className="size-4" strokeWidth={1.75} />
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={cancelEdit}
+                              title="Cancelar edición"
+                              aria-label="Cancelar edición"
+                              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                            >
+                              <X className="size-4" strokeWidth={1.75} />
+                            </button>
+                          </>
+                        ) : (
+                          canUpdateLine && (
+                            <button
+                              type="button"
+                              onClick={() => startEdit(ln)}
+                              title="Editar línea"
+                              aria-label="Editar línea"
+                              className="rounded-lg border border-slate-200 bg-white p-1.5 text-brand-700 hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-800 dark:text-brand-300 dark:hover:bg-slate-700"
+                            >
+                              <Pencil className="size-4" strokeWidth={1.75} />
+                            </button>
+                          )
+                        )}
                         {canDeleteLine ? (
                           <button
                             type="button"
                             onClick={() => void removeLine(ln.id)}
-                            className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                            title="Quitar línea"
+                            aria-label="Quitar línea"
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-red-600 hover:bg-red-50 dark:border-slate-600 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-slate-700"
                           >
-                            Quitar
+                            <Trash2 className="size-4" strokeWidth={1.75} />
                           </button>
                         ) : null}
                       </div>
                     </td>
                   ) : null}
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
       </section>
-
-      {editLine && canUpdateLine ? (
-        <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-800/60 dark:bg-brand-900/35 sm:p-6">
-          <h3 className="va-section-title text-sm">Editar línea</h3>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm">
-                <span className="va-label">Cantidad</span>
-                <input
-                  value={editQty}
-                  onChange={(e) => setEditQty(e.target.value)}
-                  className="va-field mt-1"
-                  step="any"
-                  min={0}
-                  inputMode="decimal"
-                />
-                {editQtyIssue ? (
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{editQtyIssue}</p>
-                ) : null}
-              </label>
-              <label className="block text-sm">
-                <span className="va-label">Precio unitario</span>
-                <input
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(editPrice))}
-                  onChange={(e) => setEditPrice(normalizeMoneyDecimalStringForApi(e.target.value))}
-                  className="va-field mt-1"
-                  placeholder="Opcional"
-                />
-              </label>
-              <label className="block text-sm sm:col-span-2">
-                <span className="va-label">Descripción</span>
-                <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="va-field mt-1" />
-              </label>
-            {editLine.lineType === 'LABOR' && canViewWoFinancials && taxRatesCatalog.length > 0 ? (
-              <label className="block text-sm">
-                <span className="va-label">Impuesto (opcional)</span>
-                <select
-                  value={editTaxRateId}
-                  onChange={(e) => setEditTaxRateId(e.target.value)}
-                  className="va-field mt-1"
-                >
-                  <option value="">— Sin impuesto —</option>
-                  {taxRatesCatalog.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.kind})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {canViewWoFinancials ? (
-              <label className="block text-sm">
-                <span className="va-label">Descuento COP (opcional)</span>
-                <input
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(editDiscount))}
-                  onChange={(e) => setEditDiscount(normalizeMoneyDecimalStringForApi(e.target.value))}
-                  className="va-field mt-1"
-                  placeholder="ej. 5.000"
-                />
-              </label>
-            ) : null}
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => void saveEdit()}
-              disabled={!!editQtyIssue}
-              className="va-btn-primary disabled:opacity-50"
-            >
-              Guardar
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditLine(null)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {consentModal === 'view' && wo.clientConsentSignedAt && wo.clientSignaturePngBase64 ? (
         <ClientConsentSignedModal
           orderNumber={wo.orderNumber}
