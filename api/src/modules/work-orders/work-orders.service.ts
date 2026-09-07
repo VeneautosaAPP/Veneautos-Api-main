@@ -353,7 +353,11 @@ export class WorkOrdersService {
           { publicCode: { contains: term, mode: 'insensitive' } },
           { description: { contains: term, mode: 'insensitive' } },
           { customerName: { contains: term, mode: 'insensitive' } },
+          { customerPhone: { contains: term, mode: 'insensitive' } },
           { vehiclePlate: { contains: term, mode: 'insensitive' } },
+          { vehicleBrand: { contains: term, mode: 'insensitive' } },
+          { vehicleModel: { contains: term, mode: 'insensitive' } },
+          { invoices: { some: { documentNumber: { contains: term, mode: 'insensitive' } } } },
         ],
       });
     }
@@ -446,10 +450,15 @@ export class WorkOrdersService {
       ...ln,
       totals: serializeLineTotals(computeLineTotals(linesForTotals[idx])),
     }));
-
     const { _count, ...rest } = row;
     const mayViewFinancials = actorMayViewWorkOrderFinancials(actor);
     const mayViewCosts = actorMayViewWorkOrderCosts(actor);
+    // Precio proveedor (`costSnapshot`): solo `reports:read`; importes: solo perfiles financieros.
+    const linesForActor = linesWithTotals.map((ln) => ({
+      ...ln,
+      ...(mayViewFinancials ? {} : { unitPrice: null, totals: null }),
+      ...(mayViewCosts ? {} : { costSnapshot: null }),
+    }));
     const totalsSerialized = serializeWorkOrderTotals(totals);
     // Costo / utilidad son sensibles; solo para `reports:read` (administración / dueño).
     const totalsForActor = mayViewCosts
@@ -459,7 +468,7 @@ export class WorkOrdersService {
     const detail = {
       ...rest,
       authorizedAmount: null,
-      lines: linesWithTotals,
+      lines: linesForActor,
       linesSubtotal: linesSubtotalCeiled.toString(),
       amountDue,
       totals: totalsForActor,
@@ -477,11 +486,7 @@ export class WorkOrdersService {
     return {
       ...detail,
       authorizedAmount: null,
-      lines: linesWithTotals.map((ln) => ({
-        ...ln,
-        unitPrice: null,
-        totals: null,
-      })),
+      lines: linesForActor,
       linesSubtotal: null,
       amountDue: null,
       totals: null,

@@ -51,4 +51,15 @@ export class CreateWorkOrderLineDto {
     message: 'Descuento: solo pesos enteros en dígitos, sin decimales',
   })
   discountAmount?: string;
+
+  /**
+   * Precio proveedor (costo) en COP enteros. Solo perfiles con `reports:read`
+   * (administración / dueño) pueden cargarlo. No se muestra en la factura.
+   */
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_DECIMAL_REGEX, {
+    message: 'Precio proveedor: solo pesos enteros en dígitos, sin decimales',
+  })
+  costSnapshot?: string;
 }

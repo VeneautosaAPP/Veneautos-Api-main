@@ -54,18 +54,20 @@ export class WorkOrderLinesService {
     private readonly workOrders: WorkOrdersService,
   ) {}
 
-  /** Quien ve importes en OT puede ver `unitPrice`; los demás lo ven nulo junto con totos. */
-  private redactLineForActor<T extends { unitPrice: unknown; totals?: unknown }>(
-    actor: JwtUserPayload,
-    line: T,
-  ): T {
-    if (actorMayViewWorkOrderFinancials(actor)) {
-      return line;
-    }
+  /**
+   * Quien ve importes en OT puede ver `unitPrice`; los demás lo ven nulo junto con los totales.
+   * `costSnapshot` (precio proveedor) es más sensible: solo `reports:read` (administración / dueño).
+   */
+  private redactLineForActor<
+    T extends { unitPrice: unknown; totals?: unknown; costSnapshot?: unknown },
+  >(actor: JwtUserPayload, line: T): T {
+    const mayFin = actorMayViewWorkOrderFinancials(actor);
+    const mayCosts = actorMayViewWorkOrderCosts(actor);
+    if (mayFin && mayCosts) return line;
     return {
       ...line,
-      unitPrice: null,
-      totals: null,
+      ...(mayFin ? {} : { unitPrice: null, totals: null }),
+      ...(mayCosts ? {} : { costSnapshot: null }),
     } as T;
   }
 
@@ -226,6 +228,12 @@ export class WorkOrderLinesService {
         ? decimalFromMoneyApiString(dto.discountAmount)
         : null
 
+    // Precio proveedor: sensible, solo `reports:read` (administración / dueño).
+    const costForSave =
+      actorMayViewWorkOrderCosts(actor) && dto.costSnapshot?.trim()
+        ? decimalFromMoneyApiString(dto.costSnapshot)
+        : null
+
     const line = await this.prisma.$transaction(async (tx) => {
       await this.lockWorkOrder(tx, workOrderId);
       await this.assertWorkOrderEditable(tx, workOrderId);
@@ -244,6 +252,7 @@ export class WorkOrderLinesService {
           quantity: qty,
           unitPrice: unitPriceForSave,
           discountAmount: discountForSave,
+          costSnapshot: costForSave,
         },
         include: lineInclude,
       });
@@ -291,6 +300,12 @@ export class WorkOrderLinesService {
     ) {
       throw new ForbiddenException(
         'No tenés permiso para cargar o cambiar importes en líneas de orden. Pedile a caja o administración.',
+      )
+    }
+
+    if (dto.costSnapshot !== undefined && !actorMayViewWorkOrderCosts(actor)) {
+      throw new ForbiddenException(
+        'No tenés permiso para cargar o cambiar el precio proveedor. Pedile a administración.',
       )
     }
 
@@ -380,6 +395,12 @@ export class WorkOrderLinesService {
           taxRatePercentSnapshot: taxRatePercentSnapshotPatch,
           sparePartSku: sparePartSkuPatch,
           description: descriptionPatch,
+          costSnapshot:
+            dto.costSnapshot === undefined
+              ? undefined
+              : dto.costSnapshot === null
+                ? null
+                : decimalFromMoneyApiString(dto.costSnapshot),
         },
         include: lineInclude,
       });
