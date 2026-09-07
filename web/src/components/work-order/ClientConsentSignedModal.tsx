@@ -56,7 +56,7 @@ export function ClientConsentSignedModal({
           />
         </div>
 
-        <div className="shrink-0 border-t border-slate-100 bg-slate-50/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:px-6">
+        <div className="shrink-0 border-t border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950 sm:px-6">
           <button
             type="button"
             onClick={onClose}

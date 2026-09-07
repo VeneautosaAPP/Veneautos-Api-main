@@ -58,9 +58,9 @@ const CN_DN_STATUS_LABEL: Record<'DRAFT' | 'ISSUED' | 'VOIDED', string> = {
 function NoteStatusBadge({ status }: { status: 'DRAFT' | 'ISSUED' | 'VOIDED' }) {
   const tone =
     status === 'ISSUED'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
       : status === 'VOIDED'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'
+        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200'
         : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone}`}>
@@ -83,9 +83,9 @@ function emptyDebitLine(): DebitLineForm {
 function StatusBadge({ status }: { status: InvoiceStatus }) {
   const tone =
     status === 'ISSUED'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
       : status === 'VOIDED'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'
+        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200'
         : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>
@@ -387,7 +387,7 @@ export function InvoiceDetailPage() {
       <div className="space-y-4">
         <PageHeader title="Factura" />
         {msg && (
-          <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
+          <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
             {msg}
           </div>
         )}
@@ -421,7 +421,7 @@ export function InvoiceDetailPage() {
       />
 
       {msg && (
-        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           {msg}
         </div>
       )}
@@ -555,7 +555,7 @@ export function InvoiceDetailPage() {
           </h2>
         </header>
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500 dark:bg-slate-900/50 dark:text-slate-400">
+          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">Descripción</th>
               <th className="px-4 py-2 text-right">Cantidad</th>
@@ -678,7 +678,7 @@ export function InvoiceDetailPage() {
       {showPayForm && canPay && (
         <form
           onSubmit={doRecordPayment}
-          className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/40"
+          className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950"
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
@@ -737,7 +737,7 @@ export function InvoiceDetailPage() {
             />
           </label>
           {payMsg && (
-            <div className="rounded-md bg-rose-100 p-2 text-sm text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
+            <div className="rounded-md bg-rose-100 p-2 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
               {payMsg}
             </div>
           )}
@@ -804,7 +804,7 @@ export function InvoiceDetailPage() {
                   </div>
                 </div>
                 {cnVoidingId === cn.id && (
-                  <div className="mt-2 flex flex-col gap-2 rounded-md bg-rose-50 p-2 dark:bg-rose-950/40">
+                  <div className="mt-2 flex flex-col gap-2 rounded-md bg-rose-50 p-2 dark:bg-rose-950">
                     <textarea
                       value={cnVoidReason}
                       onChange={(e) => setCnVoidReason(e.target.value)}
@@ -884,7 +884,7 @@ export function InvoiceDetailPage() {
                   </div>
                 </div>
                 {dnVoidingId === dn.id && (
-                  <div className="mt-2 flex flex-col gap-2 rounded-md bg-rose-50 p-2 dark:bg-rose-950/40">
+                  <div className="mt-2 flex flex-col gap-2 rounded-md bg-rose-50 p-2 dark:bg-rose-950">
                     <textarea
                       value={dnVoidReason}
                       onChange={(e) => setDnVoidReason(e.target.value)}
@@ -950,7 +950,7 @@ export function InvoiceDetailPage() {
       {showVoidForm && (
         <form
           onSubmit={doVoid}
-          className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/40"
+          className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950"
         >
           <label className="block text-sm font-medium text-rose-900 dark:text-rose-100">
             Motivo de anulación
@@ -986,7 +986,7 @@ export function InvoiceDetailPage() {
       {showCnForm && (
         <form
           onSubmit={doCreditNote}
-          className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/40"
+          className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950"
         >
           <div>
             <label className="block text-sm font-medium text-amber-900 dark:text-amber-100">
@@ -1039,7 +1039,7 @@ export function InvoiceDetailPage() {
       {showDnForm && (
         <form
           onSubmit={doDebitNote}
-          className="space-y-3 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-900/50 dark:bg-sky-950/40"
+          className="space-y-3 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950"
         >
           <div className="grid gap-2 md:grid-cols-2">
             <div>
@@ -1148,7 +1148,7 @@ export function InvoiceDetailPage() {
           </div>
 
           {dnMsg && (
-            <div className="rounded-md bg-rose-100 p-2 text-xs text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
+            <div className="rounded-md bg-rose-100 p-2 text-xs text-rose-800 dark:bg-rose-950 dark:text-rose-200">
               {dnMsg}
             </div>
           )}

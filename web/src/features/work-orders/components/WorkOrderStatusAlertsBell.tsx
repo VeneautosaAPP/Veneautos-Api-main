@@ -96,7 +96,7 @@ export function WorkOrderStatusAlertsBell({
         <div
           role="dialog"
           aria-label="Órdenes pendientes por estado"
-          className="absolute right-0 top-[calc(100%+0.35rem)] z-[80] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-slate-200/90 bg-white py-2 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+          className="absolute right-0 top-[calc(100%+0.35rem)] z-[80] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-600 dark:bg-slate-900"
         >
           <div className="border-b border-slate-100 px-3 pb-2 dark:border-slate-700">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -117,7 +117,7 @@ export function WorkOrderStatusAlertsBell({
                 <li key={status}>
                   <button
                     type="button"
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 dark:hover:bg-slate-800/80"
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     onClick={() => {
                       void navigate(`${portalPath('/ordenes')}?status=${encodeURIComponent(status)}`)
                     }}

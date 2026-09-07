@@ -89,14 +89,14 @@ const STATUS: Record<WorkOrderStatus, { label: string; tone: string }> = {
     tone: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
   },
   RECEIVED: { label: 'Recibida', tone: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
-  IN_WORKSHOP: { label: 'En taller', tone: 'bg-blue-50 text-blue-800 dark:bg-blue-900/75 dark:text-blue-50' },
+  IN_WORKSHOP: { label: 'En taller', tone: 'bg-blue-50 text-blue-800 dark:bg-blue-900 dark:text-blue-50' },
   WAITING_PARTS: {
     label: 'Esperando repuestos',
-    tone: 'bg-amber-50 text-amber-900 dark:bg-amber-900/75 dark:text-amber-50',
+    tone: 'bg-amber-50 text-amber-900 dark:bg-amber-900 dark:text-amber-50',
   },
-  READY: { label: 'Lista', tone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/75 dark:text-emerald-50' },
+  READY: { label: 'Lista', tone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-50' },
   DELIVERED: { label: 'Entregada', tone: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
-  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-800 dark:bg-red-900/75 dark:text-red-50' },
+  CANCELLED: { label: 'Cancelada', tone: 'bg-red-50 text-red-800 dark:bg-red-900 dark:text-red-50' },
 }
 
 /** Misma regla que el API: cobros solo en Recibida → Lista (no Sin asignar, Entregada ni Cancelada). */
@@ -129,7 +129,7 @@ function hideWorkOrderCashSection(u: AuthUser | null, can: (code: string) => boo
 
 /** Consentimiento en facturación: fondo como Guardar orden; texto ámbar como «Sin técnico asignado». */
 const FACTURACION_CONSENT_BTN =
-  'rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm hover:bg-slate-900 hover:text-amber-900 focus:outline-none focus:ring-2 focus:ring-slate-500/40 dark:bg-slate-700 dark:text-amber-200 dark:hover:bg-slate-600 dark:hover:text-amber-100'
+  'rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm hover:bg-slate-900 hover:text-amber-900 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:bg-slate-700 dark:text-amber-200 dark:hover:bg-slate-600 dark:hover:text-amber-100'
 
 function lineMoney(ln: WorkOrderLine): string {
   if (ln.totals?.grossAmount != null) {
@@ -617,7 +617,7 @@ export function WorkOrderDetailPage() {
    */
   const stickyHeaderClass = isSaas
     ? 'sticky top-[var(--va-app-header-h,0px)] z-20 shadow-sm'
-    : 'sticky top-[var(--va-app-header-h,0px)] z-20 rounded-2xl border border-slate-200/85 bg-white/95 px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/95'
+    : 'sticky top-[var(--va-app-header-h,0px)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900'
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
@@ -1148,7 +1148,7 @@ export function WorkOrderDetailPage() {
       message: (
         <div className="space-y-3 text-left">
           <p className="font-medium text-slate-800 dark:text-slate-100">¿Registrar cobro en caja vinculado a esta orden?</p>
-          <dl className="space-y-2.5 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3.5 dark:border-slate-600 dark:bg-slate-800/60">
+          <dl className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-600 dark:bg-slate-800">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">
                 Monto del cobro
@@ -1157,17 +1157,17 @@ export function WorkOrderDetailPage() {
                 ${formatCopFromString(payAmtNorm)}
               </dd>
             </div>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200/80 pt-2.5 text-sm dark:border-slate-600/80">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-2.5 text-sm dark:border-slate-600">
               <dt className="text-xs text-slate-500 dark:text-slate-300">Tipo</dt>
               <dd className="font-medium text-slate-800 dark:text-slate-100">
                 {payKind === 'full' ? 'Pago total (cierra y entrega)' : 'Abono'}
               </dd>
             </div>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200/80 pt-2.5 text-sm dark:border-slate-600/80">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-2.5 text-sm dark:border-slate-600">
               <dt className="text-xs text-slate-500 dark:text-slate-300">Categoría</dt>
               <dd className="font-medium text-slate-800 dark:text-slate-100">{catName}</dd>
             </div>
-            <div className="space-y-1 border-t border-slate-200/80 pt-2.5 text-xs text-slate-600 dark:border-slate-600/80 dark:text-slate-300">
+            <div className="space-y-1 border-t border-slate-200 pt-2.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300">
               <p>
                 <span className="text-slate-500 dark:text-slate-300">
                   Orden {wo.publicCode}{' '}
@@ -1186,15 +1186,15 @@ export function WorkOrderDetailPage() {
             </div>
             {ten ? (
               <Fragment>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200/80 pt-2.5 dark:border-slate-600/80">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-sky-700/90 dark:text-sky-300/90">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-2.5 dark:border-slate-600">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
                     Efectivo del cliente
                   </dt>
                   <dd className="text-lg font-bold tabular-nums text-sky-600 dark:text-sky-400">${formatCopFromString(ten)}</dd>
                 </div>
                 {vueltoStr != null && (
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-200/80 pt-2.5 dark:border-amber-900/50">
-                    <dt className="text-xs font-medium uppercase tracking-wide text-amber-800 dark:text-amber-200/90">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-200 pt-2.5 dark:border-amber-900">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-amber-800 dark:text-amber-200">
                       Vuelto a entregar
                     </dt>
                     <dd className="text-lg font-bold tabular-nums text-amber-600 dark:text-amber-400">${vueltoStr}</dd>
@@ -1466,7 +1466,7 @@ export function WorkOrderDetailPage() {
         </button>
       )}
       {canPatchWo && !closed && can('work_orders:reassign') && assignableUsers && assignableUsers.length > 0 && (
-        <div className="mt-4 flex flex-col gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-600/40 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-600 sm:flex-row sm:flex-wrap sm:items-end">
           <label className="block min-w-[12rem] flex-1 text-sm">
             <span className="va-label">Reasignar a otro usuario</span>
             <select
@@ -1522,7 +1522,7 @@ export function WorkOrderDetailPage() {
                 const b = (wo.vehicleBrand ?? wo.vehicle?.brand ?? '').trim()
                 if (!b) return null
                 return (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     Marca: {b}
                   </span>
                 )
@@ -1531,13 +1531,13 @@ export function WorkOrderDetailPage() {
                 const m = (wo.vehicleModel ?? wo.vehicle?.model ?? '').trim()
                 if (!m) return null
                 return (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     Modelo: {m}
                   </span>
                 )
               })()}
               {wo.intakeOdometerKm != null ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                   Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}
                 </span>
               ) : null}
@@ -1613,7 +1613,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 <button
                   type="button"
                   onClick={() => setOrderDataModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-800 shadow-sm hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950/60 dark:text-brand-200 dark:hover:bg-brand-900/70"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-800 shadow-sm hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950 dark:text-brand-200 dark:hover:bg-brand-900"
                   title="Editar datos de la orden (descripción, cliente, vehículo y kilometraje)"
                 >
                   Editar datos de la orden
@@ -1623,7 +1623,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 <button
                   type="button"
                   onClick={() => setCashModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200 dark:hover:bg-emerald-900/70"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
                   title="Ver cobros de esta orden y registrar abonos o pago total"
                 >
                   Cobros en caja
@@ -1640,7 +1640,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
       )}
 
       {wo.parentWorkOrder ? (
-          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/90 px-4 py-3 text-sm text-violet-950 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-50">
+          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-50">
             <span className="font-semibold">Garantía o seguimiento</span>
             {' · '}
             <Link
@@ -1656,7 +1656,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           <div className="mt-4">
             <Link
               to={portalPath(`/ordenes?warrantyFrom=${wo.id}`)}
-              className="inline-flex items-center rounded-xl border border-violet-300 bg-white px-4 py-2 text-sm font-medium text-violet-900 shadow-sm hover:bg-violet-50 dark:border-violet-700 dark:bg-slate-900 dark:text-violet-100 dark:hover:bg-violet-950/50"
+              className="inline-flex items-center rounded-xl border border-violet-300 bg-white px-4 py-2 text-sm font-medium text-violet-900 shadow-sm hover:bg-violet-50 dark:border-violet-700 dark:bg-slate-900 dark:text-violet-100 dark:hover:bg-violet-950"
             >
               Nueva orden de garantía o seguimiento…
             </Link>
@@ -1702,7 +1702,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
             className={
               isSaas
                 ? 'va-saas-page-section !mt-4 !space-y-0 py-3 sm:py-4'
-                : 'mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-800/60'
+                : 'mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-800'
             }
           >
             <p className="va-section-title text-sm">Órdenes de garantía o seguimiento</p>
@@ -1770,7 +1770,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 ))}
               </select>
             </label>
-            <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+            <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
               <h3 className="va-section-title text-sm">Cliente y vehículo (facturación)</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="block text-sm">
@@ -1867,8 +1867,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 </label>
               </div>
               {/* Tres tarjetas alineadas: revisión/consentimiento | OCR | asignación (lg 4+5+3) */}
-              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-200/80 pt-4 dark:border-slate-600/40 lg:grid-cols-12 lg:items-stretch lg:gap-4">
-                <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200/90 bg-white/60 p-4 shadow-sm dark:border-slate-600/50 dark:bg-slate-900/35 lg:col-span-4">
+              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-200 pt-4 dark:border-slate-600 lg:grid-cols-12 lg:items-stretch lg:gap-4">
+                <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900 lg:col-span-4">
                   <h3 className="va-section-title text-sm">Revisión y consentimiento</h3>
                   <div className="mt-3 flex min-h-0 flex-1 flex-col gap-4">
                     <label className="block min-w-0 text-sm">
@@ -1887,7 +1887,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                       </span>
                     </label>
                     {!cashierOnly && Boolean(wo.clientConsentSignedAt && wo.clientSignaturePngBase64) ? (
-                      <div className="mt-auto border-t border-slate-200/70 pt-3 dark:border-slate-600/50">
+                      <div className="mt-auto border-t border-slate-200 pt-3 dark:border-slate-600">
                         <button
                           type="button"
                           onClick={() => setConsentModal('view')}
@@ -1897,7 +1897,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                         </button>
                       </div>
                     ) : !cashierOnly && canPatchWo && !closed && !(wo.clientConsentSignedAt && wo.clientSignaturePngBase64) ? (
-                      <div className="mt-auto border-t border-slate-200/70 pt-3 dark:border-slate-600/50">
+                      <div className="mt-auto border-t border-slate-200 pt-3 dark:border-slate-600">
                         <button
                           type="button"
                           onClick={() => setConsentModal('sign')}
@@ -1917,7 +1917,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     onApply={applyTransitLicenseFromOcr}
                   />
                 </div>
-                <aside className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200/90 bg-white/60 p-4 shadow-sm dark:border-slate-600/50 dark:bg-slate-900/35 lg:col-span-3">
+                <aside className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900 lg:col-span-3">
                   <h3 className="va-section-title text-sm">Asignación al taller</h3>
                   <div className="mt-3 flex min-h-0 flex-1 flex-col">
                     {workshopAssignmentBlock()}
@@ -1939,8 +1939,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
               }
               className={`rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
                 workOrderFormDirty
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500/60 dark:bg-emerald-600 dark:hover:bg-emerald-500'
-                  : 'cursor-default bg-slate-300 text-slate-600 opacity-90 hover:bg-slate-300 focus-visible:ring-slate-400/40 dark:bg-slate-600 dark:text-slate-300 dark:opacity-95 dark:hover:bg-slate-600'
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-500'
+                  : 'cursor-default bg-slate-300 text-slate-600 opacity-90 hover:bg-slate-300 focus-visible:ring-slate-400 dark:bg-slate-600 dark:text-slate-300 dark:opacity-95 dark:hover:bg-slate-600'
               }`}
             >
               Guardar orden
@@ -1959,7 +1959,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
       )}
 
       {!canPatchWo && !cashierOnly && wo.clientConsentSignedAt && wo.clientSignaturePngBase64 ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
           <h3 className="va-section-title text-sm">Cliente y vehículo (facturación)</h3>
           <div className="mt-4 flex justify-start">
             <button type="button" onClick={() => setConsentModal('view')} className={FACTURACION_CONSENT_BTN}>
@@ -1971,7 +1971,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
 
       {closed && (
         <>
-          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/80 dark:bg-amber-950/40 dark:text-amber-100">
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
             {wo.status === 'CANCELLED'
               ? hideWorkOrderCashUi
                 ? 'Orden cancelada: no se pueden editar líneas.'
@@ -1982,7 +1982,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           </p>
           {canReopenDelivered && (
             <form
-              className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/40 sm:p-5"
+              className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5"
               onSubmit={(e) => {
                 e.preventDefault()
                 void submitReopenDelivered()
@@ -2142,7 +2142,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 <tr>
                   <td
                     colSpan={7}
-                    className="border-b border-slate-50 px-4 py-8 text-center text-sm text-slate-500 last:border-0 sm:px-6 dark:border-slate-800/80 dark:text-slate-300"
+                    className="border-b border-slate-50 px-4 py-8 text-center text-sm text-slate-500 last:border-0 sm:px-6 dark:border-slate-800 dark:text-slate-300"
                   >
                     Sin cobros registrados.
                   </td>
@@ -2191,7 +2191,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           <form onSubmit={recordPayment} className="border-t border-slate-100 p-4 dark:border-slate-800 sm:p-6">
             {!canSubmitWorkOrderPayment && wo ? (
               <p
-                className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/40 dark:text-amber-100"
+                className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
                 role="status"
               >
                 {wo.amountDue == null
@@ -2201,7 +2201,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     : 'No se puede registrar el cobro en este momento.'}
               </p>
             ) : null}
-            <div className="mb-4 rounded-xl border border-slate-200/90 bg-slate-50/80 p-3.5 dark:border-slate-600 dark:bg-slate-800/50">
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-600 dark:bg-slate-800">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Tipo de cobro</p>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-6">
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800 dark:text-slate-100">
@@ -2240,7 +2240,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 </label>
               </div>
               {payKind === 'full' && (
-                <p className="mt-2 text-xs text-amber-800 dark:text-amber-200/90">
+                <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
                   El monto se fija al saldo pendiente (${formatCopFromString(wo.amountDue ?? '0')}). Al confirmar no se podrán editar líneas ni montos
                   hasta una reapertura por administración o dueño.
                 </p>
@@ -2257,7 +2257,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(payAmt))}
                     onChange={(e) => setPayAmt(normalizeMoneyDecimalStringForApi(e.target.value))}
                     readOnly={payKind === 'full'}
-                    className={`va-field mt-1 w-full ${payKind === 'full' ? 'cursor-not-allowed bg-slate-100 dark:bg-slate-800/80' : ''}`}
+                    className={`va-field mt-1 w-full ${payKind === 'full' ? 'cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                   />
                 </label>
                 <label className="block text-sm">
@@ -2271,7 +2271,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     placeholder="Ej. 100.000 si paga con billete mayor"
                   />
                   {payVueltoHint && (
-                    <p className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-2 text-xs font-medium text-brand-900 dark:border-brand-600 dark:bg-brand-900/70 dark:text-brand-50">
+                    <p className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-2 text-xs font-medium text-brand-900 dark:border-brand-600 dark:bg-brand-900 dark:text-brand-50">
                       {payVueltoHint}
                     </p>
                   )}
@@ -2537,7 +2537,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 <tr>
                   <td
                     colSpan={lineTableColSpan}
-                    className="border-b border-slate-50 px-4 py-8 text-center text-slate-500 last:border-0 sm:px-6 dark:border-slate-800/80 dark:text-slate-300"
+                    className="border-b border-slate-50 px-4 py-8 text-center text-slate-500 last:border-0 sm:px-6 dark:border-slate-800 dark:text-slate-300"
                   >
                     Sin líneas aún.
                   </td>
@@ -2550,7 +2550,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                  * cambian de tamaño al entrar en edición (evita el salto de la tabla).
                  */
                 const lineInputClass =
-                  'w-20 rounded-md border border-slate-300 bg-white px-1.5 py-1 text-right text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/25 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/30'
+                  'w-20 rounded-md border border-slate-300 bg-white px-1.5 py-1 text-right text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400'
                 const lineQtyInputClass = lineInputClass.replace('w-20', 'w-14')
                 const lineDescInputClass = lineInputClass
                   .replace('w-20', 'w-full')
@@ -2577,8 +2577,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     <span
                       className={
                         ln.lineType === 'PART'
-                          ? 'rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900/75 dark:text-violet-50'
-                          : 'rounded-md bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900/75 dark:text-teal-50'
+                          ? 'rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-50'
+                          : 'rounded-md bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-50'
                       }
                     >
                       {ln.lineType === 'PART' ? 'Repuesto' : 'Mano de obra'}
@@ -2619,7 +2619,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                       <>
                         <span className="line-clamp-2">{ln.description ?? '—'}</span>
                         {ln.sparePartSku ? (
-                          <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900/70 dark:text-violet-100">
+                          <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-100">
                             {ln.sparePartSku}
                           </span>
                         ) : null}
@@ -2750,7 +2750,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                               onClick={() => void saveEdit()}
                               title="Guardar línea"
                               aria-label="Guardar línea"
-                              className="rounded-lg border border-brand-200 bg-white p-1.5 text-brand-700 hover:bg-brand-50 disabled:opacity-40 dark:border-brand-800/60 dark:bg-slate-800 dark:text-brand-300 dark:hover:bg-slate-700"
+                              className="rounded-lg border border-brand-200 bg-white p-1.5 text-brand-700 hover:bg-brand-50 disabled:opacity-40 dark:border-brand-800 dark:bg-slate-800 dark:text-brand-300 dark:hover:bg-slate-700"
                             >
                               <Check className="size-4" strokeWidth={1.75} />
                             </button>

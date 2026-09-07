@@ -17,7 +17,7 @@ const DashboardModuleSections = lazy(() =>
 
 function DashboardChunkFallback() {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 px-4 py-12 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-12 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
       Cargando…
     </div>
   )
@@ -30,9 +30,9 @@ export function DashboardPage() {
 
   const cardClass = isSaas
     ? 'group va-saas-module-card'
-    : 'group min-h-[9.5rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:bg-slate-900 dark:focus-visible:ring-offset-slate-900'
+    : 'group min-h-[9.5rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:bg-slate-900 dark:focus-visible:ring-offset-slate-900'
   const mutedCardClass =
-    'rounded-2xl border border-dashed border-slate-300/90 bg-slate-50 p-4 text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300'
+    'rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
   const sectionClass = isSaas ? 'va-saas-page-section' : 'space-y-3'
 
   const {

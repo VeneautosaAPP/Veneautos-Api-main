@@ -446,7 +446,7 @@ export function ReportsPage() {
     : 'space-y-4 rounded-2xl border border-slate-300 bg-white p-4 dark:border-slate-600 dark:bg-slate-900'
   const statsCardClass = isSaas ? 'va-saas-panel-tile' : 'rounded-2xl border border-slate-300 bg-white p-4 dark:border-slate-600 dark:bg-slate-900'
   const actionBtnClass = isSaas
-    ? 'rounded-lg border border-slate-200/90 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+    ? 'rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
     : 'rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
 
   const tabBtnClass = (active: boolean): string => {
@@ -1119,9 +1119,9 @@ function CashJournalPanel({ statsCardClass, actionBtnClass }: { statsCardClass: 
                       <td className="va-table-td text-xs font-mono">{r.createdAt.slice(0, 19).replace('T', ' ')}</td>
                       <td className="va-table-td">
                         {r.direction === 'INCOME' ? (
-                          <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">Ingreso</span>
+                          <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Ingreso</span>
                         ) : (
-                          <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-900/50 dark:text-red-200">Egreso</span>
+                          <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-950 dark:text-red-200">Egreso</span>
                         )}
                       </td>
                       <td className="va-table-td tabular-nums">{moneyCOP(r.amount)}</td>

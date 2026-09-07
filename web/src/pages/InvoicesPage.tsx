@@ -16,9 +16,9 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
 function StatusBadge({ status }: { status: InvoiceStatus }) {
   const tone =
     status === 'ISSUED'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
       : status === 'VOIDED'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'
+        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200'
         : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>
@@ -143,14 +143,14 @@ export function InvoicesPage() {
       </div>
 
       {msg && (
-        <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">
+        <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
           {msg}
         </div>
       )}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500 dark:bg-slate-900/50 dark:text-slate-400">
+          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">Documento</th>
               <th className="px-4 py-3">Estado</th>

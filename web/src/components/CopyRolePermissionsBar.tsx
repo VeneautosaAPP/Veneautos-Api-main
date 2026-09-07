@@ -23,7 +23,7 @@ export function CopyRolePermissionsBar({ roles, excludeRoleId, setSel }: Props) 
   const options = roles.filter((r) => r.id !== excludeRoleId)
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-600 dark:bg-slate-900/80">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-600 dark:bg-slate-900">
       <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Copiar desde un rol existente</p>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
         Elegí un rol del taller y aplicá sus permisos como punto de partida o sumalos a lo que ya marcaste.

@@ -40,7 +40,7 @@ export const WorkOrdersList = memo(function WorkOrdersList({
                 to={portalPath(`/ordenes/${wo.id}`)}
                 onPointerEnter={() => onPrefetchWorkOrder?.(wo.id)}
                 onFocus={() => onPrefetchWorkOrder?.(wo.id)}
-                className={`flex h-full min-h-[10.5rem] min-w-0 flex-1 flex-col rounded-xl border border-slate-200/90 border-l-4 p-3 shadow-sm transition hover:border-brand-200 hover:shadow-md dark:border-slate-700 dark:hover:border-brand-600 ${st.cardBody}`}
+                className={`flex h-full min-h-[10.5rem] min-w-0 flex-1 flex-col rounded-xl border border-slate-200 border-l-4 p-3 shadow-sm transition hover:border-brand-200 hover:shadow-md dark:border-slate-700 dark:hover:border-brand-600 ${st.cardBody}`}
               >
                 <div className="flex shrink-0 items-start justify-between gap-1.5">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">

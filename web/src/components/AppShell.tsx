@@ -64,28 +64,28 @@ function PanelBrandLogo({ className }: { className?: string }) {
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   [
-    'relative z-10 inline-flex min-h-[44px] shrink-0 snap-start items-center rounded-xl px-3 py-2.5 text-sm font-medium uppercase tracking-wide transition-[color,transform] duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:min-h-0 md:py-2 dark:focus-visible:ring-offset-slate-900',
+    'relative z-10 inline-flex min-h-[44px] shrink-0 snap-start items-center rounded-xl px-3 py-2.5 text-sm font-medium uppercase tracking-wide transition-[color,transform] duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:min-h-0 md:py-2 dark:focus-visible:ring-offset-slate-900',
     isActive
       ? 'text-brand-900 dark:text-white'
-      : 'text-slate-700 hover:bg-slate-200/90 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white',
+      : 'text-slate-700 hover:bg-slate-200 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
   ].join(' ')
 
 /** Carril horizontal móvil (tema SaaS): tipografía estilo referencia, con icono. */
 const navLinkHorizontalSaasClass = ({ isActive }: { isActive: boolean }) =>
   [
-    'relative z-10 inline-flex min-h-[44px] shrink-0 snap-start items-center gap-2 rounded-lg px-3 py-2.5 text-[13px] font-medium tracking-normal transition-[color,transform] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:min-h-0 md:py-2 dark:focus-visible:ring-offset-slate-900',
+    'relative z-10 inline-flex min-h-[44px] shrink-0 snap-start items-center gap-2 rounded-lg px-3 py-2.5 text-[13px] font-medium tracking-normal transition-[color,transform] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:min-h-0 md:py-2 dark:focus-visible:ring-offset-slate-900',
     isActive
       ? 'text-brand-800 dark:text-white [&_svg]:opacity-100'
-      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white [&_svg]:opacity-[0.88]',
+      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white [&_svg]:opacity-[0.88]',
   ].join(' ')
 
 /** Sidebar escritorio (tema SaaS): icono + texto, estilo Rhombus. */
 const navLinkSidebarSaasClass = ({ isActive }: { isActive: boolean }) =>
   [
-    'relative z-10 flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium tracking-normal transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30 md:min-h-0',
+    'relative z-10 flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium tracking-normal transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:min-h-0',
     isActive
       ? 'text-brand-800 dark:text-white [&_svg]:opacity-100'
-      : 'text-slate-600 hover:bg-white/90 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white [&_svg]:opacity-[0.88]',
+      : 'text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-white [&_svg]:opacity-[0.88]',
   ].join(' ')
 
 type NavLinkItem = {
@@ -96,7 +96,7 @@ type NavLinkItem = {
 }
 
 function saasIconButtonClass() {
-  return 'rounded-lg border border-slate-200/90 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100 dark:focus-visible:ring-offset-slate-900'
+  return 'rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100 dark:focus-visible:ring-offset-slate-900'
 }
 
 const SAAS_SIDEBAR_COLLAPSED_KEY = 'vene.panel.sidebarCollapsed'
@@ -346,7 +346,7 @@ function AppShellInner() {
           value={previewSelectValue}
           onChange={(e) => void onPreviewRoleChange(e.target.value)}
           className={`${opts.selectClass} ${
-            user?.previewRole ? 'ring-1 ring-amber-400/60 dark:ring-amber-500/45' : ''
+            user?.previewRole ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
           }`}
           title="Probá la app con otro rol; seguís siendo el mismo usuario."
         >
@@ -359,7 +359,7 @@ function AppShellInner() {
         </select>
         {opts.withBadge && user?.previewRole ? (
           <span
-            className="hidden shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium tracking-normal text-amber-800 dark:bg-amber-950/50 dark:text-amber-100 sm:inline"
+            className="hidden shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium tracking-normal text-amber-800 dark:bg-amber-950 dark:text-amber-100 sm:inline"
             title="No es tu sesión operativa habitual: solo permisos simulados."
           >
             Simulando
@@ -418,7 +418,7 @@ function AppShellInner() {
   const horizontalNav =
     links.length > 0 ? (
       <nav
-        className={`va-app-shell-subnav border-t border-slate-200 bg-white/95 dark:border-slate-800 dark:bg-slate-950/95 ${isSaas ? 'lg:hidden' : 'bg-slate-100/95 dark:shadow-[inset_0_1px_0_0_rgba(148,163,184,0.08)]'}`}
+        className={`va-app-shell-subnav border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${isSaas ? 'lg:hidden' : 'bg-slate-100 dark:shadow-[inset_0_1px_0_0_rgba(148,163,184,0.08)]'}`}
       >
         <div ref={navOuterRef} className={`relative mx-auto w-full px-3 py-2 sm:px-4 xl:px-5 ${shellMaxClass}`}>
           <div
@@ -451,7 +451,7 @@ function AppShellInner() {
             } ${
               isSaas
                 ? ''
-                : 'rounded-xl bg-brand-100 shadow-sm ring-1 ring-brand-200/80 dark:bg-brand-900 dark:shadow-md dark:ring-1 dark:ring-brand-600/50'
+                : 'rounded-xl bg-brand-100 shadow-sm ring-1 ring-brand-200 dark:bg-brand-900 dark:shadow-md dark:ring-1 dark:ring-brand-600'
             }`}
             style={{
               left: pill.left,
@@ -523,7 +523,7 @@ function AppShellInner() {
                 </button>
                 <NavLink
                   to={portalPath('/')}
-                  className="flex shrink-0 rounded-md p-0.5 transition hover:bg-white/80 dark:hover:bg-slate-800/80"
+                  className="flex shrink-0 rounded-md p-0.5 transition hover:bg-white dark:hover:bg-slate-800"
                   title="Inicio"
                   aria-label="Inicio"
                   end
@@ -609,7 +609,7 @@ function AppShellInner() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header
           ref={appShellHeaderRef}
-          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300/90 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200/90 bg-white/95 dark:bg-slate-900/95 lg:hidden' : 'bg-white/95 dark:bg-slate-900/90'}`}
+          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200 bg-white dark:bg-slate-900 lg:hidden' : 'bg-white dark:bg-slate-900'}`}
         >
           {isSaas && user ? (
             <div className={`mx-auto flex w-full flex-col gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 xl:px-5 xl:py-3.5 ${shellMaxClass}`}>
@@ -650,7 +650,7 @@ function AppShellInner() {
           <Outlet />
         </main>
 
-        <footer className="va-app-shell-footer mt-auto border-t border-slate-300/90 px-3 py-4 text-center text-xs text-slate-600 sm:px-4 xl:px-5 dark:border-slate-800 dark:text-slate-300">
+        <footer className="va-app-shell-footer mt-auto border-t border-slate-300 px-3 py-4 text-center text-xs text-slate-600 sm:px-4 xl:px-5 dark:border-slate-800 dark:text-slate-300">
           <div className={`mx-auto text-left ${shellMaxClass}`}>Vene Autos — panel del taller</div>
         </footer>
       </div>

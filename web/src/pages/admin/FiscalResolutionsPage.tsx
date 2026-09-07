@@ -298,7 +298,7 @@ export function FiscalResolutionsPage() {
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
+          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Prefijo</th>
@@ -347,15 +347,15 @@ export function FiscalResolutionsPage() {
                         Inactiva
                       </span>
                     ) : r.exhausted ? (
-                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                         Agotada
                       </span>
                     ) : r.isDefault ? (
-                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                         Predeterminada
                       </span>
                     ) : (
-                      <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+                      <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800 dark:bg-sky-950 dark:text-sky-200">
                         Activa
                       </span>
                     )}
@@ -373,7 +373,7 @@ export function FiscalResolutionsPage() {
                         )}
                         <button
                           onClick={() => onDeactivate(r.id)}
-                          className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                          className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950"
                         >
                           Desactivar
                         </button>

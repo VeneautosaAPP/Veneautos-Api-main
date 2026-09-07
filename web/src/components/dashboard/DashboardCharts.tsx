@@ -32,7 +32,7 @@ export const DashboardCharts = memo(function DashboardCharts({
             Prioridades operativas sugeridas para esta sesión.
           </p>
         </div>
-        <span className="rounded-lg border border-brand-200/80 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 dark:border-brand-700/70 dark:bg-brand-900/40 dark:text-brand-200">
+        <span className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 dark:border-brand-700 dark:bg-brand-950 dark:text-brand-200">
           {cashSessionOpen ? 'Caja abierta' : 'Caja cerrada'}
         </span>
       </div>
@@ -42,7 +42,7 @@ export const DashboardCharts = memo(function DashboardCharts({
           return (
             <Link key={`focus-${module.to}`} to={module.to} className={cardClass}>
               <div className="flex items-start gap-3">
-                <div className="rounded-lg border border-brand-200/80 bg-brand-50 p-3 text-brand-700 dark:border-brand-700/70 dark:bg-brand-900/40 dark:text-brand-200">
+                <div className="rounded-lg border border-brand-200 bg-brand-50 p-3 text-brand-700 dark:border-brand-700 dark:bg-brand-950 dark:text-brand-200">
                   <Icon className="size-7" strokeWidth={1.65} aria-hidden />
                 </div>
                 <div className="min-w-0">
@@ -57,7 +57,7 @@ export const DashboardCharts = memo(function DashboardCharts({
         })}
       </div>
       {lockedToday.length > 0 && (
-        <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
           {lockedToday.map((module) => module.hint).filter(Boolean).join(' · ')}
         </div>
       )}

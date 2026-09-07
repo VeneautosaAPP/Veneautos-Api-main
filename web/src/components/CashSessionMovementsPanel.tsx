@@ -118,8 +118,8 @@ export function CashSessionMovementsPanel({ current, onReprintMovement }: Props)
                       <span
                         className={
                           isInc
-                            ? 'rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
-                            : 'rounded-md bg-rose-50 px-1.5 py-0.5 text-xs font-medium text-rose-900 dark:bg-rose-950/50 dark:text-rose-200'
+                            ? 'rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
+                            : 'rounded-md bg-rose-50 px-1.5 py-0.5 text-xs font-medium text-rose-900 dark:bg-rose-950 dark:text-rose-200'
                         }
                       >
                         {isInc ? 'Ingreso' : 'Egreso'}

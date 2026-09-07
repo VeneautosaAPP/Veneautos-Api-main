@@ -37,7 +37,7 @@ export function RolesPage() {
   const createBtnClass = 'va-btn-primary'
   const roleCardClass = isSaas
     ? 'va-saas-link-card'
-    : 'rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-600'
+    : 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-600'
 
   useEffect(() => {
     if (!open) setCheckedTemplateIds(new Set())

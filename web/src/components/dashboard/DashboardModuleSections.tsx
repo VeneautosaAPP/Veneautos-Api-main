@@ -55,10 +55,10 @@ export const DashboardModuleSections = memo(function DashboardModuleSections({
                 <Link
                   key={module.title}
                   to={module.to}
-                  className={`${cardClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900`}
+                  className={`${cardClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="rounded-lg border border-brand-200/80 bg-brand-50 p-3 text-brand-700 dark:border-brand-700/70 dark:bg-brand-900/40 dark:text-brand-200">
+                    <div className="rounded-lg border border-brand-200 bg-brand-50 p-3 text-brand-700 dark:border-brand-700 dark:bg-brand-950 dark:text-brand-200">
                       <Icon className="size-7" strokeWidth={1.65} aria-hidden />
                     </div>
                     <div className="min-w-0">

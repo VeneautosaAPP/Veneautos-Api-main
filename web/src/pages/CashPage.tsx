@@ -404,27 +404,27 @@ export function CashPage() {
           <p className="font-medium text-slate-800 dark:text-slate-100">
             {dir === 'income' ? '¿Registrar INGRESO en caja?' : '¿Registrar EGRESO de caja?'}
           </p>
-          <dl className="space-y-2.5 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3.5 dark:border-slate-600 dark:bg-slate-800/60">
+          <dl className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-600 dark:bg-slate-800">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">
                 Importe en caja
               </dt>
               <dd className={`text-lg font-bold tabular-nums ${importeClass}`}>${formatCopFromString(amt)}</dd>
             </div>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200/80 pt-2.5 dark:border-slate-600/80">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-2.5 dark:border-slate-600">
               <dt className="text-xs text-slate-500 dark:text-slate-300">Categoría</dt>
               <dd className="text-sm font-medium text-slate-800 dark:text-slate-100">{catName}</dd>
             </div>
             {ten ? (
               <Fragment>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200/80 pt-2.5 dark:border-slate-600/80">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-sky-700/90 dark:text-sky-300/90">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-2.5 dark:border-slate-600">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
                     Efectivo en mano
                   </dt>
                   <dd className="text-lg font-bold tabular-nums text-sky-600 dark:text-sky-400">${formatCopFromString(ten)}</dd>
                 </div>
                 {vueltoStr != null && (
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-200/80 pt-2.5 dark:border-amber-900/50">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-200 pt-2.5 dark:border-amber-900">
                     <dt className="text-xs font-medium uppercase tracking-wide text-amber-800 dark:text-amber-100">
                       {dir === 'income' ? 'Vuelto a entregar' : 'Vuelto a caja'}
                     </dt>
@@ -439,7 +439,7 @@ export function CashPage() {
             {movNote.trim()}
           </p>
           {dir === 'expense' && (
-            <p className="rounded-lg border border-rose-200/80 bg-rose-50/90 px-3 py-2 text-sm text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-100">
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-100">
               El egreso sale del efectivo de la sesión abierta.
             </p>
           )}
@@ -601,14 +601,14 @@ export function CashPage() {
   )
   const btnSecondary = 'va-btn-secondary'
   const openSessionBtnClassicClass = useMemo(() =>
-    'va-tab-row-stretch-btn bg-gradient-to-b from-emerald-600 to-emerald-700 text-sm font-semibold text-white shadow-md shadow-emerald-900/25 ring-1 ring-emerald-800/30 transition hover:from-emerald-500 hover:to-emerald-600 hover:shadow-lg active:translate-y-px dark:from-emerald-600 dark:to-emerald-800 dark:shadow-emerald-950/40 dark:ring-emerald-500/25 dark:hover:from-emerald-500 dark:hover:to-emerald-700',
+    'va-tab-row-stretch-btn bg-gradient-to-b from-emerald-600 to-emerald-700 text-sm font-semibold text-white shadow-md shadow-emerald-900/25 ring-1 ring-emerald-800 transition hover:from-emerald-500 hover:to-emerald-600 hover:shadow-lg active:translate-y-px dark:from-emerald-600 dark:to-emerald-800 dark:shadow-emerald-950/40 dark:ring-emerald-500 dark:hover:from-emerald-500 dark:hover:to-emerald-700',
     [],
   )
 
   return (
     <div className={pageStackClass}>
       {cashOpenLoadStatus === 'ready' && cashOpen === false && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
           Caja cerrada: no hay ingresos, egresos, movimientos detallados, delegados ni solicitudes hasta que alguien con
           permiso abra sesión.
         </p>
@@ -617,7 +617,7 @@ export function CashPage() {
 
       {tabs.length === 0 && cashOpenLoadStatus === 'ready' && (
         <div
-          className={`border-amber-200 bg-amber-50/90 dark:border-amber-900/45 dark:bg-amber-950/35 ${surfaceCardClass}`}
+          className={`border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950 ${surfaceCardClass}`}
         >
           <p className="text-sm text-amber-950 dark:text-amber-100">
             Con la caja cerrada no hay pestañas disponibles para tu perfil aquí. Cuando abran sesión de caja, se
@@ -639,14 +639,14 @@ export function CashPage() {
         >
           <span className="relative flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden>
             {current === undefined && cashOpen !== false ? (
-              <span className="block h-2.5 w-2.5 animate-pulse rounded-full bg-slate-400/60 ring-1 ring-slate-400/40 dark:bg-slate-600 dark:ring-slate-500/40" />
+              <span className="block h-2.5 w-2.5 animate-pulse rounded-full bg-slate-400 ring-1 ring-slate-400 dark:bg-slate-600 dark:ring-slate-500" />
             ) : current != null && current.status === 'OPEN' ? (
               <>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/40 motion-reduce:animate-none" />
-                <span className="relative block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_10px_3px_rgba(34,197,94,0.55)] ring-2 ring-emerald-400/80 motion-reduce:animate-none dark:bg-emerald-400 dark:shadow-[0_0_12px_4px_rgba(74,222,128,0.5)] dark:ring-emerald-300/65" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 motion-reduce:animate-none" />
+                <span className="relative block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_10px_3px_rgba(34,197,94,0.55)] ring-2 ring-emerald-400 motion-reduce:animate-none dark:bg-emerald-400 dark:shadow-[0_0_12px_4px_rgba(74,222,128,0.5)] dark:ring-emerald-300" />
               </>
             ) : (
-              <span className="block h-2.5 w-2.5 rounded-full bg-slate-400/40 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-700/90 dark:ring-slate-600/50" />
+              <span className="block h-2.5 w-2.5 rounded-full bg-slate-400 ring-1 ring-inset ring-slate-500 dark:bg-slate-700 dark:ring-slate-600" />
             )}
           </span>
           <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
@@ -918,7 +918,7 @@ export function CashPage() {
             {(delegatesQuery.data?.users ?? []).map((u) => (
               <label
                 key={u.id}
-                className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+                className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 <input
                   type="checkbox"
@@ -1012,8 +1012,8 @@ export function CashPage() {
             <p
               className={
                 isSaasPanel
-                  ? 'rounded-xl border border-dashed border-slate-200/90 bg-[var(--va-surface-elevated)] px-4 py-8 text-center text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'
-                  : 'rounded-xl border border-dashed border-slate-200 bg-slate-50/90 px-4 py-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300'
+                  ? 'rounded-xl border border-dashed border-slate-200 bg-[var(--va-surface-elevated)] px-4 py-8 text-center text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'
+                  : 'rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
               }
             >
               No hay solicitudes para mostrar con el filtro actual. Si acabás de abrir esta pestaña, probá{' '}

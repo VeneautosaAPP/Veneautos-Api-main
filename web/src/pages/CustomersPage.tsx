@@ -126,7 +126,7 @@ function CustomerEditForm({
   }
 
   return (
-    <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/60">
+    <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm sm:col-span-2">
           <span className="va-label">Nombre</span>
@@ -310,7 +310,7 @@ function CustomerFilePanel({
               },
             ].map((card) => (
               <div
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800"
                 key={card.label}
               >
                 <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -363,15 +363,15 @@ function CustomerFilePanel({
       )}
 
       {loading ? (
-        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800/50 dark:text-slate-300">
+        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-300">
           Cargando historial del cliente…
         </p>
       ) : !can('work_orders:read') ? (
-        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800/50 dark:text-slate-300">
+        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-300">
           Sin permiso para ver órdenes de trabajo.
         </p>
       ) : file && file.workOrders.length === 0 ? (
-        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800/50 dark:text-slate-300">
+        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-300">
           No hay órdenes registradas para este cliente.
         </p>
       ) : (
@@ -393,7 +393,7 @@ function CustomerFilePanel({
                 {(file?.workOrders ?? []).map((wo) => (
                   <tr
                     key={wo.id}
-                    className="va-table-body-row cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    className="va-table-body-row cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
                     onClick={() => navigate(portalPath(`/ordenes/${wo.id}`))}
                     title={`Abrir ${wo.publicCode}`}
                   >
@@ -438,7 +438,7 @@ function CustomerFilePanel({
 
       <div className="grid gap-4 md:grid-cols-2">
         {can('vehicles:read') && (
-          <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
             <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Vehículos
             </h3>
@@ -489,7 +489,7 @@ function CustomerFilePanel({
           </section>
         )}
         {c && (c.notes || c.isActive === false) && (
-          <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
             <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Notas
             </h3>
@@ -762,21 +762,21 @@ export function CustomersPage() {
                             toggle(c.id)
                           }
                         }}
-                        className="va-table-body-row cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        className="va-table-body-row cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
                       >
                         <td className="va-table-td py-4 font-medium text-slate-900 dark:text-slate-50">{c.displayName}</td>
                         <td className="va-table-td py-4 text-slate-600 dark:text-slate-300">{c.documentId ?? '—'}</td>
                         <td className="va-table-td py-4 text-slate-600 dark:text-slate-300">{c.primaryPhone ?? c.email ?? '—'}</td>
                         <td className="va-table-td py-4 text-slate-600 dark:text-slate-300">{c._count?.vehicles ?? 0}</td>
                         <td className="va-table-td py-4">
-                          <span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                          <span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
                             Activo
                           </span>
                         </td>
                       </tr>
                       {expanded && (
                         <tr>
-                          <td colSpan={5} className="bg-slate-50/70 px-4 py-5 dark:bg-slate-900/40 sm:px-6">
+                          <td colSpan={5} className="bg-slate-50 px-4 py-5 dark:bg-slate-900 sm:px-6">
                             <CustomerFilePanel
                               file={files[c.id] ?? null}
                               loading={loadingId === c.id}

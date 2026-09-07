@@ -21,7 +21,7 @@ export type ClientConsentSignerCoreProps = {
 export function ClientConsentSignerCore({
   workOrderId,
   onSuccess,
-  consentTextBoxClassName = 'max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-700 shadow-inner dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-200',
+  consentTextBoxClassName = 'max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-700 shadow-inner dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200',
   signatureHeightPx = 200,
   submitLabel = 'Guardar firma y consentimiento',
 }: ClientConsentSignerCoreProps) {

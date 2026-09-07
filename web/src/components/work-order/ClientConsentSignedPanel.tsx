@@ -13,8 +13,8 @@ export function ClientConsentSignedPanel({
 }) {
   const preScroll =
     density === 'compact'
-      ? 'max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 font-sans text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200'
-      : 'max-h-[min(42vh,22rem)] overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200 sm:max-h-[min(50vh,28rem)]'
+      ? 'max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 font-sans text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+      : 'max-h-[min(42vh,22rem)] overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 sm:max-h-[min(50vh,28rem)]'
   const imgClass =
     density === 'compact'
       ? 'max-h-48 w-full max-w-md rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-600'

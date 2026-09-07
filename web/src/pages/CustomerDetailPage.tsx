@@ -208,7 +208,7 @@ export function CustomerDetailPage() {
               <li key={v.id}>
                 <Link
                   to={portalPath(`/vehiculos/${v.id}`)}
-                  className="block rounded-xl border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/80"
+                  className="block rounded-xl border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   <span className="font-mono font-medium text-slate-900 dark:text-slate-50">{v.plate}</span>
                   {(v.brand || v.model) && (

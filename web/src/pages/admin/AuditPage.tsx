@@ -29,7 +29,7 @@ type AuditResult = {
 }
 
 const btnDetail =
-  'min-h-[44px] w-full rounded-xl border border-brand-200 bg-white px-3 py-2.5 text-sm font-semibold text-brand-800 hover:bg-brand-50 dark:border-brand-700 dark:bg-slate-900 dark:text-brand-100 dark:hover:bg-brand-950/35 sm:min-h-0 sm:w-auto'
+  'min-h-[44px] w-full rounded-xl border border-brand-200 bg-white px-3 py-2.5 text-sm font-semibold text-brand-800 hover:bg-brand-50 dark:border-brand-700 dark:bg-slate-900 dark:text-brand-100 dark:hover:bg-brand-950 sm:min-h-0 sm:w-auto'
 
 function AuditRowCard({ row, onOpenDetail }: { row: AuditItem; onOpenDetail: (row: AuditItem) => void }) {
   const isSaas = panelUsesModernShell(usePanelTheme())
@@ -116,12 +116,12 @@ function AuditDetailModal({ row, onClose }: { row: AuditItem; onClose: () => voi
   const who = row.actor?.fullName ?? row.actor?.email ?? 'Sistema o sesión anónima'
 
   const metaDlClass = isSaas
-    ? 'mt-4 grid gap-2 rounded-xl border border-[var(--va-surface-border)] bg-[var(--va-surface-muted)] px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-900/55'
-    : 'mt-4 grid gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-800/40'
+    ? 'mt-4 grid gap-2 rounded-xl border border-[var(--va-surface-border)] bg-[var(--va-surface-muted)] px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-900'
+    : 'mt-4 grid gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-800'
   const sectionHeadingClass = isSaas ? 'va-section-title text-sm' : 'text-sm font-semibold text-slate-900 dark:text-slate-50'
   const jsonDetailsClass = isSaas
-    ? 'mt-6 rounded-xl border border-[var(--va-surface-border)] bg-[var(--va-surface-muted)] dark:border-slate-700 dark:bg-slate-900/40'
-    : 'mt-6 rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/30'
+    ? 'mt-6 rounded-xl border border-[var(--va-surface-border)] bg-[var(--va-surface-muted)] dark:border-slate-700 dark:bg-slate-900'
+    : 'mt-6 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
 
   return (
     <div className="va-modal-overlay z-[90]" role="presentation" onClick={onClose}>
@@ -315,7 +315,7 @@ export function AuditPage() {
             <div className={isSaas ? 'va-table-scroll' : 'overflow-x-auto'}>
             <table className={isSaas ? 'va-table min-w-[780px]' : 'w-full min-w-[780px] text-left text-sm'}>
               <thead>
-                <tr className={isSaas ? 'va-table-head-row' : 'border-b border-slate-200 bg-slate-50/90 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300'}>
+                <tr className={isSaas ? 'va-table-head-row' : 'border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}>
                   <th className={isSaas ? 'va-table-th' : 'px-3 py-3'}>Fecha</th>
                   <th className={isSaas ? 'va-table-th' : 'px-3 py-3'}>Quién</th>
                   <th className={isSaas ? 'va-table-th' : 'px-3 py-3'}>Qué ocurrió</th>

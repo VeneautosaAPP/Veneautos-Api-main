@@ -48,16 +48,16 @@ export const WoPaginationBar = memo(function WoPaginationBar({
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const wrapClass = isSaas
-    ? 'flex flex-col gap-3 rounded-xl border border-slate-200/85 bg-[var(--va-surface-elevated)] px-3 py-2.5 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/60 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between'
-    : 'flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900/50 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between'
+    ? 'flex flex-col gap-3 rounded-xl border border-slate-200 bg-[var(--va-surface-elevated)] px-3 py-2.5 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between'
+    : 'flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between'
   const inputClass = isSaas
-    ? 'rounded-lg border border-slate-200/90 bg-white px-2 py-1.5 text-xs font-medium text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
+    ? 'rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
     : 'rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
   const searchInputClass = isSaas
-    ? 'w-full rounded-lg border border-slate-200/90 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/30'
-    : 'w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/30'
+    ? 'w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400'
+    : 'w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400'
   const pagerBtnClass = isSaas
-    ? 'rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
+    ? 'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
     : 'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
 
   return (

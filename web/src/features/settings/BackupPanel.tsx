@@ -260,7 +260,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
           className={`rounded-xl px-3 py-2 text-sm ${
             msg.includes('Error')
               ? 'va-alert-error'
-              : 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
+              : 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
           }`}
         >
           {msg}
@@ -303,7 +303,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
             type="button"
             onClick={() => createBackup('production')}
             disabled={creatingProd || !canWrite}
-            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-sm hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-sm hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-950"
           >
             {creatingProd ? (
               <>
@@ -343,7 +343,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
               onClick={() => setRestoreType('local')}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
                 restoreType === 'local'
-                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
+                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600'
               }`}
             >
@@ -354,7 +354,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
               onClick={() => setRestoreType('production')}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
                 restoreType === 'production'
-                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600'
               }`}
             >
@@ -370,8 +370,8 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
           onDrop={handleDrop}
           className={`mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 transition-colors ${
             isDragOver
-              ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20'
-              : 'border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-900/50'
+              ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-950'
+              : 'border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-900'
           }`}
         >
           <svg
@@ -406,7 +406,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
 
         {/* Archivo seleccionado */}
         {selectedFile && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/50">
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -484,7 +484,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
         {backups.length > 0 && (
           <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-              <thead className="bg-slate-50 dark:bg-slate-900/50">
+              <thead className="bg-slate-50 dark:bg-slate-900">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Archivo</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Tipo</th>
@@ -495,7 +495,7 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-700 dark:bg-slate-800">
                 {backups.map((b) => (
-                  <tr key={b.filename} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                  <tr key={b.filename} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                     <td className="whitespace-nowrap px-4 py-2 text-sm text-slate-900 dark:text-slate-100">
                       {b.filename}
                     </td>
@@ -503,8 +503,8 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                           b.type === 'production'
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200'
                         }`}
                       >
                         {b.type === 'production' ? 'Supabase' : 'Local'}

@@ -200,7 +200,7 @@ export function TaxRatesPage({ embed = false }: { embed?: boolean }) {
       {createOpen && mayCreate && (
         <form
           onSubmit={onCreate}
-          className="va-card space-y-3 border-slate-200/90 p-4 dark:border-slate-700/90"
+          className="va-card space-y-3 border-slate-200 p-4 dark:border-slate-700"
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
@@ -340,7 +340,7 @@ export function TaxRatesPage({ embed = false }: { embed?: boolean }) {
                     </td>
                     <td className="px-3 py-2">
                       {row.isDefault ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
                           Sí
                         </span>
                       ) : mayUpdate && row.isActive ? (
@@ -360,7 +360,7 @@ export function TaxRatesPage({ embed = false }: { embed?: boolean }) {
                       <span
                         className={
                           row.isActive
-                            ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'
+                            ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
                             : 'rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                         }
                       >

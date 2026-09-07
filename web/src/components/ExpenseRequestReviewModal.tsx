@@ -241,11 +241,11 @@ export function ExpenseRequestReviewModal({
           {detail && (
             <div className="space-y-4 text-sm">
               {blocked && (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
                   Esta solicitud está vencida y ya no se puede aprobar ni rechazar desde el panel.
                 </p>
               )}
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">
                   Monto solicitado
                 </p>
@@ -295,7 +295,7 @@ export function ExpenseRequestReviewModal({
               )}
 
               {detail.status === 'APPROVED' && detail.resultMovement && (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100">
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
                   Egreso registrado en caja: {new Date(detail.resultMovement.createdAt).toLocaleString()}.
                 </p>
               )}
@@ -304,8 +304,8 @@ export function ExpenseRequestReviewModal({
                 <div
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     canPayOut
-                      ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-100'
-                      : 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200'
+                      ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100'
+                      : 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
                   }`}
                 >
                   {canPayOut ? (
@@ -399,7 +399,7 @@ export function ExpenseRequestReviewModal({
               type="button"
               disabled={acting || !confirmRead}
               onClick={() => void reject()}
-              className="min-h-[44px] rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-800 disabled:opacity-40 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100"
+              className="min-h-[44px] rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-800 disabled:opacity-40 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
             >
               Rechazar
             </button>
@@ -409,7 +409,7 @@ export function ExpenseRequestReviewModal({
               type="button"
               disabled={acting || !confirmRead}
               onClick={() => void approve()}
-              className="min-h-[44px] rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-black/10 hover:bg-emerald-800 disabled:opacity-40"
+              className="min-h-[44px] rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-emerald-900 hover:bg-emerald-800 disabled:opacity-40"
             >
               Aprobar
             </button>

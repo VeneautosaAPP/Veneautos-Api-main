@@ -76,7 +76,7 @@ export function RolePreviewPage() {
 
   if (!can('auth:assume_role_preview')) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
         Tu cuenta no tiene permiso para la vista por rol (solo administrador o dueño del taller).
       </div>
     )
@@ -95,7 +95,7 @@ export function RolePreviewPage() {
       />
 
       {msg && (
-        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-100">
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
           {msg}
         </p>
       )}

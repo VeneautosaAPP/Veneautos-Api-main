@@ -85,7 +85,7 @@ export function CashOpenSessionModal({
             </button>
             <button
               type="submit"
-              className="min-h-[44px] rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/20 ring-1 ring-emerald-300/50 transition hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:ring-emerald-200/60 active:translate-y-px dark:from-emerald-500 dark:to-emerald-700 dark:shadow-emerald-950/40 dark:ring-emerald-400/25 dark:hover:from-emerald-400 dark:hover:to-emerald-600"
+              className="min-h-[44px] rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/20 ring-1 ring-emerald-300 transition hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:ring-emerald-200 active:translate-y-px dark:from-emerald-500 dark:to-emerald-700 dark:shadow-emerald-950/40 dark:ring-emerald-400 dark:hover:from-emerald-400 dark:hover:to-emerald-600"
             >
               Abrir caja
             </button>

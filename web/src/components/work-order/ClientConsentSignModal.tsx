@@ -45,12 +45,12 @@ export function ClientConsentSignModal({ workOrderId, orderNumber, publicCode, o
               onRecorded()
               onClose()
             }}
-            consentTextBoxClassName="max-h-[min(38vh,18rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-700 shadow-inner sm:max-h-[min(42vh,22rem)] dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-200"
+            consentTextBoxClassName="max-h-[min(38vh,18rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-700 shadow-inner sm:max-h-[min(42vh,22rem)] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
             signatureHeightPx={260}
           />
         </div>
 
-        <div className="shrink-0 border-t border-slate-100 bg-slate-50/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:px-6">
+        <div className="shrink-0 border-t border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950 sm:px-6">
           <button
             type="button"
             onClick={onClose}

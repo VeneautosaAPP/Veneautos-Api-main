@@ -152,7 +152,7 @@ function CashMovementFormPanelInner({
         />
         <span className="mt-1 block text-xs text-slate-500 dark:text-slate-300">{c.tenderHelp}</span>
         {movVueltoHint && (
-          <p className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-900 dark:border-brand-600 dark:bg-brand-900/70 dark:text-brand-50">
+          <p className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-900 dark:border-brand-600 dark:bg-brand-900 dark:text-brand-50">
             {movVueltoHint}
           </p>
         )}

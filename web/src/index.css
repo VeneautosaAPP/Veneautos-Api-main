@@ -53,20 +53,20 @@
  */
 @layer components {
   .va-card {
-    @apply rounded-2xl border border-slate-300 bg-white p-4 text-slate-900 shadow-md ring-1 ring-slate-200/60 sm:p-6
+    @apply rounded-2xl border border-slate-300 bg-white p-4 text-slate-900 shadow-md ring-1 ring-slate-200 sm:p-6
       dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:shadow-sm dark:ring-0;
   }
   .va-card-flush {
-    @apply overflow-hidden rounded-2xl border border-slate-300 bg-white text-slate-900 shadow-md ring-1 ring-slate-200/60
+    @apply overflow-hidden rounded-2xl border border-slate-300 bg-white text-slate-900 shadow-md ring-1 ring-slate-200
       dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:shadow-sm dark:ring-0;
   }
   .va-card-muted {
     @apply rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-800
-      dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100;
+      dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100;
   }
   /** Tarjeta enlace en listados (tema estándar); con `saas_light`, `va-saas-link-card` redefine superficie. */
   .va-link-card-standard {
-    @apply block rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-600;
+    @apply block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-600;
   }
   /** Título de página: un solo token; SaaS refina tamaño vía `html.va-panel-theme-saas-light`. */
   .va-page-title {
@@ -95,14 +95,14 @@
   }
   /** LED / estado de caja (tema clásico por defecto; SaaS redefine superficie). */
   .va-cash-status-strip {
-    @apply flex items-center gap-3 rounded-xl border border-slate-200/90 bg-slate-100/95 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800/90;
+    @apply flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800;
   }
   html.va-panel-theme-saas-light .va-cash-status-strip {
-    @apply border-slate-200/80 bg-[var(--va-surface-elevated)] py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/90;
+    @apply border-slate-200 bg-[var(--va-surface-elevated)] py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900;
   }
   /** Resumen “saldo teórico” (emerald) + rejilla de montos. */
   .va-cash-balance-panel {
-    @apply mt-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/40;
+    @apply mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950;
   }
   .va-cash-balance-kicker {
     @apply text-xs font-medium uppercase tracking-wide text-emerald-800 dark:text-emerald-200;
@@ -111,26 +111,26 @@
     @apply mt-1 text-2xl font-bold tabular-nums tracking-tight text-emerald-950 dark:text-emerald-50;
   }
   .va-cash-balance-note {
-    @apply mt-2 text-xs leading-relaxed text-emerald-900/90 dark:text-emerald-100/90;
+    @apply mt-2 text-xs leading-relaxed text-emerald-900 dark:text-emerald-100;
   }
   .va-cash-balance-stat-grid {
     @apply mt-3 grid gap-2 text-sm text-emerald-950 dark:text-emerald-100 sm:grid-cols-3;
   }
   .va-cash-balance-stat-grid dt {
-    @apply text-xs text-emerald-800/90 dark:text-emerald-100/90;
+    @apply text-xs text-emerald-800 dark:text-emerald-100;
   }
   .va-cash-balance-stat-grid dd {
     @apply font-semibold tabular-nums;
   }
   .va-cash-balance-foot {
-    @apply mt-2 text-xs text-emerald-800/80 dark:text-emerald-100/85;
+    @apply mt-2 text-xs text-emerald-800 dark:text-emerald-100;
   }
   /** Rejilla `dl` de datos de sesión (tarjetas grises). */
   .va-cash-dl-grid {
     @apply mt-3 grid gap-3 text-sm sm:grid-cols-2;
   }
   .va-cash-dl-tile {
-    @apply min-w-0 rounded-lg border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-800/50;
+    @apply min-w-0 rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800;
   }
   .va-cash-dl-tile dt {
     @apply text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300;
@@ -145,45 +145,45 @@
   /** Mensajes de error inline (listados, formularios). */
   .va-alert-error {
     @apply rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800
-      dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100;
+      dark:border-red-900 dark:bg-red-950 dark:text-red-100;
   }
   /** Banner de error más visible al inicio de sección. */
   .va-alert-error-lg {
     @apply rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800
-      dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100;
+      dark:border-red-900 dark:bg-red-950 dark:text-red-100;
   }
   /** Panel de error (p. ej. recurso no encontrado con enlace). */
   .va-alert-error-block {
     @apply rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800
-      dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-100;
+      dark:border-red-900 dark:bg-red-950 dark:text-red-100;
   }
   /** Franja de error dentro de un panel con borde inferior (p. ej. bajo cabecera de sección). */
   .va-alert-error-strip {
-    @apply border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100 sm:px-6;
+    @apply border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100 sm:px-6;
   }
   .va-field {
     @apply mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
-      placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700/25
-      dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400/30;
+      placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700
+      dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400;
   }
   .va-label {
     @apply text-sm font-medium text-slate-700 dark:text-slate-200;
   }
   .va-tabstrip {
-    @apply flex gap-1 overflow-x-auto rounded-xl border border-slate-300 bg-slate-200/90 p-1 [-ms-overflow-style:none] [scrollbar-width:none]
-      dark:border-slate-700 dark:bg-slate-800/95 dark:shadow-inner
+    @apply flex gap-1 overflow-x-auto rounded-xl border border-slate-300 bg-slate-200 p-1 [-ms-overflow-style:none] [scrollbar-width:none]
+      dark:border-slate-700 dark:bg-slate-800 dark:shadow-inner
       [&::-webkit-scrollbar]:hidden;
   }
   .va-tab {
     @apply shrink-0 snap-start rounded-lg px-3 py-2.5 text-sm font-medium transition min-h-[44px] sm:min-h-0;
   }
   .va-tab-active {
-    @apply bg-white text-slate-900 shadow-sm ring-1 ring-slate-300/90
+    @apply bg-white text-slate-900 shadow-sm ring-1 ring-slate-300
       dark:bg-slate-100 dark:text-slate-900 dark:shadow-md dark:ring-slate-400;
   }
   .va-tab-inactive {
-    @apply text-slate-700 hover:bg-white/90 hover:text-slate-950
-      dark:text-slate-200 dark:hover:bg-slate-700/90 dark:hover:text-white;
+    @apply text-slate-700 hover:bg-white hover:text-slate-950
+      dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white;
   }
   /** Radiogrupos / filtros: misma franja que pestañas, ancho al contenido o multilínea. */
   .va-tabstrip--inline {
@@ -207,13 +207,13 @@
     @apply w-full text-left text-sm;
   }
   .va-table-head-row {
-    @apply border-b border-slate-200 bg-slate-100 text-xs font-medium uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300;
+    @apply border-b border-slate-200 bg-slate-100 text-xs font-medium uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300;
   }
   .va-table-th {
     @apply px-4 py-3 sm:px-6;
   }
   .va-table-body-row {
-    @apply border-b border-slate-100 last:border-0 dark:border-slate-800/80;
+    @apply border-b border-slate-100 last:border-0 dark:border-slate-800;
   }
   .va-table-td {
     @apply px-4 py-3 sm:px-6;
@@ -264,16 +264,16 @@
    */
   /** brand-700 / red-700: mejor ratio con blanco (AA cuerpo) frente a -600 en pantallas pequeñas. */
   .va-btn-primary {
-    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-transparent bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-black/10 transition hover:bg-brand-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/55 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:ring-white/10 dark:focus-visible:ring-brand-300/50 dark:focus-visible:ring-offset-slate-900;
+    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-transparent bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-brand-800 transition hover:bg-brand-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:ring-brand-500 dark:focus-visible:ring-brand-300 dark:focus-visible:ring-offset-slate-900;
   }
   .va-btn-secondary {
-    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-brand-400/35 dark:focus-visible:ring-offset-slate-900;
+    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-brand-400 dark:focus-visible:ring-offset-slate-900;
   }
   .va-btn-danger {
-    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-transparent bg-red-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-black/10 transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/55 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:ring-white/10 dark:focus-visible:ring-red-300/50 dark:focus-visible:ring-offset-slate-900;
+    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-transparent bg-red-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-red-800 transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:ring-red-500 dark:focus-visible:ring-red-300 dark:focus-visible:ring-offset-slate-900;
   }
   .va-btn-ghost {
-    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl px-3 py-2 text-sm font-medium text-brand-800 underline-offset-2 transition hover:bg-brand-50 hover:text-brand-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:min-h-0 dark:text-brand-200 dark:hover:bg-brand-950/50 dark:hover:text-brand-50 dark:focus-visible:ring-brand-400/40 dark:focus-visible:ring-offset-slate-900;
+    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl px-3 py-2 text-sm font-medium text-brand-800 underline-offset-2 transition hover:bg-brand-50 hover:text-brand-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:min-h-0 dark:text-brand-200 dark:hover:bg-brand-950 dark:hover:text-brand-50 dark:focus-visible:ring-brand-400 dark:focus-visible:ring-offset-slate-900;
   }
 }
 
@@ -312,7 +312,7 @@
     @apply border-zinc-200 bg-white shadow-sm;
   }
   html.va-panel-theme-commercial.dark .va-app-shell-header {
-    @apply border-zinc-800 bg-zinc-950/95 shadow-[0_1px_0_rgba(0,0,0,0.35)];
+    @apply border-zinc-800 bg-zinc-950 shadow-[0_1px_0_rgba(0,0,0,0.35)];
   }
 
   /** Marca cabecera: mismo gesto tipográfico que “VENE AUTOS” en la landing. */
@@ -340,10 +340,10 @@
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-app-shell-subnav {
-    @apply border-zinc-200 bg-zinc-50/95;
+    @apply border-zinc-200 bg-zinc-50;
   }
   html.va-panel-theme-commercial.dark .va-app-shell-subnav {
-    @apply border-zinc-800 bg-black/80;
+    @apply border-zinc-800 bg-zinc-950;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-app-shell-navlinks a[aria-current='page'] {
@@ -353,17 +353,17 @@
     @apply text-red-400;
   }
   html.va-panel-theme-commercial:not(.dark) .va-app-shell-navlinks a:not([aria-current='page']) {
-    @apply text-zinc-700 hover:bg-zinc-200/90 hover:text-zinc-950;
+    @apply text-zinc-700 hover:bg-zinc-200 hover:text-zinc-950;
   }
   html.va-panel-theme-commercial.dark .va-app-shell-navlinks a:not([aria-current='page']) {
-    @apply text-zinc-300 hover:bg-zinc-900/90 hover:text-white;
+    @apply text-zinc-300 hover:bg-zinc-900 hover:text-white;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-app-shell-nav-pill {
-    @apply bg-red-50 shadow-sm ring-red-200/90;
+    @apply bg-red-50 shadow-sm ring-red-200;
   }
   html.va-panel-theme-commercial.dark .va-app-shell-nav-pill {
-    @apply bg-red-950/55 shadow-md ring-red-800/70;
+    @apply bg-red-950 shadow-md ring-red-800;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-app-shell-main {
@@ -374,21 +374,21 @@
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-app-shell-footer {
-    @apply border-zinc-200 bg-white/80 text-zinc-600;
+    @apply border-zinc-200 bg-white text-zinc-600;
   }
   html.va-panel-theme-commercial.dark .va-app-shell-footer {
-    @apply border-zinc-800 bg-black/60 text-zinc-500;
+    @apply border-zinc-800 bg-zinc-950 text-zinc-500;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-card {
-    @apply rounded-2xl border border-zinc-200 bg-white p-4 text-zinc-900 shadow-md ring-1 ring-zinc-200/60 sm:p-6;
+    @apply rounded-2xl border border-zinc-200 bg-white p-4 text-zinc-900 shadow-md ring-1 ring-zinc-200 sm:p-6;
   }
   html.va-panel-theme-commercial.dark .va-card {
     @apply rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-100 shadow-lg shadow-black/30 ring-0 sm:p-6;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-card-flush {
-    @apply overflow-hidden rounded-2xl border border-zinc-200 bg-white text-zinc-900 shadow-md ring-1 ring-zinc-200/60;
+    @apply overflow-hidden rounded-2xl border border-zinc-200 bg-white text-zinc-900 shadow-md ring-1 ring-zinc-200;
   }
   html.va-panel-theme-commercial.dark .va-card-flush {
     @apply overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-100 shadow-lg shadow-black/30 ring-0;
@@ -398,14 +398,14 @@
     @apply rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800;
   }
   html.va-panel-theme-commercial.dark .va-card-muted {
-    @apply rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-100;
+    @apply rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-field {
-    @apply mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/25;
+    @apply mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600;
   }
   html.va-panel-theme-commercial.dark .va-field {
-    @apply mt-1 w-full rounded-xl border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30;
+    @apply mt-1 w-full rounded-xl border border-zinc-600 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-label {
@@ -416,24 +416,24 @@
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-tabstrip {
-    @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-300 bg-zinc-200/90 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+    @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-300 bg-zinc-200 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
   }
   html.va-panel-theme-commercial.dark .va-tabstrip {
-    @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-700 bg-zinc-900/95 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+    @apply flex gap-1 overflow-x-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-tab-active {
-    @apply bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-300/90;
+    @apply bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-300;
   }
   html.va-panel-theme-commercial.dark .va-tab-active {
     @apply bg-zinc-100 text-zinc-900 shadow-md ring-1 ring-zinc-400;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-tab-inactive {
-    @apply text-zinc-700 hover:bg-white/90 hover:text-zinc-950;
+    @apply text-zinc-700 hover:bg-white hover:text-zinc-950;
   }
   html.va-panel-theme-commercial.dark .va-tab-inactive {
-    @apply text-zinc-200 hover:bg-zinc-800/90 hover:text-white;
+    @apply text-zinc-200 hover:bg-zinc-800 hover:text-white;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-table-scroll-ring {
@@ -447,14 +447,14 @@
     @apply border-b border-zinc-200 bg-zinc-100 text-xs font-medium uppercase tracking-wide text-zinc-600;
   }
   html.va-panel-theme-commercial.dark .va-table-head-row {
-    @apply border-b border-zinc-800 bg-zinc-800/50 text-xs font-medium uppercase tracking-wide text-zinc-300;
+    @apply border-b border-zinc-800 bg-zinc-800 text-xs font-medium uppercase tracking-wide text-zinc-300;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-table-body-row {
     @apply border-b border-zinc-100 last:border-0;
   }
   html.va-panel-theme-commercial.dark .va-table-body-row {
-    @apply border-b border-zinc-800/80 last:border-0;
+    @apply border-b border-zinc-800 last:border-0;
   }
 
   html.va-panel-theme-commercial:not(.dark) .va-modal-overlay {
@@ -530,7 +530,7 @@
     --va-surface-sidebar: #1a1d27;
     --va-surface-muted: #22262f;
     --va-accent-soft: #3a2412;
-    --va-accent-soft-ring: rgba(255, 122, 51, 0.45);
+    --va-accent-soft-ring: #ff7a33;
     @apply bg-[var(--va-surface-page)] text-slate-100;
   }
 }
@@ -544,10 +544,10 @@
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-header {
-    @apply border-slate-200/90 bg-[var(--va-surface-elevated)] shadow-sm;
+    @apply border-slate-200 bg-[var(--va-surface-elevated)] shadow-sm;
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-header {
-    @apply border-slate-800 bg-slate-900/95 shadow-[0_1px_0_rgba(0,0,0,0.25)];
+    @apply border-slate-800 bg-slate-900 shadow-[0_1px_0_rgba(0,0,0,0.25)];
   }
 
   /** Meta-texto cabecera (rol, subtítulo): mismos grises en claro/oscuro SaaS. */
@@ -606,16 +606,16 @@
    * En temas standard/commercial las clases no tienen reglas (equivalente al antiguo `isSaas ? '' : …`).
    */
   html.va-panel-theme-saas-light .va-saas-page-hero {
-    @apply rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] px-4 py-4 shadow-sm sm:px-5 dark:border-slate-500/55 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.1)];
+    @apply rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] px-4 py-4 shadow-sm sm:px-5 dark:border-slate-500 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.1)];
   }
   html.va-panel-theme-saas-light .va-saas-link-card {
-    @apply block rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-600/90 dark:bg-slate-900 dark:hover:border-brand-600;
+    @apply block rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-brand-600;
   }
   html.va-panel-theme-saas-light .va-saas-module-card {
-    @apply min-h-[9.5rem] rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:p-[1.125rem] dark:border-slate-500/55 dark:bg-slate-900 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.08)] dark:focus-visible:ring-offset-slate-900;
+    @apply min-h-[9.5rem] rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:p-[1.125rem] dark:border-slate-500 dark:bg-slate-900 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.08)] dark:focus-visible:ring-offset-slate-900;
   }
   html.va-panel-theme-saas-light .va-saas-page-section {
-    @apply space-y-3 rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] p-4 shadow-sm sm:p-5 dark:border-slate-500/55 dark:bg-slate-900 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.08)];
+    @apply space-y-3 rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-4 shadow-sm sm:p-5 dark:border-slate-500 dark:bg-slate-900 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.08)];
   }
   /** Variante sin padding (tablas flush): misma cáscara que `va-saas-page-section`. */
   html.va-panel-theme-saas-light .va-saas-page-section--flush {
@@ -630,27 +630,27 @@
     @apply rounded-xl px-3 py-3 shadow-sm sm:px-4 sm:py-3.5;
   }
   html.va-panel-theme-saas-light .va-settings-page .va-settings-section {
-    @apply overflow-hidden rounded-xl border border-slate-200/85 bg-[var(--va-surface-elevated)] shadow-sm dark:border-slate-500/55 dark:bg-slate-900 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.08)];
+    @apply overflow-hidden rounded-xl border border-slate-200 bg-[var(--va-surface-elevated)] shadow-sm dark:border-slate-500 dark:bg-slate-900 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.08)];
   }
   html.va-panel-theme-saas-light .va-settings-page .va-settings-section-head {
-    @apply border-b border-slate-200/80 bg-[var(--va-surface-muted)] px-3 py-1.5 dark:border-slate-700 dark:bg-slate-900/55 sm:px-3.5 sm:py-2;
+    @apply border-b border-slate-200 bg-[var(--va-surface-muted)] px-3 py-1.5 dark:border-slate-700 dark:bg-slate-900 sm:px-3.5 sm:py-2;
   }
   html.va-panel-theme-saas-light .va-settings-page .va-page-desc {
     @apply mt-1 max-w-3xl text-sm leading-snug text-slate-600 dark:text-slate-300;
   }
   /** Título de bloque con tabla (cobros, líneas). */
   html.va-panel-theme-saas-light .va-saas-section-head {
-    @apply border-b border-slate-200/90 bg-[var(--va-surface-muted)] px-4 py-3 sm:px-5 dark:border-slate-700 dark:bg-slate-900/55;
+    @apply border-b border-slate-200 bg-[var(--va-surface-muted)] px-4 py-3 sm:px-5 dark:border-slate-700 dark:bg-slate-900;
   }
   /** Bloques con más aire (formularios de rol, filtros de informes). */
   html.va-panel-theme-saas-light .va-saas-stack-section {
-    @apply space-y-4 rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] p-4 shadow-sm sm:p-6 dark:border-slate-600/90 dark:bg-slate-900;
+    @apply space-y-4 rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-4 shadow-sm sm:p-6 dark:border-slate-600 dark:bg-slate-900;
   }
   html.va-panel-theme-saas-light .va-saas-panel-tile {
-    @apply rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] p-4 shadow-sm dark:border-slate-600/90 dark:bg-slate-900;
+    @apply rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900;
   }
   html.va-panel-theme-saas-light .va-saas-soft-panel {
-    @apply rounded-2xl border border-slate-200/85 bg-[var(--va-surface-elevated)] p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 sm:p-4;
+    @apply rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-4;
   }
 
   /** Fase 2 — cabecera de página (contenido dentro de `va-saas-page-hero`). */
@@ -662,7 +662,7 @@
    * mismo contenedor y activo que el sidebar / subnav (sin excepción en SaaS).
    */
   html.va-panel-theme-saas-light :is(.va-saas-tab-strip, .va-tabstrip) {
-    @apply flex min-w-0 items-stretch gap-1.5 rounded-xl border border-slate-200/80 bg-[var(--va-surface-elevated)] p-1 shadow-sm dark:border-slate-600/90 dark:bg-slate-900/95 dark:shadow-inner;
+    @apply flex min-w-0 items-stretch gap-1.5 rounded-xl border border-slate-200 bg-[var(--va-surface-elevated)] p-1 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:shadow-inner;
   }
   html.va-panel-theme-saas-light .va-tabstrip:not(.va-tabstrip--wrap) {
     @apply overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
@@ -671,60 +671,60 @@
     @apply flex-wrap overflow-x-visible;
   }
   html.va-panel-theme-saas-light .va-saas-tab-row-actions {
-    @apply flex shrink-0 items-stretch border-l border-slate-200/70 pl-1.5 dark:border-slate-600;
+    @apply flex shrink-0 items-stretch border-l border-slate-200 pl-1.5 dark:border-slate-600;
   }
   html.va-panel-theme-saas-light :is(.va-saas-tab-strip, .va-tabstrip) .va-tab {
     @apply rounded-md;
   }
   html.va-panel-theme-saas-light :is(.va-saas-tab-strip, .va-tabstrip) .va-tab-active {
-    @apply bg-[var(--va-accent-soft)] text-brand-900 shadow-sm ring-1 ring-[var(--va-accent-soft-ring)]/90 dark:text-white;
+    @apply bg-[var(--va-accent-soft)] text-brand-900 shadow-sm ring-1 ring-[var(--va-accent-soft-ring)] dark:text-white;
   }
   html.va-panel-theme-saas-light :is(.va-saas-tab-strip, .va-tabstrip) .va-tab-inactive {
-    @apply bg-transparent text-slate-600 hover:bg-slate-100/90 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white;
+    @apply bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white;
   }
   /** “Cerrar sesión” alineado al shell: outline en lugar de bloque rojo sólido. */
   html.va-panel-theme-saas-light .va-saas-tab-row-actions .va-btn-danger {
-    @apply border border-red-300/90 bg-white text-red-700 shadow-sm ring-0 hover:bg-red-50 hover:text-red-900 dark:border-red-800/55 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-red-950/45;
+    @apply border border-red-300 bg-white text-red-700 shadow-sm ring-0 hover:bg-red-50 hover:text-red-900 dark:border-red-800 dark:bg-slate-900 dark:text-red-200 dark:hover:bg-red-950;
   }
   /** Franja estado caja (abierta): borde interior verde, acorde al LED esmeralda titilante. */
   html.va-panel-theme-saas-light .va-cash-status-strip[data-led='open'] {
-    @apply ring-2 ring-inset ring-emerald-400/45 dark:ring-emerald-500/40;
+    @apply ring-2 ring-inset ring-emerald-400 dark:ring-emerald-500;
   }
   /** Saldo teórico (SaaS): monto y acentos en verde esmeralda (coherente con LED caja abierta). */
   html.va-panel-theme-saas-light .va-cash-balance-panel {
-    @apply border-emerald-200/90 bg-emerald-50/70 dark:border-emerald-900/45 dark:bg-emerald-950/35;
+    @apply border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950;
   }
   html.va-panel-theme-saas-light .va-cash-balance-kicker {
-    @apply text-emerald-800 dark:text-emerald-200/95;
+    @apply text-emerald-800 dark:text-emerald-200;
   }
   html.va-panel-theme-saas-light .va-cash-balance-amount {
     @apply text-emerald-700 dark:text-emerald-300;
   }
   html.va-panel-theme-saas-light .va-cash-balance-note {
-    @apply text-emerald-900/85 dark:text-emerald-100/90;
+    @apply text-emerald-900 dark:text-emerald-100;
   }
   html.va-panel-theme-saas-light .va-cash-balance-stat-grid {
     @apply text-emerald-950 dark:text-emerald-50;
   }
   html.va-panel-theme-saas-light .va-cash-balance-stat-grid dt {
-    @apply text-emerald-800/90 dark:text-emerald-200/85;
+    @apply text-emerald-800 dark:text-emerald-200;
   }
   html.va-panel-theme-saas-light .va-cash-balance-stat-grid dd {
     @apply text-emerald-950 dark:text-emerald-50;
   }
   html.va-panel-theme-saas-light .va-cash-balance-foot {
-    @apply text-emerald-800/80 dark:text-emerald-200/85;
+    @apply text-emerald-800 dark:text-emerald-200;
   }
   /** Abrir sesión: misma familia cromática que el menú (marca), no verde aislado. */
   html.va-panel-theme-saas-light .va-saas-tab-success-btn {
-    @apply h-full min-h-[44px] shrink-0 rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-brand-950/15 transition hover:bg-brand-800 sm:min-h-0 sm:py-2.5 dark:bg-brand-600 dark:ring-brand-300/25 dark:hover:bg-brand-500;
+    @apply h-full min-h-[44px] shrink-0 rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-brand-950 transition hover:bg-brand-800 sm:min-h-0 sm:py-2.5 dark:bg-brand-600 dark:ring-brand-300 dark:hover:bg-brand-500;
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-subnav {
-    @apply border-slate-200 bg-[var(--va-surface-elevated)]/95 dark:border-slate-800 dark:bg-slate-950/95;
+    @apply border-slate-200 bg-[var(--va-surface-elevated)] dark:border-slate-800 dark:bg-slate-950;
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-subnav {
-    @apply border-slate-800 bg-slate-950/95;
+    @apply border-slate-800 bg-slate-950;
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-navlinks a[aria-current='page'] {
@@ -737,40 +737,40 @@
     @apply text-slate-600 hover:bg-slate-100 hover:text-slate-950;
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-navlinks a:not([aria-current='page']) {
-    @apply text-slate-300 hover:bg-slate-800/90 hover:text-white;
+    @apply text-slate-300 hover:bg-slate-800 hover:text-white;
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-nav-pill {
-    @apply rounded-lg bg-[var(--va-accent-soft)] shadow-sm ring-1 ring-[var(--va-accent-soft-ring)]/90;
+    @apply rounded-lg bg-[var(--va-accent-soft)] shadow-sm ring-1 ring-[var(--va-accent-soft-ring)];
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-nav-pill {
-    @apply rounded-lg bg-[var(--va-accent-soft)] shadow-sm ring-1 ring-[var(--va-accent-soft-ring)]/90;
+    @apply rounded-lg bg-[var(--va-accent-soft)] shadow-sm ring-1 ring-[var(--va-accent-soft-ring)];
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-sidebar {
-    @apply border-slate-200/55 bg-[var(--va-surface-sidebar)] shadow-[1px_0_0_rgba(15,23,42,0.035)];
+    @apply border-slate-200 bg-[var(--va-surface-sidebar)] shadow-[1px_0_0_rgba(15,23,42,0.035)];
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-sidebar {
-    @apply border-slate-700/90 bg-[var(--va-surface-sidebar)] shadow-[1px_0_0_rgba(0,0,0,0.25)];
+    @apply border-slate-700 bg-[var(--va-surface-sidebar)] shadow-[1px_0_0_rgba(0,0,0,0.25)];
   }
 
   /** Solo enlaces del `<nav>`; la marca del header (`.va-app-shell-brand`) no debe llevar pill activo en "/". */
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-sidebar nav a[aria-current='page'] {
-    @apply bg-[var(--va-accent-soft)] text-brand-900 shadow-sm ring-1 ring-[var(--va-accent-soft-ring)]/90;
+    @apply bg-[var(--va-accent-soft)] text-brand-900 shadow-sm ring-1 ring-[var(--va-accent-soft-ring)];
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a[aria-current='page'] {
-    @apply bg-[var(--va-accent-soft)] text-white ring-1 ring-[var(--va-accent-soft-ring)]/80;
+    @apply bg-[var(--va-accent-soft)] text-white ring-1 ring-[var(--va-accent-soft-ring)];
   }
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-sidebar nav a:not([aria-current='page']) {
-    @apply text-slate-600 hover:bg-white/90 hover:text-slate-950;
+    @apply text-slate-600 hover:bg-white hover:text-slate-950;
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a:not([aria-current='page']) {
-    @apply text-slate-300 hover:bg-slate-800/85 hover:text-white;
+    @apply text-slate-300 hover:bg-slate-800 hover:text-white;
   }
 
   /** Marca lateral: sin caja al hover/foco (el enlace ya no hereda estilos de ítem de menú). */
   html.va-panel-theme-saas-light .va-app-shell-sidebar .va-app-shell-brand {
-    @apply rounded-md hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--va-surface-sidebar)] dark:focus-visible:ring-brand-400/35 dark:focus-visible:ring-offset-[var(--va-surface-sidebar)];
+    @apply rounded-md hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--va-surface-sidebar)] dark:focus-visible:ring-brand-400 dark:focus-visible:ring-offset-[var(--va-surface-sidebar)];
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-main {
@@ -781,36 +781,36 @@
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-app-shell-footer {
-    @apply border-slate-200/90 bg-[var(--va-surface-elevated)]/90 text-slate-600;
+    @apply border-slate-200 bg-[var(--va-surface-elevated)] text-slate-600;
   }
   html.va-panel-theme-saas-light.dark .va-app-shell-footer {
-    @apply border-slate-800 bg-slate-950/90 text-slate-300;
+    @apply border-slate-800 bg-slate-950 text-slate-300;
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-card {
-    @apply border-slate-200/90 bg-[var(--va-surface-elevated)] shadow-sm ring-1 ring-slate-200/40;
+    @apply border-slate-200 bg-[var(--va-surface-elevated)] shadow-sm ring-1 ring-slate-200;
   }
   html.va-panel-theme-saas-light.dark .va-card {
-    @apply border-slate-800 bg-slate-900 shadow-sm ring-1 ring-slate-800/60;
+    @apply border-slate-800 bg-slate-900 shadow-sm ring-1 ring-slate-800;
   }
   html.va-panel-theme-saas-light:not(.dark) .va-card-flush {
-    @apply border-slate-200/90 bg-[var(--va-surface-elevated)] shadow-sm ring-1 ring-slate-200/40;
+    @apply border-slate-200 bg-[var(--va-surface-elevated)] shadow-sm ring-1 ring-slate-200;
   }
   html.va-panel-theme-saas-light.dark .va-card-flush {
-    @apply border-slate-800 bg-slate-900 shadow-sm ring-1 ring-slate-800/60;
+    @apply border-slate-800 bg-slate-900 shadow-sm ring-1 ring-slate-800;
   }
   html.va-panel-theme-saas-light:not(.dark) .va-card-muted {
-    @apply border-slate-200/80 bg-[var(--va-surface-muted)] text-slate-800;
+    @apply border-slate-200 bg-[var(--va-surface-muted)] text-slate-800;
   }
   html.va-panel-theme-saas-light.dark .va-card-muted {
-    @apply border-slate-700 bg-slate-800/80 text-slate-100;
+    @apply border-slate-700 bg-slate-800 text-slate-100;
   }
 
   html.va-panel-theme-saas-light:not(.dark) .va-field {
-    @apply rounded-lg border-slate-200/90 bg-[var(--va-surface-elevated)] text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700/22 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-80;
+    @apply rounded-lg border-slate-200 bg-[var(--va-surface-elevated)] text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-80;
   }
   html.va-panel-theme-saas-light.dark .va-field {
-    @apply rounded-lg border-slate-500 bg-slate-800 text-slate-100 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/25 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-400 disabled:opacity-80;
+    @apply rounded-lg border-slate-500 bg-slate-800 text-slate-100 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-400 disabled:opacity-80;
   }
   html.va-panel-theme-saas-light select.va-field {
     @apply cursor-pointer;
@@ -842,19 +842,19 @@
     @apply border-slate-200 bg-slate-50 text-slate-600;
   }
   html.va-panel-theme-saas-light.dark .va-table-head-row {
-    @apply border-slate-700 bg-slate-800/55 text-slate-200;
+    @apply border-slate-700 bg-slate-800 text-slate-200;
   }
   html.va-panel-theme-saas-light:not(.dark) .va-table-body-row {
     @apply border-slate-100;
   }
   html.va-panel-theme-saas-light.dark .va-table-body-row {
-    @apply border-slate-800/80;
+    @apply border-slate-800;
   }
   html.va-panel-theme-saas-light:not(.dark) .va-table-body-row:hover {
-    @apply bg-slate-50/80;
+    @apply bg-slate-50;
   }
   html.va-panel-theme-saas-light.dark .va-table-body-row:hover {
-    @apply bg-slate-800/35;
+    @apply bg-slate-800;
   }
   html.va-panel-theme-saas-light:not(.dark) .va-table-th,
   html.va-panel-theme-saas-light:not(.dark) .va-table-td {
@@ -1024,7 +1024,6 @@ html.dark [aria-selected='true'] {
 html.dark :is(.va-saas-tab-strip, .va-tabstrip) .va-tab-active {
   background-color: #ff7a33 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 14px rgba(255, 122, 51, 0.35) !important;
 }
 
 /* --- Tablas: encabezado surface-alt, filas alternadas y hover naranja --- */
@@ -1059,14 +1058,14 @@ html.dark .va-field:focus-visible,
 html.dark .va-app-shell-search:focus {
   border-color: #ff7a33 !important;
   background-color: #1a1d27 !important;
-  box-shadow: 0 0 0 3px rgba(255, 122, 51, 0.16) !important;
+  box-shadow: 0 0 0 2px #ff7a33 !important;
   outline: none;
 }
 
-/* --- Botones primarios: glow naranja al hover (mantiene el naranja profundo AA) --- */
+/* --- Botones primarios en oscuro: hover sólido (sin glow translúcido) --- */
 html.dark .va-btn-primary:not(:disabled):hover,
 html.dark .va-saas-tab-success-btn:hover {
-  box-shadow: 0 4px 18px rgba(255, 122, 51, 0.4) !important;
+  background-color: #1d3fb0 !important;
 }
 
 /* --- Modales: borde de acero --- */

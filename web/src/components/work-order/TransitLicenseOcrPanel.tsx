@@ -215,7 +215,7 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200/90 bg-white/60 p-4 shadow-sm dark:border-slate-600/50 dark:bg-slate-900/35">
+    <div className="flex h-full min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900">
       <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Licencia de tránsito (OCR)</h3>
       <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-300">
         Subí una foto clara de la tarjeta. Se usan las posiciones del texto en la imagen (debajo de cada título) y un
@@ -224,7 +224,7 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
       </p>
 
       {recovered && pendingFile ? (
-        <div className="mt-3 rounded-lg border border-amber-300/70 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-900/30 dark:text-amber-100">
+        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-100">
           <p className="font-medium">Hay una foto sin procesar de tu sesión anterior.</p>
           <p className="mt-0.5">
             Tocá <b>Escanear</b> para continuar o{' '}
@@ -261,7 +261,7 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
       {progress ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{progress}</p> : null}
       {err ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{err}</p> : null}
       {lastParsed && parsedTransitLicenseHasAny(lastParsed) ? (
-        <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-xs dark:border-slate-600/50 dark:bg-slate-950/40">
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-600 dark:bg-slate-950">
           <p className="font-medium text-slate-700 dark:text-slate-200">Detectado (revisá antes de aplicar):</p>
           <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-slate-600 dark:text-slate-300">
             {lastParsed.plate ? <li>PLACA: {lastParsed.plate}</li> : null}

@@ -7,58 +7,58 @@ export const WORK_ORDER_LIST_STATUS: Record<
   UNASSIGNED: {
     label: 'Sin asignar',
     badge:
-      'bg-slate-200/90 text-slate-800 ring-1 ring-slate-300/70 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-500/80',
+      'bg-slate-200 text-slate-800 ring-1 ring-slate-300 dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-500',
     cardBody:
-      'border-l-slate-400 bg-gradient-to-br from-slate-50/90 to-white dark:border-l-slate-500 dark:from-slate-800/40 dark:to-slate-900',
-    listRow: 'border-l-slate-400 bg-slate-50/35 dark:border-l-slate-500 dark:bg-slate-800/30',
+      'border-l-slate-400 bg-gradient-to-br from-slate-50 to-white dark:border-l-slate-500 dark:from-slate-800 dark:to-slate-900',
+    listRow: 'border-l-slate-400 bg-slate-50 dark:border-l-slate-500 dark:bg-slate-800',
   },
   RECEIVED: {
     label: 'Recibida',
     badge:
-      'bg-sky-100 text-sky-950 ring-1 ring-sky-200/80 dark:bg-sky-900/50 dark:text-sky-100 dark:ring-sky-600/50',
+      'bg-sky-100 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-950 dark:text-sky-100 dark:ring-sky-600',
     cardBody:
-      'border-l-sky-500 bg-gradient-to-br from-sky-50/80 to-white dark:border-l-sky-400 dark:from-sky-950/35 dark:to-slate-900',
-    listRow: 'border-l-sky-500 bg-sky-50/30 dark:border-l-sky-400 dark:bg-sky-950/20',
+      'border-l-sky-500 bg-gradient-to-br from-sky-50 to-white dark:border-l-sky-400 dark:from-sky-950 dark:to-slate-900',
+    listRow: 'border-l-sky-500 bg-sky-50 dark:border-l-sky-400 dark:bg-sky-950',
   },
   IN_WORKSHOP: {
     label: 'En taller',
     badge:
-      'bg-indigo-100 text-indigo-950 ring-1 ring-indigo-200/80 dark:bg-indigo-900/55 dark:text-indigo-100 dark:ring-indigo-700/50',
+      'bg-indigo-100 text-indigo-950 ring-1 ring-indigo-200 dark:bg-indigo-950 dark:text-indigo-100 dark:ring-indigo-700',
     cardBody:
-      'border-l-indigo-500 bg-gradient-to-br from-indigo-50/85 to-white dark:border-l-indigo-400 dark:from-indigo-950/35 dark:to-slate-900',
-    listRow: 'border-l-indigo-500 bg-indigo-50/30 dark:border-l-indigo-400 dark:bg-indigo-950/22',
+      'border-l-indigo-500 bg-gradient-to-br from-indigo-50 to-white dark:border-l-indigo-400 dark:from-indigo-950 dark:to-slate-900',
+    listRow: 'border-l-indigo-500 bg-indigo-50 dark:border-l-indigo-400 dark:bg-indigo-950',
   },
   WAITING_PARTS: {
     label: 'Esperando repuestos',
     badge:
-      'bg-amber-100 text-amber-950 ring-1 ring-amber-200/90 dark:bg-amber-900/50 dark:text-amber-50 dark:ring-amber-700/50',
+      'bg-amber-100 text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-50 dark:ring-amber-700',
     cardBody:
-      'border-l-amber-500 bg-gradient-to-br from-amber-50/85 to-white dark:border-l-amber-400 dark:from-amber-950/30 dark:to-slate-900',
-    listRow: 'border-l-amber-500 bg-amber-50/35 dark:border-l-amber-400 dark:bg-amber-950/18',
+      'border-l-amber-500 bg-gradient-to-br from-amber-50 to-white dark:border-l-amber-400 dark:from-amber-950 dark:to-slate-900',
+    listRow: 'border-l-amber-500 bg-amber-50 dark:border-l-amber-400 dark:bg-amber-950',
   },
   READY: {
     label: 'Lista',
     badge:
-      'bg-emerald-100 text-emerald-950 ring-1 ring-emerald-200/80 dark:bg-emerald-900/55 dark:text-emerald-100 dark:ring-emerald-700/50',
+      'bg-emerald-100 text-emerald-950 ring-1 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-100 dark:ring-emerald-700',
     cardBody:
-      'border-l-emerald-500 bg-gradient-to-br from-emerald-50/85 to-white dark:border-l-emerald-400 dark:from-emerald-950/32 dark:to-slate-900',
-    listRow: 'border-l-emerald-500 bg-emerald-50/30 dark:border-l-emerald-400 dark:bg-emerald-950/20',
+      'border-l-emerald-500 bg-gradient-to-br from-emerald-50 to-white dark:border-l-emerald-400 dark:from-emerald-950 dark:to-slate-900',
+    listRow: 'border-l-emerald-500 bg-emerald-50 dark:border-l-emerald-400 dark:bg-emerald-950',
   },
   DELIVERED: {
     label: 'Entregada',
     badge:
-      'bg-teal-100 text-teal-950 ring-1 ring-teal-200/80 dark:bg-teal-900/50 dark:text-teal-100 dark:ring-teal-700/50',
+      'bg-teal-100 text-teal-950 ring-1 ring-teal-200 dark:bg-teal-950 dark:text-teal-100 dark:ring-teal-700',
     cardBody:
-      'border-l-teal-500 bg-gradient-to-br from-teal-50/80 to-white dark:border-l-teal-400 dark:from-teal-950/30 dark:to-slate-900',
-    listRow: 'border-l-teal-500 bg-teal-50/28 dark:border-l-teal-400 dark:bg-teal-950/18',
+      'border-l-teal-500 bg-gradient-to-br from-teal-50 to-white dark:border-l-teal-400 dark:from-teal-950 dark:to-slate-900',
+    listRow: 'border-l-teal-500 bg-teal-50 dark:border-l-teal-400 dark:bg-teal-950',
   },
   CANCELLED: {
     label: 'Cancelada',
     badge:
-      'bg-rose-100 text-rose-950 ring-1 ring-rose-200/80 dark:bg-rose-900/50 dark:text-rose-100 dark:ring-rose-700/50',
+      'bg-rose-100 text-rose-950 ring-1 ring-rose-200 dark:bg-rose-950 dark:text-rose-100 dark:ring-rose-700',
     cardBody:
-      'border-l-rose-500 bg-gradient-to-br from-rose-50/85 to-white dark:border-l-rose-400 dark:from-rose-950/28 dark:to-slate-900',
-    listRow: 'border-l-rose-500 bg-rose-50/30 dark:border-l-rose-400 dark:bg-rose-950/18',
+      'border-l-rose-500 bg-gradient-to-br from-rose-50 to-white dark:border-l-rose-400 dark:from-rose-950 dark:to-slate-900',
+    listRow: 'border-l-rose-500 bg-rose-50 dark:border-l-rose-400 dark:bg-rose-950',
   },
 }
 
@@ -156,7 +156,7 @@ export function formatWorkOrderListDate(iso: string) {
 }
 
 export const WO_WARRANTY_BADGE_CLASS =
-  'shrink-0 rounded px-1 py-0 text-[9px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-100'
+  'shrink-0 rounded px-1 py-0 text-[9px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-100'
 
 export const WO_GRID_PLATE_RIVET_CLASS =
   'pointer-events-none absolute size-1 rounded-full bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'

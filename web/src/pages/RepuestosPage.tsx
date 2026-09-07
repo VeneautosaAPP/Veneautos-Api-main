@@ -288,7 +288,7 @@ export function RepuestosPage() {
       )}
 
       {createOpen && mayCreate && (
-        <form onSubmit={onCreate} className="va-card space-y-3 border-slate-200/90 p-4 dark:border-slate-700/90">
+        <form onSubmit={onCreate} className="va-card space-y-3 border-slate-200 p-4 dark:border-slate-700">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-sm">
               <span className="va-label">SKU (código)</span>
@@ -420,7 +420,7 @@ export function RepuestosPage() {
                       ) : Number(row.price) > 0 ? (
                         `$${formatCopFromString(String(row.price))}`
                       ) : (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-100">
                           Variable
                         </span>
                       )}

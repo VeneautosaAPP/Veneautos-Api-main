@@ -33,21 +33,21 @@ export function WorkOrdersPage() {
   const createMsgClass = useMemo(
     () =>
       m.isSaas
-        ? 'flex flex-col gap-2 rounded-xl border border-slate-200/85 bg-[var(--va-surface-elevated)] px-4 py-3 text-sm text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between'
-        : 'flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between',
+        ? 'flex flex-col gap-2 rounded-xl border border-slate-200 bg-[var(--va-surface-elevated)] px-4 py-3 text-sm text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between'
+        : 'flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between',
     [m.isSaas],
   )
   const activeFiltersClass = useMemo(
     () =>
       m.isSaas
-        ? 'flex flex-col gap-2 rounded-xl border border-brand-200/75 bg-[var(--va-accent-soft)]/65 px-4 py-3 text-sm text-slate-800 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-brand-700/50 dark:bg-brand-900/45 dark:text-brand-50'
-        : 'flex flex-col gap-2 rounded-2xl border border-brand-200/80 bg-brand-50/60 px-4 py-3 text-sm text-slate-800 sm:flex-row sm:items-center sm:justify-between dark:border-brand-700/50 dark:bg-brand-900/45 dark:text-brand-50',
+        ? 'flex flex-col gap-2 rounded-xl border border-brand-200 bg-[var(--va-accent-soft)] px-4 py-3 text-sm text-slate-800 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-brand-700 dark:bg-brand-950 dark:text-brand-50'
+        : 'flex flex-col gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-slate-800 sm:flex-row sm:items-center sm:justify-between dark:border-brand-700 dark:bg-brand-950 dark:text-brand-50',
     [m.isSaas],
   )
   const clearFiltersBtnClass = useMemo(
     () =>
       m.isSaas
-        ? 'inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:py-1.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+        ? 'inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:py-1.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
         : 'inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 sm:min-h-0 sm:py-1.5 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
     [m.isSaas],
   )
@@ -169,7 +169,7 @@ export function WorkOrdersPage() {
               {m.warrantyParentId ? 'Nueva orden de garantía' : 'Nueva orden de trabajo'}
             </h2>
             {m.warrantyParentId ? (
-              <div className="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-100">
+              <div className="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-100">
                 <p>
                   Se vinculará como <strong>garantía o seguimiento</strong> a la orden origen{' '}
                   {m.warrantyParentOrderNumber != null ? (
@@ -181,14 +181,14 @@ export function WorkOrdersPage() {
                   tiene más unidades en el maestro, podés cambiarla abajo.
                 </p>
                 {m.warrantyVehicleLoading ? (
-                  <p className="text-violet-800/90 dark:text-violet-200/90">Cargando vehículo de la orden origen…</p>
+                  <p className="text-violet-800 dark:text-violet-200">Cargando vehículo de la orden origen…</p>
                 ) : null}
                 {m.warrantyVehicleError ? (
                   <p className="font-medium text-red-700 dark:text-red-300">{m.warrantyVehicleError}</p>
                 ) : null}
               </div>
             ) : (
-              <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200">
+              <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                 La orden debe quedar <strong>vinculada a un vehículo del maestro</strong> (cliente y placa se toman de
                 ahí). Usá la lupa para buscar por placa.
               </p>
@@ -239,7 +239,7 @@ export function WorkOrdersPage() {
                   m.vehicleId &&
                   !m.warrantyVehicleLoading &&
                   m.warrantyVehicleOptions.length <= 1 ? (
-                  <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-100">
+                  <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     <span className="font-mono font-medium">{m.vehiclePlate}</span>
                     {m.warrantyVehicleOptions[0] &&
                     (m.warrantyVehicleOptions[0].brand || m.warrantyVehicleOptions[0].model) ? (
@@ -363,7 +363,7 @@ export function WorkOrdersPage() {
                   <button
                     type="button"
                     onClick={() => handlePickVehicle(v)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm hover:border-brand-300 hover:bg-brand-50/50 dark:border-slate-600 dark:hover:border-brand-600 dark:hover:bg-slate-800"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm hover:border-brand-300 hover:bg-brand-50 dark:border-slate-600 dark:hover:border-brand-600 dark:hover:bg-slate-800"
                   >
                     <span className="font-mono font-medium text-slate-900 dark:text-slate-50">{v.plate}</span>
                     {(v.brand || v.model) && (

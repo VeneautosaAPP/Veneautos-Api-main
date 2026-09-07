@@ -472,10 +472,10 @@ export function SettingsPage() {
   const pageClass = isSaas ? 'space-y-4 lg:space-y-5' : 'space-y-3 sm:space-y-4'
   const sectionCardClass = isSaas
     ? 'scroll-mt-4 va-settings-section overflow-hidden'
-    : 'scroll-mt-4 va-card border-slate-200/90 p-3 shadow-sm sm:p-4 dark:border-slate-700/90'
+    : 'scroll-mt-4 va-card border-slate-200 p-3 shadow-sm sm:p-4 dark:border-slate-700'
   const supportCardClass = isSaas
     ? 'va-settings-section overflow-hidden'
-    : 'va-card border-brand-200/60 p-3 dark:border-brand-900/50'
+    : 'va-card border-brand-200 p-3 dark:border-brand-900'
   const sectionHeadClass = isSaas
     ? 'va-settings-section-head'
     : 'border-b border-slate-100 pb-2 dark:border-slate-800'
@@ -491,7 +491,7 @@ export function SettingsPage() {
         title="Configuración del taller"
         description="Parámetros globales del taller. Los cambios relevantes quedan en auditoría."
         rootClassName={
-          isSaas ? undefined : 'border-b border-slate-200/80 pb-4 dark:border-slate-800'
+          isSaas ? undefined : 'border-b border-slate-200 pb-4 dark:border-slate-800'
         }
       />
 
@@ -590,7 +590,7 @@ export function SettingsPage() {
               <p
                 role="status"
                 aria-live="polite"
-                className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100"
+                className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
               >
                 {resumePrefMsg}
               </p>
@@ -603,7 +603,7 @@ export function SettingsPage() {
           {map && (
             <form onSubmit={save} className="min-w-0 space-y-5">
               {!canSaveSettings && (
-                <p className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
                   Solo tenés permiso de lectura. Los valores se muestran para consulta; un usuario con permiso de
                   actualización puede modificarlos.
                 </p>
@@ -796,7 +796,7 @@ export function SettingsPage() {
               className={`mx-3 mt-3 text-sm sm:mx-3.5 ${
                 resetMsg.includes('Error') || resetMsg.includes('coinciden') || resetMsg.includes('Elegí')
                   ? 'va-alert-error'
-                  : 'rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-100'
+                  : 'rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
               }`}
             >
               {resetMsg}

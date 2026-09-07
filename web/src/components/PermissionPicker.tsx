@@ -66,10 +66,10 @@ export function PermissionPicker({
         placeholder="Buscar por nombre, descripción o código…"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/35 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
         disabled={disabled}
       />
-      <div className="max-h-[min(60vh,520px)] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/60">
+      <div className="max-h-[min(60vh,520px)] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900">
         {[...groups.entries()].map(([resource, list]) => {
           const filtered = fl
             ? list.filter((p) => permissionSearchBlob(p).includes(fl))
