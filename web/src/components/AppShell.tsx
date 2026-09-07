@@ -574,7 +574,7 @@ function AppShellInner() {
                 onClick={handleLogout}
                 title="Cerrar sesión"
                 aria-label="Cerrar sesión"
-                className={`flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-red-600 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-red-400 ${
+                className={`flex items-center gap-2 rounded-lg bg-slate-100 px-2 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200 hover:text-red-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-red-400 ${
                   saasSidebarCollapsed ? 'justify-center' : ''
                 }`}
               >
