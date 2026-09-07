@@ -232,7 +232,9 @@ export function WorkOrderDetailPage() {
   const [editCost, setEditCost] = useState('')
   const [editTaxRateId, setEditTaxRateId] = useState<string>('')
   /** Línea recién agregada: su fila queda editable hasta que se sale de los campos o se agrega otra. */
-  const [autoEditLineId, setAutoEditLineId] = useState<string | null>(null)
+  /** Fila recién agregada/duplicada a la que se le enfoca un campo (`seq` fuerza el foco aun si se repite). */
+  const [autoEditFocus, setAutoEditFocus] = useState<{ id: string; seq: number } | null>(null)
+  const lineFocusRef = useRef<HTMLInputElement | null>(null)
 
   // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
   const [taxRatesCatalog, setTaxRatesCatalog] = useState<TaxRateCatalogRow[]>([])
@@ -685,26 +687,37 @@ export function WorkOrderDetailPage() {
     quantity?: string
     discountAmount?: string
     costSnapshot?: string
-  }): Promise<false | 'added' | 'merged'> {
+  }): Promise<false | 'added' | 'duplicate'> {
     if (!id || !canMutateLines) return false
     setMsg(null)
     const targetSku = opts.sku ? opts.sku.trim().toUpperCase() : null
+    const targetDesc = opts.description.trim().toLowerCase()
     try {
-      const existingSkuLine = targetSku
-        ? (wo?.lines ?? []).find(
-            (l) => l.lineType === 'PART' && (l.sparePartSku ?? '').toUpperCase() === targetSku,
-          )
-        : undefined
-      if (existingSkuLine) {
-        const nextQty = String((Number(existingSkuLine.quantity) || 0) + 1)
-        await patchLine.mutateAsync({ lineId: existingSkuLine.id, body: { quantity: nextQty } })
-        try {
-          await refreshLinesOnWorkOrder()
-        } catch {
-          await load()
-        }
-        openLineEditor({ ...existingSkuLine, quantity: nextQty })
-        return 'merged'
+      // Un mismo repuesto va una sola vez en la orden: coincide por SKU o por descripción.
+      const existingLine = (wo?.lines ?? []).find((l) => {
+        if (l.lineType !== 'PART') return false
+        if (targetSku && (l.sparePartSku ?? '').toUpperCase() === targetSku) return true
+        return targetDesc !== '' && (l.description ?? '').trim().toLowerCase() === targetDesc
+      })
+      if (existingLine) {
+        const label = opts.description.trim() || (existingLine.description ?? '').trim() || 'Este repuesto'
+        await blockingAlert({
+          title: 'Repuesto ya cargado',
+          message: (
+            <Fragment>
+              <p className="font-medium text-slate-800 dark:text-slate-100">
+                «{label}» ya está en esta orden.
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                No se agregó otra línea: abrí la fila existente y ajustá la cantidad a mano. Un mismo repuesto se
+                carga una sola vez por orden.
+              </p>
+            </Fragment>
+          ),
+          okLabel: 'Entendido',
+        })
+        openLineEditor(existingLine)
+        return 'duplicate'
       }
       const payload: Record<string, unknown> = {
         lineType: 'PART',
@@ -744,11 +757,7 @@ export function WorkOrderDetailPage() {
       unitPrice: Number(sp.price) > 0 ? normalizeMoneyDecimalStringForApi(String(sp.price)) : undefined,
     })
     if (result === false) return
-    setMsg(
-      result === 'merged'
-        ? `Repuesto ${sp.sku}: cantidad actualizada`
-        : `Repuesto ${sp.sku} agregado`,
-    )
+    if (result === 'added') setMsg(`Repuesto ${sp.sku} agregado`)
     resetPartAdd()
   }
 
@@ -775,11 +784,9 @@ export function WorkOrderDetailPage() {
           Number(created.price) > 0 ? normalizeMoneyDecimalStringForApi(String(created.price)) : undefined,
       })
       if (result === false) return
-      setMsg(
-        result === 'merged'
-          ? `Repuesto ${created.sku}: cantidad actualizada`
-          : `«${term}» agregado al catálogo con SKU ${created.sku} y a la orden`,
-      )
+      if (result === 'added') {
+        setMsg(`«${term}» agregado al catálogo con SKU ${created.sku} y a la orden`)
+      }
       resetPartAdd()
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
@@ -1309,18 +1316,27 @@ export function WorkOrderDetailPage() {
         : '',
     )
     setEditTaxRateId(ln.taxRateId ?? '')
-    setAutoEditLineId(null)
+    setAutoEditFocus(null)
   }
 
   /** Repuesto recién agregado: la fila queda abierta para cargar cantidad/valor/descuento. */
   function openLineEditor(ln: WorkOrderLine) {
     startEdit(ln)
-    setAutoEditLineId(ln.id)
+    setAutoEditFocus((prev) => ({ id: ln.id, seq: (prev?.seq ?? 0) + 1 }))
   }
+
+  /**
+   * Enfoca el campo de la fila recién abierta sin desplazar la página: sin `preventScroll` el
+   * navegador scrollea hasta el input y la tabla «salta» al agregar o repetir un repuesto.
+   */
+  useEffect(() => {
+    if (!autoEditFocus) return
+    lineFocusRef.current?.focus({ preventScroll: true })
+  }, [autoEditFocus])
 
   function cancelEdit() {
     setEditLine(null)
-    setAutoEditLineId(null)
+    setAutoEditFocus(null)
   }
 
   async function saveEdit() {
@@ -1376,7 +1392,7 @@ export function WorkOrderDetailPage() {
         body,
       })
       setEditLine((cur) => (cur?.id === editingId ? null : cur))
-      setAutoEditLineId((cur) => (cur === editingId ? null : cur))
+      setAutoEditFocus((cur) => (cur?.id === editingId ? null : cur))
       try {
         await refreshLinesOnWorkOrder()
       } catch {
@@ -1412,6 +1428,11 @@ export function WorkOrderDetailPage() {
   }
 
   const st = STATUS[wo.status]
+  /**
+   * Orden de la tabla: `sortOrder` **descendente**, es decir **lo último agregado arriba**
+   * (el servidor los devuelve ascendente y el `sortOrder` mayor es el más nuevo).
+   */
+  const linesOrdered = [...wo.lines].sort((a, b) => b.sortOrder - a.sortOrder)
   const showLineActionsColumn =
     !closed &&
     wo.lines.some(() => Boolean(canUpdateLine || canDeleteLine))
@@ -2497,22 +2518,22 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           >
             <thead>
               <tr className="va-table-head-row">
-                <th className="va-table-th">Tipo</th>
+                <th className="va-table-th w-28">Tipo</th>
                 <th className="va-table-th">Detalle</th>
-                <th className="va-table-th">Cant.</th>
+                <th className="va-table-th w-20">Cant.</th>
                 {canViewWoFinancials ? (
                   <>
-                    <th className="va-table-th">P. unit.</th>
-                    <th className="va-table-th">Descuento</th>
+                    <th className="va-table-th w-32">P. unit.</th>
+                    <th className="va-table-th w-28">Descuento</th>
                   </>
                 ) : null}
-                {canViewWoCosts ? <th className="va-table-th">P. proveedor</th> : null}
-                {canViewWoFinancials ? <th className="va-table-th">Importe</th> : null}
-                {showLineActionsColumn ? <th className="va-table-th" /> : null}
+                {canViewWoCosts ? <th className="va-table-th w-32">P. proveedor</th> : null}
+                {canViewWoFinancials ? <th className="va-table-th w-32">Importe</th> : null}
+                {showLineActionsColumn ? <th className="va-table-th w-24" /> : null}
               </tr>
             </thead>
             <tbody>
-              {wo.lines.length === 0 && (
+              {linesOrdered.length === 0 && (
                 <tr>
                   <td
                     colSpan={lineTableColSpan}
@@ -2522,12 +2543,21 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                   </td>
                 </tr>
               )}
-              {wo.lines.map((ln) => {
+              {linesOrdered.map((ln) => {
                 const editing = editLine?.id === ln.id
-                const lineInputClass = 'va-field px-2 py-1 text-right text-xs'
+                /**
+                 * Ancho fijo y alto compacto: sin `w-full`/`mt-1` de `va-field`, las columnas no
+                 * cambian de tamaño al entrar en edición (evita el salto de la tabla).
+                 */
+                const lineInputClass =
+                  'w-20 rounded-md border border-slate-300 bg-white px-1.5 py-1 text-right text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/25 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/30'
+                const lineQtyInputClass = lineInputClass.replace('w-20', 'w-14')
+                const lineDescInputClass = lineInputClass
+                  .replace('w-20', 'w-full')
+                  .replace('text-right', 'text-left')
                 // Fila recién agregada: enfoca el valor si falta, si no la cantidad.
                 const focusTarget =
-                  editing && autoEditLineId === ln.id
+                  editing && autoEditFocus?.id === ln.id
                     ? Number(ln.unitPrice ?? 0) > 0
                       ? 'qty'
                       : 'price'
@@ -2566,14 +2596,14 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                               void saveEdit()
                             }
                           }}
-                          className="va-field px-2 py-1 text-xs"
+                          className={lineDescInputClass}
                           aria-label="Descripción de la línea"
                         />
                         {ln.lineType === 'LABOR' && canViewWoFinancials && taxRatesCatalog.length > 0 ? (
                           <select
                             value={editTaxRateId}
                             onChange={(e) => setEditTaxRateId(e.target.value)}
-                            className="va-field mt-1 px-2 py-1 text-xs"
+                            className={`${lineDescInputClass} mt-1`}
                             aria-label="Impuesto de la línea"
                           >
                             <option value="">— Sin impuesto —</option>
@@ -2607,10 +2637,10 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                             void saveEdit()
                           }
                         }}
-                        autoFocus={focusTarget === 'qty'}
+                        ref={focusTarget === 'qty' ? lineFocusRef : undefined}
                         inputMode="decimal"
                         autoComplete="off"
-                        className={lineInputClass}
+                        className={lineQtyInputClass}
                         aria-label="Cantidad de la línea"
                       />
                     ) : (
@@ -2630,7 +2660,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                                 void saveEdit()
                               }
                             }}
-                            autoFocus={focusTarget === 'price'}
+                            ref={focusTarget === 'price' ? lineFocusRef : undefined}
                             inputMode="decimal"
                             autoComplete="off"
                             className={lineInputClass}
