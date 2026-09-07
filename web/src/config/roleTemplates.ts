@@ -104,7 +104,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
   },
 ] as const
 
-export function templateById(id: string): RoleTemplate | undefined {
+function templateById(id: string): RoleTemplate | undefined {
   return ROLE_TEMPLATES.find((t) => t.id === id)
 }
 

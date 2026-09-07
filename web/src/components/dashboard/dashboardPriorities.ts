@@ -1,7 +1,7 @@
 import { portalPath } from '../../constants/portalPath'
 import type { DashboardModule, DashboardSection } from './dashboardTypes'
 
-export const MODULE_PRIORITY: Record<string, number> = {
+const MODULE_PRIORITY: Record<string, number> = {
   [portalPath('/caja')]: 120,
   [portalPath('/ordenes')]: 110,
   [portalPath('/cotizaciones')]: 108,

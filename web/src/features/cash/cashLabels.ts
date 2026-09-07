@@ -6,7 +6,7 @@ export function sessionStatusEs(status: string): string {
   return status
 }
 
-export function expenseStatusEs(status: string): string {
+function expenseStatusEs(status: string): string {
   const m: Record<string, string> = {
     PENDING: 'Pendiente',
     APPROVED: 'Aprobada',

@@ -23,7 +23,7 @@ export type SessionMovementRow = {
   createdBy: { fullName: string; email: string }
 }
 
-export type CashSessionMovementsCurrent =
+type CashSessionMovementsCurrent =
   | undefined
   | null
   | {

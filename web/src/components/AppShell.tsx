@@ -29,7 +29,6 @@ import { prefetchCashShellQueries } from '../features/cash/cashPrefetch'
 import { prefetchSettingsAdminPanel } from '../features/settings/prefetchSettingsNav'
 import { prefetchDefaultWorkOrdersList } from '../features/work-orders/prefetch/workOrdersNavPrefetch'
 import { WorkOrderStatusAlertsBell } from '../features/work-orders'
-import { useTheme } from '../theme/ThemeContext'
 
 type PreviewRoleRow = { id: string; name: string; slug: string; isSystem: boolean }
 
@@ -52,14 +51,11 @@ function initialsFromName(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-/** Logo corporativo: claro (`public/logo_panel_light.png`) / oscuro (`public/logo_panel.png`). */
-const PANEL_BRAND_LOGO_LIGHT = '/logo_panel_light.png'
-const PANEL_BRAND_LOGO_DARK = '/logo_panel.png'
+/** Logo corporativo del panel (solo oscuro: se descartó el tema claro). */
+const PANEL_BRAND_LOGO = '/logo_panel.png'
 
 function PanelBrandLogo({ className }: { className?: string }) {
-  const { preference } = useTheme()
-  const src = preference === 'light' ? PANEL_BRAND_LOGO_LIGHT : PANEL_BRAND_LOGO_DARK
-  return <img src={src} alt="Vene Autos" draggable={false} className={className} decoding="async" />
+  return <img src={PANEL_BRAND_LOGO} alt="Vene Autos" draggable={false} className={className} decoding="async" />
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>

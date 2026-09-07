@@ -1,79 +1,43 @@
 /* eslint-disable react-refresh/only-export-components -- useTheme vive junto al provider por cohesión del módulo */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useLayoutEffect, useMemo, type ReactNode } from 'react'
 
-export type ThemePreference = 'light' | 'dark'
-
-const STORAGE_KEY = 'vene-theme-preference'
+/**
+ * El panel es **solo oscuro**: se descartó el tema claro. La preferencia queda fija en `dark`
+ * (se mantiene la forma del contexto para no tocar los consumidores) y el `dark` del `<html>`
+ * se aplica siempre.
+ */
+export type ThemePreference = 'dark'
 
 type ThemeContextValue = {
   preference: ThemePreference
-  setPreference: (p: ThemePreference) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-function systemIsDark(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-}
+const STORAGE_KEY = 'vene-theme-preference'
 
-function readStored(): ThemePreference {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY)
-    if (v === 'light' || v === 'dark') return v
-    if (v === 'system') return systemIsDark() ? 'dark' : 'light'
-  } catch {
-    /* private mode */
-  }
-  return 'light'
-}
-
-function applyDom(isDark: boolean) {
-  document.documentElement.classList.toggle('dark', isDark)
-  document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
+function applyDark() {
+  document.documentElement.classList.add('dark')
+  document.documentElement.style.colorScheme = 'dark'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemePreference>(readStored)
-
-  /** Migra valor legacy `system` en localStorage a claro u oscuro (una sola vez). */
   useLayoutEffect(() => {
+    applyDark()
+    // Limpia la preferencia vieja (light/system) para que no quede basura en el dispositivo.
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw === 'system') {
-        localStorage.setItem(STORAGE_KEY, systemIsDark() ? 'dark' : 'light')
-      }
+      localStorage.setItem(STORAGE_KEY, 'dark')
     } catch {
-      /* */
+      /* modo privado */
     }
   }, [])
 
-  useLayoutEffect(() => {
-    applyDom(preference === 'dark')
-  }, [preference])
-
-  const setPreference = useCallback((p: ThemePreference) => {
-    setPreferenceState(p)
-    try {
-      localStorage.setItem(STORAGE_KEY, p)
-    } catch {
-      /* */
-    }
-  }, [])
-
-  const value = useMemo(() => ({ preference, setPreference }), [preference, setPreference])
+  const value = useMemo(() => ({ preference: 'dark' as ThemePreference }), [])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
-/** Hook del tema (preferencia guardada en este dispositivo). */
+/** Hook del tema: el panel trabaja siempre en oscuro. */
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext)
   if (!ctx) {

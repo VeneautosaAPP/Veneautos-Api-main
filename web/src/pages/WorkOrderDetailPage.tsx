@@ -403,45 +403,27 @@ export function WorkOrderDetailPage() {
    */
   const refreshLinesOnWorkOrder = useCallback(async () => {
     if (!id) return
-    const lines = await api<WorkOrderLine[]>(`/work-orders/${id}/lines`)
+    // Una sola petición: el detalle ya trae líneas, subtotal, totales y saldo (micro-proceso:
+    // antes se pedían /lines y /work-orders/:id por cada alta/edición de línea).
+    const detail = await api<WorkOrderDetail>(`/work-orders/${id}`)
+    const lines = detail.lines ?? []
     const linesSubtotal = canRef.current('work_orders:view_financials') ||
       canRef.current('work_order_lines:set_unit_price') ||
       canRef.current('work_orders:record_payment')
-      ? linesSubtotalFromLines(lines)
+      ? (detail.linesSubtotal ?? linesSubtotalFromLines(lines))
       : null
-    setWo((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        lines,
-        linesSubtotal,
-      }
+    const patch = (prev: WorkOrderDetail): WorkOrderDetail => ({
+      ...prev,
+      lines,
+      linesSubtotal: linesSubtotal ?? prev.linesSubtotal,
+      totals: detail.totals ?? prev.totals,
+      amountDue: detail.amountDue ?? prev.amountDue,
+      paymentSummary: detail.paymentSummary ?? prev.paymentSummary,
     })
-    queryClient.setQueryData<WorkOrderDetail>(queryKeys.workOrders.detail(id), (prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        lines,
-        linesSubtotal: linesSubtotal ?? prev.linesSubtotal,
-      }
-    })
-    // Totales y saldo los calcula el servidor: sin esto el encabezado queda desfasado hasta recargar.
-    try {
-      const detail = await api<WorkOrderDetail>(`/work-orders/${id}`)
-      const summaryPatch = (prev: WorkOrderDetail) => ({
-        lines,
-        linesSubtotal: detail.linesSubtotal ?? linesSubtotal ?? prev.linesSubtotal,
-        totals: detail.totals ?? prev.totals,
-        amountDue: detail.amountDue ?? prev.amountDue,
-        paymentSummary: detail.paymentSummary ?? prev.paymentSummary,
-      })
-      setWo((prev) => (prev ? { ...prev, ...summaryPatch(prev) } : prev))
-      queryClient.setQueryData<WorkOrderDetail>(queryKeys.workOrders.detail(id), (prev) =>
-        prev ? { ...prev, ...summaryPatch(prev) } : prev,
-      )
-    } catch {
-      /* si falla el resumen, igual quedaron actualizadas las líneas */
-    }
+    setWo((prev) => (prev ? patch(prev) : prev))
+    queryClient.setQueryData<WorkOrderDetail>(queryKeys.workOrders.detail(id), (prev) =>
+      prev ? patch(prev) : prev,
+    )
   }, [id, queryClient])
 
   useEffect(() => {
