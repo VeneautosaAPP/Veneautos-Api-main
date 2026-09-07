@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BarChart3,
   ChevronLeft,
@@ -8,7 +8,6 @@ import {
   LogOut,
   Package,
   ScrollText,
-  Search,
   Settings,
   Shield,
   Users,
@@ -17,7 +16,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import type { LoginResponse } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
@@ -26,7 +25,6 @@ import { usePanelTheme } from '../theme/PanelThemeProvider'
 import { panelUsesModernShell } from '../config/operationalNotes'
 import { portalPath } from '../constants/portalPath'
 import { setStoredLastModulePath } from '../services/lastModuleStorage'
-import { ThemeToggle } from './ThemeToggle'
 import { prefetchCashShellQueries } from '../features/cash/cashPrefetch'
 import { prefetchSettingsAdminPanel } from '../features/settings/prefetchSettingsNav'
 import { prefetchDefaultWorkOrdersList } from '../features/work-orders/prefetch/workOrdersNavPrefetch'
@@ -34,6 +32,12 @@ import { WorkOrderStatusAlertsBell } from '../features/work-orders'
 import { useTheme } from '../theme/ThemeContext'
 
 type PreviewRoleRow = { id: string; name: string; slug: string; isSystem: boolean }
+
+/**
+ * Campanita de alertas de OT: oculta por decisión de producto, pero el componente y su
+ * cableado se conservan para reutilizarlos más adelante. Volver a `true` para reactivarla.
+ */
+const SHOW_WORK_ORDER_ALERTS_BELL = false
 
 function activeNavTo(pathname: string, linkTos: readonly string[]): string | null {
   const matches = linkTos.filter((to) => pathname === to || pathname.startsWith(`${to}/`))
@@ -125,7 +129,6 @@ function AppShellInner() {
     void logout()
   }, [logout])
   const location = useLocation()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const prefetchNavHints = useCallback(
     (to: string) => {
@@ -139,7 +142,6 @@ function AppShellInner() {
     },
     [can, queryClient],
   )
-  const [panelSearch, setPanelSearch] = useState('')
   const [saasSidebarCollapsed, setSaasSidebarCollapsed] = useState(readSidebarCollapsed)
 
   const toggleSaasSidebar = useCallback(() => {
@@ -150,32 +152,9 @@ function AppShellInner() {
     })
   }, [])
 
-  useEffect(() => {
-    if (location.pathname !== portalPath('/ordenes')) return
-    const sp = new URLSearchParams(location.search)
-    setPanelSearch(sp.get('search') ?? '')
-  }, [location.pathname, location.search])
-
-  const submitPanelSearch = useCallback(
-    (e?: FormEvent) => {
-      e?.preventDefault()
-      const raw = panelSearch.trim()
-      const ordenesPath = portalPath('/ordenes')
-      if (location.pathname === ordenesPath) {
-        const next = new URLSearchParams(location.search)
-        if (raw) next.set('search', raw)
-        else next.delete('search')
-        next.delete('page')
-        const qs = next.toString()
-        navigate({ pathname: ordenesPath, search: qs ? `?${qs}` : '' }, { replace: true })
-      } else {
-        navigate(raw ? `${ordenesPath}?search=${encodeURIComponent(raw)}` : ordenesPath)
-      }
-    },
-    [location.pathname, location.search, navigate, panelSearch],
-  )
   const [previewRoles, setPreviewRoles] = useState<PreviewRoleRow[]>([])
   const [rolePreviewBusy, setRolePreviewBusy] = useState(false)
+  const appShellHeaderRef = useRef<HTMLElement | null>(null)
   const navOuterRef = useRef<HTMLDivElement>(null)
   const navRowRef = useRef<HTMLDivElement>(null)
   const linkRefs = useRef<Map<string, HTMLAnchorElement>>(new Map())
@@ -201,6 +180,24 @@ function AppShellInner() {
   useEffect(() => {
     setStoredLastModulePath(location.pathname)
   }, [location.pathname])
+
+  /**
+   * Publica la altura real de la barra superior en `--va-app-header-h` para que las páginas
+   * puedan fijar su cabecera justo debajo (`position: sticky`) sin hardcodear medidas.
+   */
+  useEffect(() => {
+    const el = appShellHeaderRef.current
+    if (!el) return
+    const publish = () => {
+      const h = Math.round(el.getBoundingClientRect().height)
+      document.documentElement.style.setProperty('--va-app-header-h', `${h}px`)
+    }
+    publish()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const previewSelectValue = user?.previewRole?.id ?? ''
 
@@ -326,41 +323,61 @@ function AppShellInner() {
   const userSubtitle =
     user?.previewRole?.name ?? (user?.roleSlugs?.[0] ? user.roleSlugs[0].replace(/_/g, ' ') : 'Usuario')
 
+  /**
+   * Selector «Vista por rol» («Mis permisos»). Se reutiliza en la cabecera (móvil) y al pie del
+   * menú lateral (escritorio), con `id` propio en cada sitio para no duplicar identificadores.
+   */
+  const renderRolePreviewSelect = (opts: {
+    id: string
+    placeholder: string
+    wrapperClass?: string
+    selectClass: string
+    withBadge?: boolean
+  }) => {
+    if (!can('auth:assume_role_preview')) return null
+    return (
+      <div className={`flex min-w-0 items-center gap-1 ${opts.wrapperClass ?? ''}`}>
+        <label className="sr-only" htmlFor={opts.id}>
+          Vista por rol (simulación)
+        </label>
+        <select
+          id={opts.id}
+          disabled={rolePreviewBusy}
+          value={previewSelectValue}
+          onChange={(e) => void onPreviewRoleChange(e.target.value)}
+          className={`${opts.selectClass} ${
+            user?.previewRole ? 'ring-1 ring-amber-400/60 dark:ring-amber-500/45' : ''
+          }`}
+          title="Probá la app con otro rol; seguís siendo el mismo usuario."
+        >
+          <option value="">{opts.placeholder}</option>
+          {roleOptions.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+        {opts.withBadge && user?.previewRole ? (
+          <span
+            className="hidden shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium tracking-normal text-amber-800 dark:bg-amber-950/50 dark:text-amber-100 sm:inline"
+            title="No es tu sesión operativa habitual: solo permisos simulados."
+          >
+            Simulando
+          </span>
+        ) : null}
+      </div>
+    )
+  }
+
   const classicToolbar = user && (
     <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
-      <ThemeToggle />
-      {can('auth:assume_role_preview') && (
-        <div className="flex min-w-0 max-w-[10.5rem] items-center gap-1 sm:max-w-[13rem]">
-          <label className="sr-only" htmlFor="header-role-preview">
-            Vista por rol (simulación)
-          </label>
-          <select
-            id="header-role-preview"
-            disabled={rolePreviewBusy}
-            value={previewSelectValue}
-            onChange={(e) => void onPreviewRoleChange(e.target.value)}
-            className={`va-field max-w-full cursor-pointer py-1.5 pr-7 text-xs font-medium sm:text-sm ${
-              user.previewRole ? 'ring-1 ring-amber-400/60 dark:ring-amber-500/45' : ''
-            }`}
-            title="Probá la app con otro rol; seguís siendo el mismo usuario."
-          >
-            <option value="">Mis permisos reales</option>
-            {roleOptions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          {user.previewRole ? (
-            <span
-              className="hidden shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium tracking-normal text-amber-800 dark:bg-amber-950/50 dark:text-amber-100 sm:inline"
-              title="No es tu sesión operativa habitual: solo permisos simulados."
-            >
-              Simulando
-            </span>
-          ) : null}
-        </div>
-      )}
+      {renderRolePreviewSelect({
+        id: 'header-role-preview',
+        placeholder: 'Mis permisos reales',
+        wrapperClass: 'max-w-[10.5rem] sm:max-w-[13rem]',
+        selectClass: 'va-field max-w-full cursor-pointer py-1.5 pr-7 text-xs font-medium sm:text-sm',
+        withBadge: true,
+      })}
       <span className="hidden max-w-[7rem] truncate text-sm text-slate-600 sm:inline sm:max-w-[9rem] md:max-w-[14rem] dark:text-slate-300">
         {user.fullName}
       </span>
@@ -376,44 +393,16 @@ function AppShellInner() {
 
   const saasToolbar = user && (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-      <WorkOrderStatusAlertsBell iconButtonClassName={saasIconButtonClass()} />
-      <ThemeToggle variant="icon" />
-      {can('auth:assume_role_preview') && (
-        <div className="flex min-w-0 max-w-[9.5rem] items-center gap-1 sm:max-w-[12rem]">
-          <label className="sr-only" htmlFor="header-role-preview-saas">
-            Vista por rol (simulación)
-          </label>
-          <select
-            id="header-role-preview-saas"
-            disabled={rolePreviewBusy}
-            value={previewSelectValue}
-            onChange={(e) => void onPreviewRoleChange(e.target.value)}
-            className={`va-field max-w-full cursor-pointer rounded-lg border-slate-200 py-1.5 pr-6 text-xs font-medium dark:border-slate-600 sm:text-sm ${
-              user.previewRole ? 'ring-1 ring-amber-400/50 dark:ring-amber-500/40' : ''
-            }`}
-            title="Probá la app con otro rol"
-          >
-            <option value="">Mis permisos</option>
-            {roleOptions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      <div className="hidden items-center gap-2.5 pl-1 sm:flex">
-        <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800 dark:bg-slate-700 dark:text-white"
-          aria-hidden
-        >
-          {initialsFromName(user.fullName)}
-        </div>
-        <div className="min-w-0 leading-tight">
-          <p className="va-app-shell-meta-strong">{user.fullName}</p>
-          <p className="va-app-shell-meta capitalize">{userSubtitle}</p>
-        </div>
-      </div>
+      {SHOW_WORK_ORDER_ALERTS_BELL ? (
+        <WorkOrderStatusAlertsBell iconButtonClassName={saasIconButtonClass()} />
+      ) : null}
+      {renderRolePreviewSelect({
+        id: 'header-role-preview-saas',
+        placeholder: 'Mis permisos',
+        wrapperClass: 'max-w-[9.5rem] sm:max-w-[12rem]',
+        selectClass:
+          'va-field max-w-full cursor-pointer rounded-lg border-slate-200 py-1.5 pr-6 text-xs font-medium dark:border-slate-600 sm:text-sm',
+      })}
       <button
         type="button"
         onClick={handleLogout}
@@ -568,12 +557,59 @@ function AppShellInner() {
               )
             })}
           </nav>
+          {user && (
+            <div
+              className={`flex shrink-0 flex-col gap-2 border-t border-slate-200 dark:border-slate-800 ${
+                saasSidebarCollapsed ? 'px-1 py-3' : 'px-3 py-3'
+              }`}
+            >
+              {!saasSidebarCollapsed
+                ? renderRolePreviewSelect({
+                    id: 'sidebar-role-preview',
+                    placeholder: 'Mis permisos',
+                    wrapperClass: 'w-full',
+                    selectClass:
+                      'va-field w-full cursor-pointer rounded-lg border-slate-200 py-1.5 pr-6 text-xs font-medium dark:border-slate-600',
+                    withBadge: true,
+                  })
+                : null}
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+                className={`flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-red-600 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-red-400 ${
+                  saasSidebarCollapsed ? 'justify-center' : ''
+                }`}
+              >
+                <LogOut className="size-[1.125rem] shrink-0" strokeWidth={1.75} aria-hidden />
+                {!saasSidebarCollapsed ? <span className="truncate">Salir</span> : null}
+              </button>
+              <div
+                className={`flex items-center gap-2.5 ${saasSidebarCollapsed ? 'justify-center' : ''}`}
+              >
+                <div
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800 dark:bg-slate-700 dark:text-white"
+                  aria-hidden
+                >
+                  {initialsFromName(user.fullName)}
+                </div>
+                {!saasSidebarCollapsed && (
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="va-app-shell-meta-strong truncate">{user.fullName}</p>
+                    <p className="va-app-shell-meta capitalize truncate">{userSubtitle}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </aside>
       )}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header
-          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300/90 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200/90 bg-white/95 dark:bg-slate-900/95' : 'bg-white/95 dark:bg-slate-900/90'}`}
+          ref={appShellHeaderRef}
+          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300/90 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200/90 bg-white/95 dark:bg-slate-900/95 lg:hidden' : 'bg-white/95 dark:bg-slate-900/90'}`}
         >
           {isSaas && user ? (
             <div className={`mx-auto flex w-full flex-col gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 xl:px-5 xl:py-3.5 ${shellMaxClass}`}>
@@ -586,30 +622,7 @@ function AppShellInner() {
                   <PanelBrandLogo className="h-7 w-auto max-w-[min(78vw,15rem)] object-contain object-left sm:h-8 sm:max-w-[16rem]" />
                 </NavLink>
               </div>
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <form
-                  className="relative min-w-0 flex-1 sm:max-w-md lg:max-w-xl xl:max-w-2xl"
-                  role="search"
-                  onSubmit={submitPanelSearch}
-                  aria-label="Buscar órdenes de trabajo"
-                >
-                  <Search
-                    className="va-app-shell-search-icon pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-300"
-                    strokeWidth={1.75}
-                    aria-hidden
-                  />
-                  <input
-                    type="search"
-                    name="panel-search"
-                    value={panelSearch}
-                    onChange={(e) => setPanelSearch(e.target.value)}
-                    placeholder="Buscar órdenes (código, patente, cliente…)"
-                    title="Ir al listado de órdenes con filtro de texto."
-                    className="va-app-shell-search w-full rounded-lg border border-slate-200/90 bg-white py-2 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/30"
-                    autoComplete="off"
-                    aria-label="Texto a buscar en el listado de órdenes"
-                  />
-                </form>
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
                 {saasToolbar}
               </div>
             </div>
