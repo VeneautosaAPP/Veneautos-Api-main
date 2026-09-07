@@ -6,9 +6,9 @@
     "node": ">=20.0.0 <25.0.0"
   },
   "scripts": {
-    "prebuild": "prisma generate",
-    "compile": "nest build",
-    "build": "nest build",
+    "postinstall": "prisma generate",
+    "compile": "prisma generate && nest build",
+    "build": "prisma generate && nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
