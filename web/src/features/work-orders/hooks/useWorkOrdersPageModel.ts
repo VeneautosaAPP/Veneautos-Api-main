@@ -20,14 +20,11 @@ import {
   normalizeMoneyDecimalStringForApi,
 } from '../../../utils/copFormat'
 import {
-  readStoredListView,
   readStoredPageSize,
   workOrderListFetchFilterKey,
   workOrderListHasFetchFilters,
-  WO_LIST_VIEW_KEY,
   WO_PAGE_SIZE_KEY,
   WO_PAGE_SIZE_OPTIONS,
-  type WoListView,
 } from '../services/workOrdersListPresentation'
 import { prefetchWorkOrderDetail } from '../prefetch/workOrdersNavPrefetch'
 import {
@@ -44,14 +41,6 @@ import {
 } from '../services/workOrdersListApi'
 import type { WorkOrdersVehicleHit, WorkOrdersWarrantyVehicleOption } from '../types'
 import { useWorkOrderListFilters } from './useWorkOrderListFilters'
-
-function woSelectionSetsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a.size !== b.size) return false
-  for (const id of a) {
-    if (!b.has(id)) return false
-  }
-  return true
-}
 
 export function useWorkOrdersPageModel() {
   const panelTheme = usePanelTheme()
@@ -77,7 +66,6 @@ export function useWorkOrdersPageModel() {
     textSearch,
   } = listFilters
 
-  const rowsRef = useRef<WorkOrderSummary[] | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<(typeof WO_PAGE_SIZE_OPTIONS)[number]>(() => readStoredPageSize())
 
@@ -117,8 +105,6 @@ export function useWorkOrdersPageModel() {
     if (listQuery.data !== undefined) return listQuery.data.items
     return null
   }, [listQuery.data])
-
-  rowsRef.current = rows
 
   const total = listQuery.data?.total ?? 0
 
@@ -170,7 +156,6 @@ export function useWorkOrdersPageModel() {
   const [warrantyVehicleLoading, setWarrantyVehicleLoading] = useState(false)
   const [warrantyVehicleError, setWarrantyVehicleError] = useState<string | null>(null)
   const [warrantyParentMissingVehicle, setWarrantyParentMissingVehicle] = useState(false)
-  const [listView, setListView] = useState<WoListView>(() => readStoredListView())
 
   const [vehModalOpen, setVehModalOpen] = useState(false)
   const [vehQ, setVehQ] = useState('')
@@ -186,14 +171,6 @@ export function useWorkOrdersPageModel() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(WO_LIST_VIEW_KEY, listView)
-    } catch {
-      /* ignore */
-    }
-  }, [listView])
-
-  useEffect(() => {
-    try {
       localStorage.setItem(WO_PAGE_SIZE_KEY, String(pageSize))
     } catch {
       /* ignore */
@@ -201,41 +178,6 @@ export function useWorkOrdersPageModel() {
   }, [pageSize])
 
   const listFilterRef = useRef<string | null>(null)
-
-  /** Selección en listado (batch): callbacks estables para no invalidar memo de hijos. */
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
-
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  /** `rows` va en ref: callback estable y sin re-suscripciones; al invocar lee la página actual. */
-  const selectAll = useCallback(() => {
-    setSelectedIds((prev) => {
-      const r = rowsRef.current
-      if (!r?.length) return prev.size === 0 ? prev : new Set()
-      const next = new Set(r.map((x) => x.id))
-      return woSelectionSetsEqual(prev, next) ? prev : next
-    })
-  }, [])
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()))
-  }, [])
-
-  useEffect(() => {
-    setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()))
-  }, [listFetchFilterKey, page])
-
-  useEffect(() => {
-    if (rows?.length !== 0) return
-    setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()))
-  }, [rows])
 
   const runVehicleSearch = useCallback(async () => {
     const q = vehQ.trim()
@@ -424,6 +366,18 @@ export function useWorkOrdersPageModel() {
     [searchParams, setSearchParams],
   )
 
+  const setTextSearch = useCallback(
+    (next: string) => {
+      const nextParams = new URLSearchParams(searchParams)
+      const trimmed = next.trim()
+      if (trimmed) nextParams.set('search', trimmed)
+      else nextParams.delete('search')
+      nextParams.delete('page')
+      setSearchParams(nextParams, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
+
   const clearListFilters = useCallback(() => {
     setSearchParams({}, { replace: true })
   }, [setSearchParams])
@@ -586,8 +540,6 @@ export function useWorkOrdersPageModel() {
     warrantyVehicleLoading,
     warrantyVehicleError,
     warrantyParentMissingVehicle,
-    listView,
-    setListView,
     vehModalOpen,
     setVehModalOpen,
     vehQ,
@@ -596,13 +548,10 @@ export function useWorkOrdersPageModel() {
     vehResults,
     vehErr,
     listBusy,
-    selectedIds,
-    toggleSelect,
-    selectAll,
-    clearSelection,
     loadPage,
     runVehicleSearch,
     setStatus,
+    setTextSearch,
     clearListFilters,
     submitCreate,
     handlePostCreateSigned,

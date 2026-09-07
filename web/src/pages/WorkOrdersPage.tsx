@@ -119,9 +119,8 @@ export function WorkOrdersPage() {
         textSearch={m.textSearch}
         vehiclePlateLabel={m.vehiclePlateLabel}
         onClearListFilters={clearListFilters}
-        listView={m.listView}
-        onListViewChange={m.setListView}
         onSetStatus={m.setStatus}
+        onSetTextSearch={m.setTextSearch}
         canCreateWorkOrder={canCreateWorkOrder}
         onOpenNewOrder={m.openNewOrderModal}
         showPagination={m.rows !== null}
@@ -390,12 +389,6 @@ export function WorkOrdersPage() {
 
       <WorkOrdersList
         rows={m.rows}
-        listView={m.listView}
-        canViewWoFinancials={m.canViewWoFinancials}
-        selectedIds={m.selectedIds}
-        toggleSelect={m.toggleSelect}
-        selectAll={m.selectAll}
-        clearSelection={m.clearSelection}
         onPrefetchWorkOrder={m.prefetchWorkOrderDetail}
       />
     </div>
