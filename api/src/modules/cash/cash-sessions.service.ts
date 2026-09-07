@@ -19,11 +19,8 @@ import { AuditService } from '../audit/audit.service';
 import {
   CASH_EXPENSE_REQUEST_REFERENCE_TYPE,
   CASH_INVOICE_REFERENCE_TYPE,
-  CASH_PURCHASE_RECEIPT_REFERENCE_TYPE,
-  CASH_SALE_REFERENCE_TYPE,
   CASH_WORK_ORDER_REFERENCE_TYPE,
 } from './cash.constants';
-import { appendReserveContributionsForClose } from '../workshop-finance/reserve-append';
 import type { CloseCashSessionDto } from './dto/close-cash-session.dto';
 import type { OpenCashSessionDto } from './dto/open-cash-session.dto';
 
@@ -168,9 +165,11 @@ export class CashSessionsService {
     const labels: Record<string, string> = {
       [CASH_EXPENSE_REQUEST_REFERENCE_TYPE]: 'Solicitud de egreso',
       [CASH_WORK_ORDER_REFERENCE_TYPE]: 'Orden de trabajo',
-      [CASH_SALE_REFERENCE_TYPE]: 'Venta',
       [CASH_INVOICE_REFERENCE_TYPE]: 'Factura',
-      [CASH_PURCHASE_RECEIPT_REFERENCE_TYPE]: 'Recepción de compra',
+      // Etiquetas legacy: movimientos históricos que referencian documentos eliminados
+      // (ventas y recepciones de compra) conservan su desglose en el arqueo archivado.
+      Sale: 'Venta',
+      PurchaseReceipt: 'Recepción de compra',
       MANUAL: 'Manual / otros',
     };
     const agg = new Map<
@@ -259,40 +258,45 @@ export class CashSessionsService {
     dto: CloseCashSessionDto,
     meta: { ip?: string; userAgent?: string },
   ) {
-    const session = await this.prisma.cashSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        movements: { select: { direction: true, amount: true } },
-      },
-    });
-    if (!session) {
-      throw new NotFoundException('Sesión de caja no encontrada');
-    }
-    if (session.status !== CashSessionStatus.OPEN) {
-      throw new ConflictException('La sesión ya está cerrada');
-    }
-
     const counted = decimalFromMoneyApiString(dto.closingCounted);
     if (counted.lt(0)) {
       throw new BadRequestException('closingCounted inválido');
     }
 
-    const { expected } = this.computeExpectedBalance(session.openingAmount, session.movements);
+    // Bloqueamos la sesión y releemos sus movimientos dentro de la misma transacción: el arqueo
+    // así no pierde movimientos que entren en paralelo (cualquier registro compite por el mismo
+    // lock vía createMovement) y la comprobación OPEN sigue siendo atómica contra cierres dobles.
+    const { updated, expected, movementCount } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "cash_sessions" WHERE id = ${sessionId} FOR UPDATE`;
 
-    const diff = expected.sub(counted).abs();
-    let differenceNote: string | null = null;
-    if (diff.gt(0)) {
-      differenceNote = await this.notes.requireOperationalNote(
-        'Nota de diferencia en arqueo',
-        dto.differenceNote,
-      );
-    } else {
-      const t = dto.differenceNote?.trim();
-      differenceNote = t ? t : null;
-    }
+      const session = await tx.cashSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          movements: { select: { direction: true, amount: true } },
+        },
+      });
+      if (!session) {
+        throw new NotFoundException('Sesión de caja no encontrada');
+      }
+      if (session.status !== CashSessionStatus.OPEN) {
+        throw new ConflictException('La sesión ya está cerrada');
+      }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const u = await tx.cashSession.update({
+      const { expected } = this.computeExpectedBalance(session.openingAmount, session.movements);
+
+      const diff = expected.sub(counted).abs();
+      let differenceNote: string | null = null;
+      if (diff.gt(0)) {
+        differenceNote = await this.notes.requireOperationalNote(
+          'Nota de diferencia en arqueo',
+          dto.differenceNote,
+        );
+      } else {
+        const t = dto.differenceNote?.trim();
+        differenceNote = t ? t : null;
+      }
+
+      const updated = await tx.cashSession.update({
         where: { id: sessionId },
         data: {
           status: CashSessionStatus.CLOSED,
@@ -303,8 +307,7 @@ export class CashSessionsService {
           differenceNote,
         },
       });
-      await appendReserveContributionsForClose(tx, sessionId, counted);
-      return u;
+      return { updated, expected, movementCount: session.movements.length };
     });
 
     await this.audit.recordDomain({
@@ -313,8 +316,8 @@ export class CashSessionsService {
       entityType: 'CashSession',
       entityId: sessionId,
       previousPayload: {
-        status: session.status,
-        movementCount: session.movements.length,
+        status: CashSessionStatus.OPEN,
+        movementCount,
       },
       nextPayload: {
         status: updated.status,

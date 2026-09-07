@@ -1,23 +1,17 @@
 import { WorkOrderLineType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { MONEY_DECIMAL_REGEX } from '../../cash/cash.constants';
-import { QTY_DECIMAL_REGEX } from '../../inventory/inventory.constants';
+import { QTY_DECIMAL_REGEX } from '../../../common/regex/qty-decimal.regex';
 
 export class CreateWorkOrderLineDto {
   @IsEnum(WorkOrderLineType)
   lineType!: WorkOrderLineType;
 
-  @ValidateIf((o) => o.lineType === 'PART')
+  /** Texto libre del repuesto o mano de obra (autocompleta desde el diccionario). */
   @IsString()
   @MinLength(1)
-  @MaxLength(128)
-  inventoryItemId?: string;
-
-  @ValidateIf((o) => o.lineType === 'LABOR')
-  @IsString()
-  @MinLength(3)
   @MaxLength(2000)
-  description?: string;
+  description!: string;
 
   @IsString()
   @MinLength(1)
@@ -33,19 +27,22 @@ export class CreateWorkOrderLineDto {
   })
   unitPrice?: string;
 
-  /** Servicio del catálogo (opcional). Solo aplica a líneas LABOR; si viene, se puede omitir description (el servicio la aporta). */
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(128)
-  serviceId?: string;
-
-  /** Tarifa de impuesto aplicada a la línea (opcional mientras no esté activa la facturación). */
+  /** Tarifa de impuesto aplicada a la línea. */
   @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(128)
   taxRateId?: string;
+
+  /**
+   * SKU del repuesto elegido del catálogo (snapshot; se ignora/normaliza).
+   * Solo aplica a PART; null = repuesto en texto libre.
+   */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  sparePartSku?: string;
 
   /** Descuento de línea en COP enteros (no porcentaje). */
   @IsOptional()

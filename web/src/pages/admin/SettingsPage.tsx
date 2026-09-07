@@ -10,6 +10,7 @@ import { usePanelTheme } from '../../theme/PanelThemeProvider'
 import { STALE_SETTINGS_ADMIN_MS } from '../../constants/queryStaleTime'
 import { fetchSettingsTenantMap, fetchUsersListForQuery } from '../../features/settings/settingsTenantApi'
 import { BackupPanel } from '../../features/settings/BackupPanel'
+import { TaxRatesPage } from './TaxRatesPage'
 import { queryKeys } from '../../lib/queryKeys'
 import { isResumeLastModuleEnabled, setResumeLastModuleEnabled } from '../../services/lastModuleStorage'
 
@@ -301,7 +302,10 @@ export function SettingsPage() {
   const canSaveSettings = can('settings:update')
   const canResetPasswords = can('users:reset_password')
 
-  const [panel, setPanel] = useState<'workshop' | 'support' | 'backup'>('workshop')
+  const [panel, setPanel] = useState<'workshop' | 'taxes' | 'support' | 'backup'>(() =>
+    can('tax_rates:read') && !can('settings:read') ? 'taxes' : 'workshop',
+  )
+  const showTaxesTab = can('tax_rates:read')
 
   const [serverSnapshot, setServerSnapshot] = useState<Record<string, unknown> | null>(null)
   const [map, setMap] = useState<Record<string, unknown> | null>(null)
@@ -464,6 +468,7 @@ export function SettingsPage() {
   const showSupportTab = canResetPasswords
   const canReadSettings = can('settings:read')
   const showBackupTab = canReadSettings || canSaveSettings
+  const showWorkshopTab = canReadSettings || canSaveSettings
   const pageClass = isSaas ? 'space-y-4 lg:space-y-5' : 'space-y-3 sm:space-y-4'
   const sectionCardClass = isSaas
     ? 'scroll-mt-4 va-settings-section overflow-hidden'
@@ -490,21 +495,34 @@ export function SettingsPage() {
         }
       />
 
-      {(showSupportTab || showBackupTab) && (
+      {(showTaxesTab || showSupportTab || showBackupTab) && (
         <div
           className={`va-tabstrip max-w-xl ${isSaas ? 'va-tabstrip--inline va-tabstrip--compact' : ''}`}
           role="tablist"
           aria-label="Secciones de configuración"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={panel === 'workshop'}
-            className={`va-tab ${panel === 'workshop' ? 'va-tab-active' : 'va-tab-inactive'}`}
-            onClick={() => setPanel('workshop')}
-          >
-            Parámetros del taller
-          </button>
+          {showWorkshopTab && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === 'workshop'}
+              className={`va-tab ${panel === 'workshop' ? 'va-tab-active' : 'va-tab-inactive'}`}
+              onClick={() => setPanel('workshop')}
+            >
+              Parámetros del taller
+            </button>
+          )}
+          {showTaxesTab && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === 'taxes'}
+              className={`va-tab ${panel === 'taxes' ? 'va-tab-active' : 'va-tab-inactive'}`}
+              onClick={() => setPanel('taxes')}
+            >
+              Impuestos
+            </button>
+          )}
           {showSupportTab && (
             <button
               type="button"
@@ -539,7 +557,7 @@ export function SettingsPage() {
       ) : null}
       {msg && <p className="va-card-muted">{msg}</p>}
 
-      {(!showSupportTab || panel === 'workshop') && (
+      {showWorkshopTab && panel === 'workshop' && (
         <>
           <section className={`${sectionCardClass} ${isSaas ? 'p-3 sm:p-3.5' : ''}`}>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -743,6 +761,12 @@ export function SettingsPage() {
             </form>
           )}
         </>
+      )}
+
+      {showTaxesTab && panel === 'taxes' && (
+        <div className="va-settings-page">
+          <TaxRatesPage embed />
+        </div>
       )}
 
       {showSupportTab && panel === 'support' && (

@@ -4,26 +4,16 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Droplet,
-  FileText,
-  CircleDollarSign,
-  HandCoins,
-  Inbox,
   LayoutDashboard,
   LogOut,
   Package,
-  Percent,
-  PiggyBank,
-  Receipt,
   ScrollText,
   Search,
-  NotebookTabs,
   Settings,
   Shield,
   Users,
   UsersRound,
   Wallet,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -31,15 +21,13 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { LoginResponse } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
-import { canSeeQuotesUi } from '../auth/quoteRouteAccess'
-import { CashSessionOpenProvider, useCashSessionOpen } from '../context/CashSessionOpenContext'
-import { usePanelTheme, useUiSettings } from '../theme/PanelThemeProvider'
+import { CashSessionOpenProvider } from '../context/CashSessionOpenContext'
+import { usePanelTheme } from '../theme/PanelThemeProvider'
 import { panelUsesModernShell } from '../config/operationalNotes'
 import { portalPath } from '../constants/portalPath'
 import { setStoredLastModulePath } from '../services/lastModuleStorage'
 import { ThemeToggle } from './ThemeToggle'
 import { prefetchCashShellQueries } from '../features/cash/cashPrefetch'
-import { prefetchInventoryCatalog } from '../features/inventory/prefetch/inventoryNavPrefetch'
 import { prefetchSettingsAdminPanel } from '../features/settings/prefetchSettingsNav'
 import { prefetchDefaultWorkOrdersList } from '../features/work-orders/prefetch/workOrdersNavPrefetch'
 import { WorkOrderStatusAlertsBell } from '../features/work-orders'
@@ -103,74 +91,6 @@ type NavLinkItem = {
   Icon: LucideIcon
 }
 
-type TaskMode = {
-  id: 'cash' | 'orders' | 'inventory' | 'customers' | 'admin'
-  label: string
-  routePrefixes: string[]
-  relatedRoutes: string[]
-}
-
-const TASK_MODES: TaskMode[] = [
-  {
-    id: 'cash',
-    label: 'Modo Caja',
-    routePrefixes: [portalPath('/caja'), portalPath('/ventas')],
-    relatedRoutes: [portalPath('/caja'), portalPath('/ordenes'), portalPath('/ventas')],
-  },
-  {
-    id: 'orders',
-    label: 'Modo Órdenes',
-    routePrefixes: [portalPath('/ordenes'), portalPath('/cotizaciones')],
-    relatedRoutes: [
-      portalPath('/ordenes'),
-      portalPath('/cotizaciones'),
-      portalPath('/clientes'),
-      portalPath('/caja'),
-    ],
-  },
-  {
-    id: 'inventory',
-    label: 'Modo Inventario',
-    routePrefixes: [portalPath('/inventario'), portalPath('/recepcion'), portalPath('/aceite')],
-    relatedRoutes: [
-      portalPath('/inventario'),
-      portalPath('/recepcion'),
-      portalPath('/aceite'),
-      portalPath('/ordenes'),
-    ],
-  },
-  {
-    id: 'customers',
-    label: 'Modo Clientes',
-    routePrefixes: [portalPath('/clientes'), portalPath('/vehiculos')],
-    relatedRoutes: [portalPath('/clientes'), portalPath('/ordenes')],
-  },
-  {
-    id: 'admin',
-    label: 'Modo Administración',
-    routePrefixes: [portalPath('/admin')],
-    relatedRoutes: [
-      portalPath('/admin/usuarios'),
-      portalPath('/admin/roles'),
-      portalPath('/admin/servicios'),
-      portalPath('/admin/impuestos'),
-      portalPath('/admin/nomina'),
-      portalPath('/admin/finanzas-taller'),
-      portalPath('/admin/credito-empleados'),
-      portalPath('/admin/auditoria'),
-      portalPath('/admin/configuracion'),
-    ],
-  },
-]
-
-function resolveTaskMode(pathname: string): TaskMode | null {
-  return (
-    TASK_MODES.find((mode) =>
-      mode.routePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)),
-    ) ?? null
-  )
-}
-
 function saasIconButtonClass() {
   return 'rounded-lg border border-slate-200/90 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100 dark:focus-visible:ring-offset-slate-900'
 }
@@ -195,7 +115,6 @@ function writeSidebarCollapsed(collapsed: boolean) {
 
 function AppShellInner() {
   const panelTheme = usePanelTheme()
-  const { electronicInvoiceEnabled } = useUiSettings()
   const isSaas = panelUsesModernShell(panelTheme)
   const shellMaxClass = isSaas
     ? 'max-w-[min(88rem,calc(100vw-1rem))] 2xl:max-w-[min(96rem,calc(100vw-1.5rem))]'
@@ -205,7 +124,6 @@ function AppShellInner() {
   const handleLogout = useCallback(() => {
     void logout()
   }, [logout])
-  const { open: cashSessionOpen } = useCashSessionOpen()
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -213,13 +131,7 @@ function AppShellInner() {
     (to: string) => {
       if (to === portalPath('/caja')) prefetchCashShellQueries(queryClient)
       else if (to === portalPath('/ordenes')) prefetchDefaultWorkOrdersList(queryClient)
-      else if (
-        to === portalPath('/inventario') ||
-        to === portalPath('/recepcion') ||
-        to === portalPath('/aceite')
-      ) {
-        prefetchInventoryCatalog(queryClient)
-      } else if (to === portalPath('/admin/configuracion') && can('settings:read')) {
+      else if (to === portalPath('/admin/configuracion') && can('settings:read')) {
         prefetchSettingsAdminPanel(queryClient, {
           prefetchUsersList: can('users:reset_password'),
         })
@@ -227,7 +139,6 @@ function AppShellInner() {
     },
     [can, queryClient],
   )
-  const taskMode = useMemo(() => resolveTaskMode(location.pathname), [location.pathname])
   const [panelSearch, setPanelSearch] = useState('')
   const [saasSidebarCollapsed, setSaasSidebarCollapsed] = useState(readSidebarCollapsed)
 
@@ -329,7 +240,6 @@ function AppShellInner() {
   )
 
   const links = useMemo((): NavLinkItem[] => {
-    const recepcionVisible = can('purchase_receipts:create') && cashSessionOpen === true
     const all: NavLinkItem[] = [
       { to: portalPath('/'), label: 'Inicio', Icon: LayoutDashboard, show: true },
       { to: portalPath('/caja'), label: 'Caja', Icon: Wallet, show: can('cash_sessions:read') },
@@ -339,54 +249,18 @@ function AppShellInner() {
         Icon: ClipboardList,
         show: can('work_orders:read') || can('work_orders:read_portal'),
       },
-      {
-        to: portalPath('/cotizaciones'),
-        label: 'Cotizaciones',
-        Icon: NotebookTabs,
-        show: canSeeQuotesUi(can),
-      },
-      { to: portalPath('/ventas'), label: 'Ventas', Icon: Receipt, show: can('sales:read') },
-      {
-        to: portalPath('/facturacion'),
-        label: 'Facturación',
-        Icon: FileText,
-        // Fase 7.5: facturación electrónica desactivada por defecto mientras el taller opere
-        // como persona natural. Se emite sólo cuando se activa el switch + hay resolución DIAN.
-        show: can('invoices:read') && electronicInvoiceEnabled,
-      },
       { to: portalPath('/clientes'), label: 'Clientes', Icon: Users, show: can('customers:read') },
-      { to: portalPath('/recepcion'), label: 'Recepción', Icon: Inbox, show: recepcionVisible },
-      { to: portalPath('/inventario'), label: 'Repuestos', Icon: Package, show: can('inventory_items:read') },
-      { to: portalPath('/aceite'), label: 'Aceite', Icon: Droplet, show: can('inventory_items:read') },
+      { to: portalPath('/repuestos'), label: 'Repuestos', Icon: Package, show: can('repuestos:read') },
       { to: portalPath('/admin/usuarios'), label: 'Usuarios', Icon: UsersRound, show: can('users:read') },
-      { to: portalPath('/admin/nomina'), label: 'Nómina', Icon: HandCoins, show: can('payroll:read') },
-      {
-        to: portalPath('/admin/finanzas-taller'),
-        label: 'Finanzas taller',
-        Icon: PiggyBank,
-        show: can('workshop_finance:read'),
-      },
-      {
-        to: portalPath('/admin/credito-empleados'),
-        label: 'Crédito empleados',
-        Icon: CircleDollarSign,
-        show: can('employee_credits:read'),
-      },
       { to: portalPath('/informes'), label: 'Informes', Icon: BarChart3, show: can('reports:read') },
-      { to: portalPath('/admin/servicios'), label: 'Servicios', Icon: Wrench, show: can('services:read') },
-      { to: portalPath('/admin/impuestos'), label: 'Impuestos', Icon: Percent, show: can('tax_rates:read') },
       { to: portalPath('/admin/roles'), label: 'Roles', Icon: Shield, show: can('roles:read') },
       { to: portalPath('/admin/auditoria'), label: 'Auditoría', Icon: ScrollText, show: can('audit:read') },
-      { to: portalPath('/admin/configuracion'), label: 'Configuración', Icon: Settings, show: can('settings:read') },
+      { to: portalPath('/admin/configuracion'), label: 'Configuración', Icon: Settings, show: can('settings:read') || can('tax_rates:read') },
     ]
     return all.filter((l) => l.show)
-  }, [can, cashSessionOpen, electronicInvoiceEnabled])
+  }, [can])
 
   const linkTos = useMemo(() => links.map((l) => l.to), [links])
-  const relatedTaskLinks = useMemo(() => {
-    if (!taskMode) return []
-    return taskMode.relatedRoutes.map((to) => links.find((l) => l.to === to)).filter(Boolean) as NavLinkItem[]
-  }, [links, taskMode])
 
   const horizontalLinkClass = isSaas ? navLinkHorizontalSaasClass : navLinkClass
 
@@ -730,11 +604,7 @@ function AppShellInner() {
                     value={panelSearch}
                     onChange={(e) => setPanelSearch(e.target.value)}
                     placeholder="Buscar órdenes (código, patente, cliente…)"
-                    title={
-                      taskMode
-                        ? `Atajo al listado de órdenes. Modo actual: ${taskMode.label}.`
-                        : 'Ir al listado de órdenes con filtro de texto.'
-                    }
+                    title="Ir al listado de órdenes con filtro de texto."
                     className="va-app-shell-search w-full rounded-lg border border-slate-200/90 bg-white py-2 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:focus:border-brand-400 dark:focus:ring-brand-400/30"
                     autoComplete="off"
                     aria-label="Texto a buscar en el listado de órdenes"
@@ -742,32 +612,6 @@ function AppShellInner() {
                 </form>
                 {saasToolbar}
               </div>
-              {taskMode && relatedTaskLinks.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-200/80 pb-2.5 pt-2 dark:border-slate-700/70 sm:pb-3 xl:pb-3.5">
-                  <span className="rounded-md bg-brand-50 px-2 py-1 text-xs font-medium tracking-normal text-brand-800 dark:bg-brand-900/45 dark:text-brand-100">
-                    {taskMode.label}
-                  </span>
-                  {relatedTaskLinks.map((link) => (
-                    <NavLink
-                      key={`task-${link.to}`}
-                      to={link.to}
-                      onPointerEnter={() => prefetchNavHints(link.to)}
-                      className={({ isActive }) =>
-                        [
-                          'rounded-md px-2 py-1 text-xs font-medium tracking-normal transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
-                          isActive
-                            ? isSaas
-                              ? 'bg-[var(--va-accent-soft)] text-brand-900 shadow-sm ring-1 ring-[var(--va-accent-soft-ring)]/90 dark:text-white'
-                              : 'bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-100'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
-                        ].join(' ')
-                      }
-                    >
-                      {link.label}
-                    </NavLink>
-                  ))}
-                </div>
-              )}
             </div>
           ) : (
             <div

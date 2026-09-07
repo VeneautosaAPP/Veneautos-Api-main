@@ -88,7 +88,7 @@ describe('WorkOrdersService', () => {
   describe('create', () => {
     it('rechaza alta sin vehículo ni orden origen de garantía', async () => {
       await expect(
-        service.create(actorOwn, { description: 'Cambio de aceite y filtros' } satisfies CreateWorkOrderDto, {}),
+        service.create(actorOwn, { description: 'Cambio de aceite y filtros', vehicleId: '' } satisfies CreateWorkOrderDto, {}),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.workOrder.create).not.toHaveBeenCalled();
     });
@@ -231,8 +231,6 @@ describe('WorkOrdersService', () => {
             taxRateId: null,
             taxRatePercentSnapshot: null,
             taxRate: null,
-            inventoryItem: null,
-            service: null,
             workOrderId: 'wo1',
             description: 'MO',
             createdAt: new Date(),

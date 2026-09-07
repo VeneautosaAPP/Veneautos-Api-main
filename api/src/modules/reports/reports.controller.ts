@@ -7,9 +7,7 @@ import { EconomicSummaryQueryDto } from './dto/economic-summary.query.dto';
 import { ProfitabilityByServiceQueryDto } from './dto/profitability-by-service.query.dto';
 import { ProfitabilityByTechnicianQueryDto } from './dto/profitability-by-technician.query.dto';
 import { RevenueUnifiedQueryDto } from './dto/revenue-unified.query.dto';
-import { SaleProfitabilityQueryDto } from './dto/sale-profitability.query.dto';
 import { SalesByPaymentMethodQueryDto } from './dto/sales-by-payment-method.query.dto';
-import { StockCriticalQueryDto } from './dto/stock-critical.query.dto';
 import { TaxCausadoQueryDto } from './dto/tax-causado.query.dto';
 import { WorkOrderProfitabilityQueryDto } from './dto/work-order-profitability.query.dto';
 import { ReportsService } from './reports.service';
@@ -72,23 +70,13 @@ export class ReportsController {
   }
 
   /**
-   * Fase 8 · Ventas por medio de pago. Agrupa `CashMovement.INCOME` vinculados a
-   * venta/OT/factura por `CashMovementCategory.slug`. Devuelve % del total y counts.
+   * Fase 8 · Pagos por medio de pago. Agrupa `CashMovement.INCOME` vinculados a
+   * OT/factura por `CashMovementCategory.slug`. Devuelve % del total y counts.
    */
   @Get('sales-by-payment-method')
   @RequirePermissions('reports:read')
   salesByPaymentMethod(@Query() query: SalesByPaymentMethodQueryDto) {
     return this.reports.salesByPaymentMethod(query);
-  }
-
-  /**
-   * Fase 8 · Rentabilidad por venta confirmada. Simétrico a `workOrderProfitability`:
-   * usa `SaleLine.costSnapshot` para margen histórico.
-   */
-  @Get('sale-profitability')
-  @RequirePermissions('reports:read')
-  saleProfitability(@Query() query: SaleProfitabilityQueryDto) {
-    return this.reports.saleProfitability(query);
   }
 
   /**
@@ -111,16 +99,6 @@ export class ReportsController {
     return this.reports.dianStatus(query);
   }
 
-  /**
-   * Fase 8 · Stock crítico (snapshot actual, sin rango). Threshold configurable por
-   * setting global `inventory.stock_critical_threshold` con override opcional `?threshold=N`.
-   */
-  @Get('stock-critical')
-  @RequirePermissions('reports:read')
-  stockCritical(@Query() query: StockCriticalQueryDto) {
-    return this.reports.stockCritical(query);
-  }
-
   /** Fase 8 · Utilidad por técnico (OT DELIVERED agrupadas por `assignedTo`). */
   @Get('profitability-by-technician')
   @RequirePermissions('reports:read')
@@ -128,7 +106,7 @@ export class ReportsController {
     return this.reports.profitabilityByTechnician(query);
   }
 
-  /** Fase 8 · Utilidad por servicio del catálogo (líneas LABOR de OT + Sale). */
+  /** Fase 8 · Utilidad por mano de obra (líneas LABOR de OT, agrupadas por texto libre). */
   @Get('profitability-by-service')
   @RequirePermissions('reports:read')
   profitabilityByService(@Query() query: ProfitabilityByServiceQueryDto) {

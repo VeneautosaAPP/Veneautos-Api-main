@@ -56,38 +56,29 @@ export const queryKeys = {
     payments: (id: string) => [...queryKeys.workOrders.detail(id), 'payments'] as const,
     /** GET /work-orders/assignable-users — usuarios a los que reasignar. */
     assignableUsers: () => [...queryKeys.workOrders.root, 'assignable-users'] as const,
-  },
-  inventory: {
-    root: ['inventory'] as const,
-    /** GET /inventory/items — repuestos activos con stock. */
-    items: () => [...queryKeys.inventory.root, 'items'] as const,
-    /** GET /inventory/items/hidden-items — ítems inactivos (modo desarrollador). */
-    hiddenItems: () => [...queryKeys.inventory.root, 'hidden-items'] as const,
-    /** GET /inventory/measurement-units — unidades de medida. */
-    measurementUnits: () => [...queryKeys.inventory.root, 'measurement-units'] as const,
-    /** GET /inventory/items/oil-drum-economics — economía canecas (pantalla Aceite). */
-    oilDrumEconomics: () => [...queryKeys.inventory.root, 'oil-drum-economics'] as const,
+    /** GET /work-orders/line-catalog/suggestions — diccionario para autocompletar líneas de OT. */
+    lineCatalog: (q: string) => [...queryKeys.workOrders.root, 'line-catalog', q.toLowerCase()] as const,
   },
   settings: {
     root: ['settings'] as const,
     /** GET /settings — mapa de claves del taller (pantalla Configuración). */
     tenantMap: () => [...queryKeys.settings.root, 'tenant-map'] as const,
   },
+  spareParts: {
+    root: ['spareParts'] as const,
+    /** GET /spare-parts — listado paginado (pantalla Repuestos). */
+    list: (params: { q: string; limit: number; offset: number }) =>
+      [...queryKeys.spareParts.root, 'list', params.q.toLowerCase(), params.limit, params.offset] as const,
+    /** GET /spare-parts?q=… — sugerencias del combobox de la OT (debounce 220 ms). */
+    search: (q: string) => [...queryKeys.spareParts.root, 'search', q.toLowerCase()] as const,
+  },
   users: {
     root: ['users'] as const,
     /** GET /users — índice de cuentas (admin / soporte en configuración). */
     list: () => [...queryKeys.users.root, 'list'] as const,
   },
-  employeeCredits: {
-    root: ['employeeCredits'] as const,
-    summary: () => [...queryKeys.employeeCredits.root, 'summary'] as const,
-    debtorCandidates: () => [...queryKeys.employeeCredits.root, 'debtor-candidates'] as const,
-    lines: (debtorUserId: string) => [...queryKeys.employeeCredits.root, 'lines', debtorUserId] as const,
-  },
   shared: {
     root: ['shared'] as const,
-    /** GET /services — catálogo de servicios (Fase 2). */
-    services: () => [...queryKeys.shared.root, 'services'] as const,
     /** GET /tax-rates — catálogo de impuestos (Fase 2). */
     taxRates: () => [...queryKeys.shared.root, 'tax-rates'] as const,
     /** GET /settings/ui-context — configuración de UI (notas mínimas, etc.). */

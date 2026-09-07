@@ -1,5 +1,6 @@
 /**
- * Líneas de OT: repuesto (consume stock) o mano de obra (importe al cliente, sin inventario).
+ * Líneas de OT: repuesto (PART) o mano de obra (LABOR). Ambas son texto libre
+ * (se auto-guardan en el diccionario de autocompletado al crearse/editarse).
  */
 import {
   BadRequestException,
@@ -9,7 +10,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
-  InventoryMovementType,
   Prisma,
   WorkOrderLineType,
   WorkOrderStatus,
@@ -18,19 +18,10 @@ import { ceilWholeCop, decimalFromMoneyApiString } from '../../common/money/cop-
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';
-import {
-  INVENTORY_REF_WORK_ORDER_LINE,
-  allowsFractionalWorkOrderPartQuantity,
-} from '../inventory/inventory.constants';
-import {
-  assertOtQuantityWholeQuartersForOilGallon,
-  inventoryItemUsesQuarterGallonOtQuantity,
-  oilOtQuarterUnitPriceToStoredGallonUnitPrice,
-  otPartQuantityToInventoryGallons,
-} from '../inventory/oil-gallon-ot';
 import type { CreateWorkOrderLineDto } from './dto/create-work-order-line.dto';
 import type { UpdateWorkOrderLineDto } from './dto/update-work-order-line.dto';
 import { WorkOrdersService } from './work-orders.service';
+import { normalizeSparePartSku } from '../spare-parts/spare-parts.service';
 import {
   actorMayViewWorkOrderCosts,
   actorMayViewWorkOrderFinancials,
@@ -52,24 +43,8 @@ const WORK_ORDER_PART_LINE_MANAGER_ROLE_SLUGS = new Set([
 ])
 
 const lineInclude = {
-  inventoryItem: {
-    include: { measurementUnit: { select: { id: true, slug: true, name: true } } },
-  },
   taxRate: { select: { id: true, slug: true, name: true, kind: true, ratePercent: true } },
-  service: { select: { id: true, code: true, name: true } },
 } as const;
-
-function assertPartQuantityMatchesMeasurementUnit(qty: Prisma.Decimal, measurementUnitSlug: string): void {
-  if (allowsFractionalWorkOrderPartQuantity(measurementUnitSlug)) {
-    return;
-  }
-  const remainder = qty.minus(qty.floor());
-  if (!remainder.isZero()) {
-    throw new BadRequestException(
-      'Este repuesto se cuenta por unidad entera (no se permiten decimales). Para fluidos usá un ítem con unidad Litro o Galón.',
-    );
-  }
-}
 
 @Injectable()
 export class WorkOrderLinesService {
@@ -79,24 +54,18 @@ export class WorkOrderLinesService {
     private readonly workOrders: WorkOrdersService,
   ) {}
 
-  /**
-   * Técnicos pueden agregar repuestos y editar mano de obra; no alterar líneas PART ya cargadas
-   * (cantidad/precio/quitar) salvo cajero, administrador o dueño.
-   */
-  /** Quien ve importes en OT y puede fijar o cambiar `unitPrice` en líneas (técnicos no). */
-  private redactLineForActor<T extends { unitPrice: unknown; inventoryItem: unknown; totals?: unknown }>(
+  /** Quien ve importes en OT puede ver `unitPrice`; los demás lo ven nulo junto con totos. */
+  private redactLineForActor<T extends { unitPrice: unknown; totals?: unknown }>(
     actor: JwtUserPayload,
     line: T,
   ): T {
     if (actorMayViewWorkOrderFinancials(actor)) {
       return line;
     }
-    const inv = line.inventoryItem as { averageCost?: unknown } | null;
     return {
       ...line,
       unitPrice: null,
       totals: null,
-      inventoryItem: inv ? { ...inv, averageCost: null } : null,
     } as T;
   }
 
@@ -211,20 +180,13 @@ export class WorkOrderLinesService {
     dto: CreateWorkOrderLineDto,
     meta: { ip?: string; userAgent?: string },
   ) {
-    if (dto.lineType === WorkOrderLineType.PART) {
-      if (!dto.inventoryItemId) {
-        throw new BadRequestException('La línea PART requiere inventoryItemId');
-      }
-      if (dto.serviceId) {
-        throw new BadRequestException('La línea PART no admite serviceId (los servicios son LABOR)');
-      }
-    } else {
-      if (!dto.description?.trim() && !dto.serviceId) {
-        throw new BadRequestException('La línea LABOR requiere descripción o un servicio del catálogo');
-      }
-      if (dto.inventoryItemId) {
-        throw new BadRequestException('La línea LABOR no admite inventoryItemId');
-      }
+    const description = dto.description?.trim();
+    if (!description) {
+      throw new BadRequestException(
+        dto.lineType === WorkOrderLineType.PART
+          ? 'La línea de repuesto requiere una descripción'
+          : 'La línea de mano de obra requiere una descripción',
+      );
     }
 
     const qty = new Prisma.Decimal(dto.quantity);
@@ -234,46 +196,35 @@ export class WorkOrderLinesService {
 
     await this.workOrders.assertWorkOrderVisible(actor, workOrderId);
 
-    // Validar referencias opcionales (servicio / tarifa) antes de abrir la transacción
-    let resolvedServiceDescription: string | null = null;
-    let resolvedServiceUnitPrice: Prisma.Decimal | null = null;
-    let resolvedServiceTaxRateId: string | null = null;
-    if (dto.serviceId) {
-      const svc = await this.prisma.service.findUnique({ where: { id: dto.serviceId } });
-      if (!svc) throw new NotFoundException('Servicio no encontrado');
-      if (!svc.isActive) {
-        throw new BadRequestException('El servicio seleccionado está desactivado');
-      }
-      resolvedServiceDescription = svc.name;
-      resolvedServiceUnitPrice = svc.defaultUnitPrice ?? null;
-      resolvedServiceTaxRateId = svc.defaultTaxRateId ?? null;
-    }
-    // Resolvemos el snapshot del porcentaje (puede venir por taxRateId explícito o por el default del servicio)
-    const effectiveTaxRateId = dto.taxRateId ?? resolvedServiceTaxRateId ?? null;
     let taxRatePercentSnapshotForSave: Prisma.Decimal | null = null;
-    if (effectiveTaxRateId) {
-      const tax = await this.prisma.taxRate.findUnique({ where: { id: effectiveTaxRateId } });
+    let taxRateIdForSave: string | null = null;
+    // Regla de negocio: los repuestos (PART) son precio final sin IVA (como Autopiezas Tegui).
+    const isPart = dto.lineType === WorkOrderLineType.PART;
+    if (!isPart && dto.taxRateId) {
+      const tax = await this.prisma.taxRate.findUnique({
+        where: { id: dto.taxRateId },
+      });
       if (!tax) throw new NotFoundException('Tarifa de impuesto no encontrada');
       if (!tax.isActive) {
         throw new BadRequestException('La tarifa de impuesto seleccionada está desactivada');
       }
       taxRatePercentSnapshotForSave = tax.ratePercent;
+      taxRateIdForSave = dto.taxRateId;
     }
 
+    const sparePartSkuForSave =
+      isPart && dto.sparePartSku?.trim() ? normalizeSparePartSku(dto.sparePartSku).slice(0, 80) : null;
+
     const mayFinancials = actorMayViewWorkOrderFinancials(actor);
-    let unitPriceForSave =
+    const unitPriceForSave =
       mayFinancials && dto.unitPrice?.trim()
         ? decimalFromMoneyApiString(dto.unitPrice)
-        : mayFinancials && resolvedServiceUnitPrice
-          ? resolvedServiceUnitPrice
-          : null
+        : null
 
     const discountForSave =
       mayFinancials && dto.discountAmount?.trim()
         ? decimalFromMoneyApiString(dto.discountAmount)
         : null
-
-    const taxRateIdForSave = dto.taxRateId ?? resolvedServiceTaxRateId ?? null
 
     const line = await this.prisma.$transaction(async (tx) => {
       await this.lockWorkOrder(tx, workOrderId);
@@ -281,83 +232,23 @@ export class WorkOrderLinesService {
 
       const sortOrder = await this.nextSortOrder(tx, workOrderId);
 
-      if (dto.lineType === WorkOrderLineType.LABOR) {
-        const descriptionForSave =
-          dto.description?.trim() || resolvedServiceDescription || '';
-        return tx.workOrderLine.create({
-          data: {
-            workOrderId,
-            lineType: WorkOrderLineType.LABOR,
-            sortOrder,
-            inventoryItemId: null,
-            serviceId: dto.serviceId ?? null,
-            taxRateId: taxRateIdForSave,
-            taxRatePercentSnapshot: taxRatePercentSnapshotForSave,
-            description: descriptionForSave,
-            quantity: qty,
-            unitPrice: unitPriceForSave,
-            discountAmount: discountForSave,
-          },
-          include: lineInclude,
-        });
-      }
-
-      await tx.$executeRaw(
-        Prisma.sql`SELECT id FROM "inventory_items" WHERE id = ${dto.inventoryItemId!} FOR UPDATE`,
-      );
-      const item = await tx.inventoryItem.findUnique({
-        where: { id: dto.inventoryItemId! },
-        include: { measurementUnit: { select: { slug: true } } },
-      });
-      if (!item || !item.isActive) {
-        throw new NotFoundException('Ítem de inventario no encontrado');
-      }
-      if (!item.trackStock) {
-        throw new BadRequestException('Este ítem no descuenta stock');
-      }
-      if (unitPriceForSave !== null && inventoryItemUsesQuarterGallonOtQuantity(item)) {
-        unitPriceForSave = oilOtQuarterUnitPriceToStoredGallonUnitPrice(unitPriceForSave);
-      }
-      assertOtQuantityWholeQuartersForOilGallon(qty, item);
-      const consumptionGallons = otPartQuantityToInventoryGallons(qty, item);
-      assertPartQuantityMatchesMeasurementUnit(consumptionGallons, item.measurementUnit.slug);
-      if (item.quantityOnHand.lt(consumptionGallons)) {
-        throw new BadRequestException('Stock insuficiente para la cantidad solicitada');
-      }
-
       const created = await tx.workOrderLine.create({
         data: {
           workOrderId,
-          lineType: WorkOrderLineType.PART,
+          lineType: dto.lineType,
           sortOrder,
-          inventoryItemId: item.id,
-          taxRateId: taxRateIdForSave,
-          taxRatePercentSnapshot: taxRatePercentSnapshotForSave,
-          description: dto.description?.trim() ?? null,
-          quantity: consumptionGallons,
+          sparePartSku: sparePartSkuForSave,
+          taxRateId: isPart ? null : taxRateIdForSave,
+          taxRatePercentSnapshot: isPart ? null : taxRatePercentSnapshotForSave,
+          description,
+          quantity: qty,
           unitPrice: unitPriceForSave,
           discountAmount: discountForSave,
-          /** Copia del costo medio actual; si luego cambia, la OT mantiene el margen real. */
-          costSnapshot: item.averageCost ?? null,
         },
         include: lineInclude,
       });
 
-      await tx.inventoryItem.update({
-        where: { id: item.id },
-        data: { quantityOnHand: item.quantityOnHand.minus(consumptionGallons) },
-      });
-
-      await tx.inventoryMovement.create({
-        data: {
-          inventoryItemId: item.id,
-          quantityChange: consumptionGallons.neg(),
-          movementType: InventoryMovementType.WORK_ORDER_CONSUMPTION,
-          referenceType: INVENTORY_REF_WORK_ORDER_LINE,
-          referenceId: created.id,
-          createdById: actor.sub,
-        },
-      });
+      await this.upsertCatalogEntry(tx, description);
 
       return created;
     });
@@ -368,7 +259,13 @@ export class WorkOrderLinesService {
       entityType: 'WorkOrderLine',
       entityId: line.id,
       previousPayload: null,
-      nextPayload: { workOrderId, lineType: line.lineType, quantity: dto.quantity },
+      nextPayload: {
+        workOrderId,
+        lineType: line.lineType,
+        description,
+        quantity: dto.quantity,
+        sparePartSku: line.sparePartSku,
+      },
       ipAddress: meta.ip ?? null,
       userAgent: meta.userAgent ?? null,
     });
@@ -397,13 +294,32 @@ export class WorkOrderLinesService {
       )
     }
 
+    await this.workOrders.assertWorkOrderVisible(actor, workOrderId);
+
+    const existingLine = await this.prisma.workOrderLine.findFirst({
+      where: { id: lineId, workOrderId },
+    });
+    if (!existingLine) {
+      throw new NotFoundException('Línea no encontrada en esta orden')
+    }
+
+    const isPart = existingLine.lineType === WorkOrderLineType.PART;
+    await this.assertWorkOrderPartLineManagersOnly(actor, existingLine.lineType)
+
     // Si el cambio incluye tarifa de impuesto, calculamos el nuevo snapshot %.
     // - undefined  → no tocamos snapshot.
     // - null       → limpiamos tasa y snapshot.
     // - string id  → validamos tasa, activa, y guardamos su ratePercent actual.
+    // Regla de negocio: en líneas PART (repuestos) el impuesto se fuerza a null
+    // (precio final sin IVA, igual que Autopiezas Tegui).
     let taxRatePercentSnapshotPatch: Prisma.Decimal | null | undefined = undefined;
-    if (dto.taxRateId === null) {
+    let taxRateIdPatch: string | null | undefined = undefined;
+    if (isPart) {
       taxRatePercentSnapshotPatch = null;
+      taxRateIdPatch = null;
+    } else if (dto.taxRateId === null) {
+      taxRatePercentSnapshotPatch = null;
+      taxRateIdPatch = null;
     } else if (dto.taxRateId !== undefined) {
       const tax = await this.prisma.taxRate.findUnique({ where: { id: dto.taxRateId } });
       if (!tax) throw new NotFoundException('Tarifa de impuesto no encontrada');
@@ -411,32 +327,20 @@ export class WorkOrderLinesService {
         throw new BadRequestException('La tarifa de impuesto seleccionada está desactivada');
       }
       taxRatePercentSnapshotPatch = tax.ratePercent;
-    }
-    if (dto.serviceId !== undefined && dto.serviceId !== null) {
-      const svc = await this.prisma.service.findUnique({ where: { id: dto.serviceId } });
-      if (!svc) throw new NotFoundException('Servicio no encontrado');
-      if (!svc.isActive) {
-        throw new BadRequestException('El servicio seleccionado está desactivado');
-      }
+      taxRateIdPatch = dto.taxRateId;
     }
 
-    await this.workOrders.assertWorkOrderVisible(actor, workOrderId);
+    let sparePartSkuPatch: string | null | undefined = undefined;
+    if (dto.sparePartSku !== undefined) {
+      sparePartSkuPatch =
+        isPart && dto.sparePartSku?.trim()
+          ? normalizeSparePartSku(dto.sparePartSku).slice(0, 80)
+          : null;
+    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockWorkOrder(tx, workOrderId);
       await this.assertWorkOrderEditable(tx, workOrderId);
-
-      const before = await tx.workOrderLine.findFirst({
-        where: { id: lineId, workOrderId },
-        include: {
-          inventoryItem: { include: { measurementUnit: { select: { slug: true } } } },
-        },
-      });
-      if (!before) {
-        throw new NotFoundException('Línea no encontrada en esta orden')
-      }
-
-      await this.assertWorkOrderPartLineManagersOnly(actor, before.lineType)
 
       let quantityPatch: Prisma.Decimal | undefined;
       if (dto.quantity !== undefined) {
@@ -444,74 +348,38 @@ export class WorkOrderLinesService {
         if (rawQty.lte(0)) {
           throw new BadRequestException('La cantidad debe ser mayor a cero');
         }
-        let newStoredQty = rawQty;
-        if (before.lineType === WorkOrderLineType.PART && before.inventoryItemId && before.inventoryItem) {
-          assertOtQuantityWholeQuartersForOilGallon(rawQty, before.inventoryItem);
-          newStoredQty = otPartQuantityToInventoryGallons(rawQty, before.inventoryItem);
-          assertPartQuantityMatchesMeasurementUnit(newStoredQty, before.inventoryItem.measurementUnit.slug);
-          const delta = newStoredQty.minus(before.quantity);
-          if (!delta.eq(0)) {
-            await tx.$executeRaw(
-              Prisma.sql`SELECT id FROM "inventory_items" WHERE id = ${before.inventoryItemId} FOR UPDATE`,
-            );
-            const item = await tx.inventoryItem.findUniqueOrThrow({
-              where: { id: before.inventoryItemId },
-            });
-            if (delta.gt(0) && item.quantityOnHand.lt(delta)) {
-              throw new BadRequestException('Stock insuficiente para el incremento de cantidad');
-            }
-            await tx.inventoryItem.update({
-              where: { id: item.id },
-              data: { quantityOnHand: item.quantityOnHand.minus(delta) },
-            });
-            await tx.inventoryMovement.create({
-              data: {
-                inventoryItemId: item.id,
-                quantityChange: delta.neg(),
-                movementType: InventoryMovementType.WORK_ORDER_CONSUMPTION,
-                referenceType: INVENTORY_REF_WORK_ORDER_LINE,
-                referenceId: before.id,
-                note: 'Ajuste por edición de cantidad en línea',
-                createdById: actor.sub,
-              },
-            });
-          }
-        }
-        quantityPatch = newStoredQty;
+        quantityPatch = rawQty;
       }
 
-      let unitPriceResolved: Prisma.Decimal | null | undefined = undefined;
+      let unitPricePatch: Prisma.Decimal | null | undefined = undefined;
       if (dto.unitPrice !== undefined) {
-        if (dto.unitPrice === null) {
-          unitPriceResolved = null;
-        } else {
-          let p = decimalFromMoneyApiString(dto.unitPrice);
-          if (
-            before.lineType === WorkOrderLineType.PART &&
-            before.inventoryItem &&
-            inventoryItemUsesQuarterGallonOtQuantity(before.inventoryItem)
-          ) {
-            p = oilOtQuarterUnitPriceToStoredGallonUnitPrice(p);
-          }
-          unitPriceResolved = p;
+        unitPricePatch = dto.unitPrice === null ? null : decimalFromMoneyApiString(dto.unitPrice);
+      }
+
+      const descriptionPatch =
+        dto.description !== undefined ? dto.description?.trim() ?? null : undefined;
+      if (descriptionPatch !== undefined) {
+        if (!descriptionPatch) {
+          throw new BadRequestException('La descripción de la línea no puede quedar vacía');
         }
+        await this.upsertCatalogEntry(tx, descriptionPatch);
       }
 
       return tx.workOrderLine.update({
         where: { id: lineId },
         data: {
           quantity: quantityPatch,
-          unitPrice: unitPriceResolved,
+          unitPrice: unitPricePatch,
           discountAmount:
             dto.discountAmount === undefined
               ? undefined
               : dto.discountAmount === null
                 ? null
                 : decimalFromMoneyApiString(dto.discountAmount),
-          taxRateId: dto.taxRateId,
+          taxRateId: taxRateIdPatch,
           taxRatePercentSnapshot: taxRatePercentSnapshotPatch,
-          serviceId: dto.serviceId,
-          description: dto.description !== undefined ? dto.description?.trim() ?? null : undefined,
+          sparePartSku: sparePartSkuPatch,
+          description: descriptionPatch,
         },
         include: lineInclude,
       });
@@ -546,28 +414,6 @@ export class WorkOrderLinesService {
       }
 
       await this.assertWorkOrderPartLineManagersOnly(actor, line.lineType)
-
-      if (line.lineType === WorkOrderLineType.PART && line.inventoryItemId) {
-        await tx.$executeRaw(
-          Prisma.sql`SELECT id FROM "inventory_items" WHERE id = ${line.inventoryItemId} FOR UPDATE`,
-        );
-        const item = await tx.inventoryItem.findUniqueOrThrow({ where: { id: line.inventoryItemId } });
-        await tx.inventoryItem.update({
-          where: { id: item.id },
-          data: { quantityOnHand: item.quantityOnHand.plus(line.quantity) },
-        });
-        await tx.inventoryMovement.create({
-          data: {
-            inventoryItemId: item.id,
-            quantityChange: line.quantity,
-            movementType: InventoryMovementType.ADJUSTMENT_IN,
-            referenceType: INVENTORY_REF_WORK_ORDER_LINE,
-            referenceId: line.id,
-            note: 'Reversión por eliminación de línea de OT',
-            createdById: actor.sub,
-          },
-        });
-      }
 
       await tx.workOrderLine.delete({ where: { id: lineId } });
     });
@@ -607,5 +453,38 @@ export class WorkOrderLinesService {
       _max: { sortOrder: true },
     });
     return (agg._max.sortOrder ?? -1) + 1;
+  }
+
+  /** Guarda la descripción en el diccionario de autocompletado (idempotente). */
+  private async upsertCatalogEntry(
+    tx: Prisma.TransactionClient,
+    description: string,
+  ): Promise<void> {
+    await tx.otLineCatalog.upsert({
+      where: { label: description },
+      create: { label: description },
+      update: { lastUsedAt: new Date() },
+    });
+  }
+
+  /**
+   * Sugerencias del diccionario de líneas de OT para el autocompletado del front.
+   * Con `q` vacío devuelve las más recientes (ordenadas por `lastUsedAt`).
+   */
+  async suggestCatalogDescriptions(
+    q: string | undefined,
+    limit = 15,
+  ): Promise<Array<{ label: string; lastUsedAt: Date | null }>> {
+    const trimmed = q?.trim();
+    const where: Prisma.OtLineCatalogWhereInput = trimmed
+      ? { label: { contains: trimmed, mode: 'insensitive' } }
+      : {};
+    const rows = await this.prisma.otLineCatalog.findMany({
+      where,
+      orderBy: [{ lastUsedAt: 'desc' }, { label: 'asc' }],
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { label: true, lastUsedAt: true },
+    });
+    return rows;
   }
 }

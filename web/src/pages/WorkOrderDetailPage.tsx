@@ -13,7 +13,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, openAuthenticatedHtml } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { STALE_INVENTORY_CATALOG_MS } from '../constants/queryStaleTime'
 import { portalPath } from '../constants/portalPath'
 import { useAlert, useConfirm } from '../components/confirm/ConfirmProvider'
 import { ClientConsentSignModal } from '../components/work-order/ClientConsentSignModal'
@@ -29,7 +28,6 @@ import {
 import { PageHeader } from '../components/layout/PageHeader'
 import { useCashSessionOpen } from '../context/CashSessionOpenContext'
 import { useWorkOrderDetailMutations } from '../features/work-orders/hooks/useWorkOrderDetailMutations'
-import { fetchInventoryItemsForQuery } from '../features/inventory/services/inventoryCatalogApi'
 import { useWorkOrderDetailCache } from '../features/work-orders/hooks/useWorkOrderDetailCache'
 import type { WorkOrderPaymentRow } from '../features/work-orders/services/workOrdersListApi'
 import { panelUsesModernShell } from '../config/operationalNotes'
@@ -49,19 +47,9 @@ import {
 } from '../services/cashDrawerBridge'
 import { cashIncomeCategoryOpensPhysicalDrawer } from '../services/cashIncomePhysicalDrawer'
 import { normalizeListResponse } from '../utils/normalizeListResponse'
-import {
-  inventoryItemUsesQuarterGallonOtQuantity,
-  partLineQuantityDisplayWithQuarters,
-  workOrderOilStoredGallonUnitPriceToQuarterPriceString,
-} from '../services/inventory/oilQuarterGallonOt'
-import {
-  allowsFractionalWorkOrderPartQuantity,
-  workOrderPartQuantityClientIssue,
-  workOrderPartStockClientIssue,
-} from '../services/inventory/workOrderPartQuantity'
 import type {
   AuthUser,
-  InventoryItem,
+  SparePart,
   WorkOrderDetail,
   WorkOrderLine,
   WorkOrderLineType,
@@ -70,25 +58,7 @@ import type {
   WorkOrderTotals,
 } from '../api/types'
 
-/** Alineado con `WorkOrderLinesService` (API): quién puede editar/quitar repuestos PART ya cargados. */
-const WORK_ORDER_PART_LINE_MANAGER_SLUGS = new Set([
-  'cajero',
-  'cajero_autorizado',
-  'administrador',
-  'dueno',
-])
-
 type CashCat = { slug: string; name: string; direction: string }
-
-/** Shape mínimo traído de `/services` y `/tax-rates` para los selectores en OT (Fase 2). */
-type ServiceCatalogRow = {
-  id: string
-  code: string
-  name: string
-  defaultUnitPrice: string | null
-  defaultTaxRateId: string | null
-  isActive: boolean
-}
 
 type TaxRateCatalogRow = {
   id: string
@@ -97,12 +67,6 @@ type TaxRateCatalogRow = {
   kind: 'VAT' | 'INC'
   ratePercent: string
   isActive: boolean
-}
-
-/** Texto de repuesto en OT: solo SKU, categoría y nombre (sin proveedor ni stock). */
-function workOrderPartDisplayText(item: Pick<InventoryItem, 'sku' | 'name'> & { category?: string | null }): string {
-  const cat = (item.category ?? '').trim() || '—'
-  return `${item.sku} · ${cat} · ${item.name}`
 }
 
 /**
@@ -160,9 +124,6 @@ function WorkOrderTotalsPanel({
     <section className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
       <div className="flex items-center justify-between">
         <h3 className="va-section-title text-sm">Desglose de la orden</h3>
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-          Se congela por línea al guardar (cambios de IVA posteriores no alteran esta OT).
-        </span>
       </div>
       <div className="mt-2 divide-y divide-slate-200 dark:divide-slate-700">
         {row('Subtotal (bruto)', totals.linesSubtotal)}
@@ -180,12 +141,6 @@ function WorkOrderTotalsPanel({
       </div>
     </section>
   )
-}
-
-/** Stock disponible para nuevas líneas PART (API usa el mismo criterio al descontar). */
-function inventoryItemHasAvailableStock(item: InventoryItem): boolean {
-  const n = Number(item.quantityOnHand)
-  return Number.isFinite(n) && n > 0
 }
 
 /** Conflictos / permisos: mejor modal que aviso discreto bajo el título. */
@@ -294,6 +249,16 @@ function mergeWorkOrderPatchIntoState(
 
 type AssignableUserRow = { id: string; fullName: string; email: string }
 
+/** Devuelve `value` actualizado solo si no cambió durante `delayMs` (autocompletado del catálogo de líneas). */
+function useDebouncedValue(value: string, delayMs: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(t)
+  }, [value, delayMs])
+  return debounced
+}
+
 export function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const {
@@ -321,12 +286,10 @@ export function WorkOrderDetailPage() {
   const [msg, setMsg] = useState<string | null>(null)
 
   const [addKind, setAddKind] = useState<WorkOrderLineType>('PART')
-  const [partItemId, setPartItemId] = useState('')
-  const [partQty, setPartQty] = useState('1')
-  const [partPrice, setPartPrice] = useState('')
+  const [partDesc, setPartDesc] = useState('')
   const [laborDesc, setLaborDesc] = useState('')
-  const [laborQty, setLaborQty] = useState('1')
-  const [laborPrice, setLaborPrice] = useState('')
+  const partDescInputRef = useRef<HTMLInputElement | null>(null)
+  const laborDescInputRef = useRef<HTMLInputElement | null>(null)
 
   const [editLine, setEditLine] = useState<WorkOrderLine | null>(null)
   const [editQty, setEditQty] = useState('')
@@ -335,16 +298,8 @@ export function WorkOrderDetailPage() {
   const [editDiscount, setEditDiscount] = useState('')
   const [editTaxRateId, setEditTaxRateId] = useState<string>('')
 
-  // Fase 2: catálogos opcionales de Servicios e Impuestos.
-  // En persona natural suelen quedar vacíos; se cargan solo si el perfil tiene permiso de lectura.
-  const [servicesCatalog, setServicesCatalog] = useState<ServiceCatalogRow[]>([])
+  // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
   const [taxRatesCatalog, setTaxRatesCatalog] = useState<TaxRateCatalogRow[]>([])
-  const [laborServiceId, setLaborServiceId] = useState<string>('')
-  const [laborTaxRateId, setLaborTaxRateId] = useState<string>('')
-  const [laborDiscount, setLaborDiscount] = useState<string>('')
-  const [partTaxRateId, setPartTaxRateId] = useState<string>('')
-  const [partDiscount, setPartDiscount] = useState<string>('')
-  const [showFiscalOptions, setShowFiscalOptions] = useState(false)
 
   const [payments, setPayments] = useState<WorkOrderPaymentRow[]>([])
   const [payAmt, setPayAmt] = useState('')
@@ -377,33 +332,45 @@ export function WorkOrderDetailPage() {
   const [woVehicleCylinderCc, setWoVehicleCylinderCc] = useState('')
   const [woVehicleColor, setWoVehicleColor] = useState('')
   const [woIntakeKm, setWoIntakeKm] = useState('')
-  const [woInspectionOnly, setWoInspectionOnly] = useState(false)
   const [woStatus, setWoStatus] = useState<WorkOrderStatus>('UNASSIGNED')
   const [assignableUsers, setAssignableUsers] = useState<AssignableUserRow[] | null>(null)
   const [reassignUserId, setReassignUserId] = useState('')
   const [assignBusy, setAssignBusy] = useState(false)
   /** Consentimiento: modal ver firmado o modal registrar (ya no hay tarjeta fija en la página). */
   const [consentModal, setConsentModal] = useState<null | 'view' | 'sign'>(null)
+  const [orderDataModalOpen, setOrderDataModalOpen] = useState(false)
 
   const cashierOnly = useMemo(() => isCashierWorkOrderSimplifiedView(user), [user])
 
-  const inventoryItemsQuery = useQuery({
-    queryKey: queryKeys.inventory.items(),
-    queryFn: ({ signal }) => fetchInventoryItemsForQuery(signal),
-    enabled: !cashierOnly && can('inventory_items:read'),
-    staleTime: STALE_INVENTORY_CATALOG_MS,
-    gcTime: 20 * 60_000,
+  // Repuestos: combobox sobre el catálogo maestro (foco autopiezas). Elegir un repuesto lo agrega en el momento
+  // (cantidad 1) y, si el SKU ya está en la OT, suma cantidad en vez de duplicar. Texto libre que no coincide se
+  // agrega al catálogo con el siguiente SKU consecutivo y pasa a la orden.
+  const [partCatalogTerm, setPartCatalogTerm] = useState('')
+  const [partComboOpen, setPartComboOpen] = useState(false)
+  const [partComboIndex, setPartComboIndex] = useState(-1)
+  const debouncedPartTerm = useDebouncedValue(partCatalogTerm.trim().slice(0, 60), 220)
+  const partSearchQuery = useQuery({
+    queryKey: queryKeys.spareParts.search(debouncedPartTerm),
+    queryFn: ({ signal }) =>
+      api<{ items: SparePart[]; total: number }>(
+        `/spare-parts?q=${encodeURIComponent(debouncedPartTerm)}&limit=12`,
+        { signal },
+      ),
+    enabled: debouncedPartTerm.length >= 2,
+    staleTime: 60_000,
   })
-  const items = useMemo(() => {
-    const list = inventoryItemsQuery.data
-    if (!list) return []
-    return list.filter((i) => i.trackStock && i.isActive && inventoryItemHasAvailableStock(i))
-  }, [inventoryItemsQuery.data])
+  const partSuggestions = useMemo(() => partSearchQuery.data?.items ?? [], [partSearchQuery.data])
+  const partTermLower = debouncedPartTerm.trim().toLowerCase()
+  const partTermSkuNorm = debouncedPartTerm.trim().toUpperCase()
+  const partExactCandidate = useMemo(
+    () =>
+      partSearchQuery.data?.items.find(
+        (s) => s.sku.toUpperCase() === partTermSkuNorm || s.name.toLowerCase() === partTermLower,
+      ) ?? null,
+    [partSearchQuery.data, partTermLower, partTermSkuNorm],
+  )
+  const canCreateSparePart = can('repuestos:create')
 
-  const canManageWoPartLines = useMemo(() => {
-    const slugs = user?.previewRole?.slug ? [user.previewRole.slug] : (user?.roleSlugs ?? [])
-    return slugs.some((s) => WORK_ORDER_PART_LINE_MANAGER_SLUGS.has(s))
-  }, [user?.previewRole?.slug, user?.roleSlugs])
   const hideWorkOrderCashUi = useMemo(() => hideWorkOrderCashSection(user, can), [user, can])
 
   const applyTransitLicenseFromOcr = useCallback((p: ParsedTransitLicenseFields) => {
@@ -460,7 +427,6 @@ export function WorkOrderDetailPage() {
     setWoVehicleCylinderCc((data.vehicleCylinderCc ?? '').trim())
     setWoVehicleColor((data.vehicleColor ?? '').trim())
     setWoIntakeKm(data.intakeOdometerKm != null ? String(data.intakeOdometerKm) : '')
-    setWoInspectionOnly(Boolean(data.inspectionOnly))
     setWoStatus(data.status)
   }, [detailQuery.data])
 
@@ -513,12 +479,6 @@ export function WorkOrderDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (partItemId && !items.some((i) => i.id === partItemId)) {
-      setPartItemId('')
-    }
-  }, [items, partItemId])
-
-  useEffect(() => {
     void api<SettingsUiContextResponse>(SETTINGS_UI_CONTEXT_PATH)
       .then((r) => {
         const ctx = parseNotesUiContext(r)
@@ -528,21 +488,13 @@ export function WorkOrderDetailPage() {
       .catch(() => undefined)
   }, [])
 
-  // Fase 2: los catálogos solo se leen cuando el usuario tiene permiso (si no, simplemente se quedan vacíos).
-  // No condicionamos el montado del editor de líneas a estos catálogos: si están vacíos, los selects no aparecen.
+  // Fase 2: el catálogo de impuestos solo se lee cuando el usuario tiene permiso (si no, simplemente se queda vacío).
+  // No condicionamos el montado del editor de líneas a este catálogo: si está vacío, el select no aparece.
   useEffect(() => {
-    const want = canRef.current('services:read') || canRef.current('tax_rates:read')
-    if (!want) return
-    if (canRef.current('services:read')) {
-      void api<ServiceCatalogRow[] | { items: ServiceCatalogRow[] }>(`/services?activeOnly=true`)
-        .then((r) => setServicesCatalog(normalizeListResponse<ServiceCatalogRow>(r)))
-        .catch(() => undefined)
-    }
-    if (canRef.current('tax_rates:read')) {
-      void api<TaxRateCatalogRow[] | { items: TaxRateCatalogRow[] }>(`/tax-rates?activeOnly=true`)
-        .then((r) => setTaxRatesCatalog(normalizeListResponse<TaxRateCatalogRow>(r)))
-        .catch(() => undefined)
-    }
+    if (!canRef.current('tax_rates:read')) return
+    void api<TaxRateCatalogRow[] | { items: TaxRateCatalogRow[] }>(`/tax-rates?activeOnly=true`)
+      .then((r) => setTaxRatesCatalog(normalizeListResponse<TaxRateCatalogRow>(r)))
+      .catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -578,8 +530,6 @@ export function WorkOrderDetailPage() {
     wo && !closed && !cashierOnly && can('work_orders:update') && can('work_order_lines:delete')
   const canUpdateLine =
     wo && !closed && !cashierOnly && can('work_orders:update') && can('work_order_lines:update')
-  const canEditPartLine = Boolean(canUpdateLine && canManageWoPartLines)
-  const canDeletePartLine = Boolean(canDeleteLine && canManageWoPartLines)
   const canViewWoFinancials = useMemo(
     () =>
       can('work_orders:view_financials') ||
@@ -653,7 +603,6 @@ export function WorkOrderDetailPage() {
       newKmParsed = n
     }
     const kmChanged = newKmParsed !== prevKm
-    const inspectionChanged = woInspectionOnly !== Boolean(wo.inspectionOnly)
     return (
       descChanged ||
       statusChanged ||
@@ -666,8 +615,7 @@ export function WorkOrderDetailPage() {
       lineChanged ||
       cylinderChanged ||
       vehicleColorChanged ||
-      kmChanged ||
-      inspectionChanged
+      kmChanged
     )
   }, [
     wo,
@@ -685,7 +633,6 @@ export function WorkOrderDetailPage() {
     woVehicleCylinderCc,
     woVehicleColor,
     woIntakeKm,
-    woInspectionOnly,
   ])
 
   const detailRootClass = isSaas ? 'space-y-7' : 'space-y-8'
@@ -753,121 +700,136 @@ export function WorkOrderDetailPage() {
     return `Vuelto a entregar: $${formatCopFromString(String(ch))}.`
   }, [payAmt, payTender])
 
-  const partOptions = useMemo(
-    () =>
-      items.map((i) => (
-        <option key={i.id} value={i.id}>
-          {workOrderPartDisplayText(i)}
-        </option>
-      )),
-    [items],
-  )
-
-  const selectedPartItem = useMemo(
-    () => items.find((i) => i.id === partItemId),
-    [items, partItemId],
-  )
-
-  const partQtyIssue = useMemo(() => {
-    const slug = selectedPartItem?.measurementUnit.slug
-    const base = workOrderPartQuantityClientIssue(partQty, slug, selectedPartItem)
-    if (base) return base
-    if (!selectedPartItem) return null
-    const max = Number(selectedPartItem.quantityOnHand)
-    return workOrderPartStockClientIssue(partQty, Number.isFinite(max) ? max : null, selectedPartItem)
-  }, [partQty, selectedPartItem])
-
   const editQtyIssue = useMemo(() => {
     if (!editLine) return null
-    const slug =
-      editLine.lineType === 'PART' ? editLine.inventoryItem?.measurementUnit.slug : undefined
-    const partItem = editLine.lineType === 'PART' ? editLine.inventoryItem : null
-    const base = workOrderPartQuantityClientIssue(editQty, slug, partItem)
-    if (base) return base
-    if (editLine.lineType !== 'PART' || !editLine.inventoryItem) return null
-    const lineQty = Number(editLine.quantity)
-    const onHand = Number(editLine.inventoryItem.quantityOnHand)
-    if (!Number.isFinite(lineQty) || !Number.isFinite(onHand)) return null
-    const maxAllowed = lineQty + onHand
-    return workOrderPartStockClientIssue(editQty, maxAllowed, editLine.inventoryItem)
+    const q = Number(editQty)
+    if (editQty.trim() === '' || !Number.isFinite(q) || q < 0) return 'Cantidad inválida.'
+    return null
   }, [editLine, editQty])
 
-  async function addLine() {
-    if (!id || !canMutateLines) return
+  async function addPartLine(opts: {
+    description: string
+    sku?: string | null
+    unitPrice?: string
+  }): Promise<false | 'added' | 'merged'> {
+    if (!id || !canMutateLines) return false
     setMsg(null)
-    const lineKind: WorkOrderLineType = addKind
+    const targetSku = opts.sku ? opts.sku.trim().toUpperCase() : null
     try {
-      if (lineKind === 'PART') {
-        if (partQtyIssue) {
-          setMsg(partQtyIssue)
-          return
-        }
-        const partUp = canViewWoFinancials ? normalizeMoneyDecimalStringForApi(partPrice) : ''
-        if (canViewWoFinancials && partUp && !API_MONEY_DECIMAL_REGEX.test(partUp)) {
-          setMsg(
-            'Precio al cliente: solo pesos enteros; miles con punto (ej. 25.000).',
+      const existingSkuLine = targetSku
+        ? (wo?.lines ?? []).find(
+            (l) => l.lineType === 'PART' && (l.sparePartSku ?? '').toUpperCase() === targetSku,
           )
-          return
+        : undefined
+      if (existingSkuLine) {
+        const nextQty = String((Number(existingSkuLine.quantity) || 0) + 1)
+        await patchLine.mutateAsync({ lineId: existingSkuLine.id, body: { quantity: nextQty } })
+        try {
+          await refreshLinesOnWorkOrder()
+        } catch {
+          await load()
         }
-        const partDiscountNorm = canViewWoFinancials && partDiscount.trim()
-          ? normalizeMoneyDecimalStringForApi(partDiscount)
-          : ''
-        if (partDiscountNorm && !API_MONEY_DECIMAL_REGEX.test(partDiscountNorm)) {
-          setMsg('Descuento: solo pesos enteros; miles con punto (ej. 2.000).')
-          return
-        }
-        await postLine.mutateAsync({
-          lineType: 'PART',
-          inventoryItemId: partItemId,
-          quantity: partQty,
-          ...(canViewWoFinancials && partUp ? { unitPrice: partUp } : {}),
-          ...(partTaxRateId ? { taxRateId: partTaxRateId } : {}),
-          ...(partDiscountNorm ? { discountAmount: partDiscountNorm } : {}),
-        })
-      } else {
-        const laborUp = canViewWoFinancials ? normalizeMoneyDecimalStringForApi(laborPrice) : ''
-        if (canViewWoFinancials && laborUp && !API_MONEY_DECIMAL_REGEX.test(laborUp)) {
-          setMsg(
-            'Precio mano de obra: solo pesos enteros; miles con punto (ej. 150.000).',
-          )
-          return
-        }
-        const laborDiscountNorm = canViewWoFinancials && laborDiscount.trim()
-          ? normalizeMoneyDecimalStringForApi(laborDiscount)
-          : ''
-        if (laborDiscountNorm && !API_MONEY_DECIMAL_REGEX.test(laborDiscountNorm)) {
-          setMsg('Descuento: solo pesos enteros; miles con punto (ej. 2.000).')
-          return
-        }
-        // Si viene un servicio y no hay descripción, el backend completa con el nombre del servicio.
-        const payload: Record<string, unknown> = {
-          lineType: 'LABOR',
-          description: laborDesc.trim(),
-          quantity: laborQty,
-        }
-        if (canViewWoFinancials && laborUp) payload.unitPrice = laborUp
-        if (laborServiceId) payload.serviceId = laborServiceId
-        if (laborTaxRateId) payload.taxRateId = laborTaxRateId
-        if (laborDiscountNorm) payload.discountAmount = laborDiscountNorm
-        await postLine.mutateAsync(payload)
+        return 'merged'
       }
+      const payload: Record<string, unknown> = {
+        lineType: 'PART',
+        description: opts.description.trim(),
+        quantity: '1',
+      }
+      if (targetSku) payload.sparePartSku = targetSku
+      if (opts.unitPrice) payload.unitPrice = opts.unitPrice
+      await postLine.mutateAsync(payload)
       try {
         await refreshLinesOnWorkOrder()
       } catch {
         await load()
       }
-      setMsg('Línea agregada')
-      setLaborDesc('')
-      setPartPrice('')
-      setLaborPrice('')
-      setLaborServiceId('')
-      setLaborTaxRateId('')
-      setLaborDiscount('')
-      setPartTaxRateId('')
-      setPartDiscount('')
+      return 'added'
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
-        setMsg(e instanceof Error ? e.message : 'Error al agregar')
+        setMsg(e instanceof Error ? e.message : 'Error al agregar repuesto')
+      }
+      return false
+    }
+  }
+
+  function resetPartAdd() {
+    setPartDesc('')
+    setPartCatalogTerm('')
+    setPartComboOpen(false)
+    setPartComboIndex(-1)
+    partDescInputRef.current?.focus()
+  }
+
+  async function selectPart(sp: SparePart) {
+    const result = await addPartLine({
+      description: sp.name,
+      sku: sp.sku,
+      unitPrice: Number(sp.price) > 0 ? normalizeMoneyDecimalStringForApi(String(sp.price)) : undefined,
+    })
+    if (result === false) return
+    setMsg(
+      result === 'merged'
+        ? `Repuesto ${sp.sku}: cantidad actualizada`
+        : `Repuesto ${sp.sku} agregado`,
+    )
+    resetPartAdd()
+  }
+
+  async function addPartFromFreeText() {
+    const term = partDesc.trim()
+    if (!term) return
+    setPartComboOpen(false)
+    setPartComboIndex(-1)
+    if (!canCreateSparePart) {
+      setMsg(
+        'El texto no coincide con el catálogo y tu perfil no puede crear repuestos. Cargalo desde Repuestos o pedí ayuda a un administrador.',
+      )
+      return
+    }
+    try {
+      const created = await api<SparePart>('/spare-parts/free-text', {
+        method: 'POST',
+        body: JSON.stringify({ name: term }),
+      })
+      const result = await addPartLine({
+        description: created.name,
+        sku: created.sku,
+        unitPrice:
+          Number(created.price) > 0 ? normalizeMoneyDecimalStringForApi(String(created.price)) : undefined,
+      })
+      if (result === false) return
+      setMsg(
+        result === 'merged'
+          ? `Repuesto ${created.sku}: cantidad actualizada`
+          : `«${term}» agregado al catálogo con SKU ${created.sku} y a la orden`,
+      )
+      resetPartAdd()
+    } catch (e) {
+      if (!(await showBlockingConflictModal(e))) {
+        setMsg(e instanceof Error ? e.message : 'Error al crear el repuesto')
+      }
+    }
+  }
+
+  async function addLaborLine() {
+    if (!id || !canMutateLines) return
+    const description = laborDesc.trim()
+    if (!description) return
+    setMsg(null)
+    try {
+      await postLine.mutateAsync({ lineType: 'LABOR', description, quantity: '1' })
+      try {
+        await refreshLinesOnWorkOrder()
+      } catch {
+        await load()
+      }
+      setLaborDesc('')
+      laborDescInputRef.current?.focus()
+      setMsg('Trabajo agregado (cantidad 1; editá precio/IVA en la línea)')
+    } catch (e) {
+      if (!(await showBlockingConflictModal(e))) {
+        setMsg(e instanceof Error ? e.message : 'Error al agregar trabajo')
       }
     }
   }
@@ -986,8 +948,6 @@ export function WorkOrderDetailPage() {
     }
     const kmChanged = newKmParsed !== prevKm
 
-    const inspectionChanged = woInspectionOnly !== Boolean(wo.inspectionOnly)
-
     if (newEmail !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
       setMsg('Correo: ingresá un correo válido o dejá el campo vacío.')
       return
@@ -1005,8 +965,7 @@ export function WorkOrderDetailPage() {
       !lineChanged &&
       !cylinderChanged &&
       !vehicleColorChanged &&
-      !kmChanged &&
-      !inspectionChanged
+      !kmChanged
     ) {
       setMsg('Sin cambios en datos de la orden')
       return
@@ -1041,9 +1000,6 @@ export function WorkOrderDetailPage() {
         `· Km al ingreso: ${prevKm != null ? String(prevKm) : '—'} → ${newKmParsed != null ? String(newKmParsed) : '—'}`,
       )
     }
-    if (inspectionChanged) {
-      lines.push(`· Solo revisión: ${wo.inspectionOnly ? 'sí' : 'no'} → ${woInspectionOnly ? 'sí' : 'no'}`)
-    }
     if (cancelNow) {
       lines.push('', '⚠ La orden pasará a CANCELADA. Revisá cobros y líneas antes de continuar.')
     }
@@ -1069,10 +1025,10 @@ export function WorkOrderDetailPage() {
         vehicleCylinderCc: newCylinder === '' ? null : newCylinder,
         vehicleColor: newVehicleColor === '' ? null : newVehicleColor,
         intakeOdometerKm: newKmParsed,
-        inspectionOnly: woInspectionOnly,
       })
       setMsg('Orden actualizada')
       await load()
+      setOrderDataModalOpen(false)
     } catch (err) {
       if (!(await showBlockingConflictModal(err))) {
         setMsg(err instanceof Error ? err.message : 'Error')
@@ -1264,7 +1220,6 @@ export function WorkOrderDetailPage() {
               </Fragment>
             ) : null}
           </dl>
-          <p className="text-xs text-slate-500 dark:text-slate-300">Se generará un ingreso en caja vinculado a esta orden.</p>
         </div>
       ),
       confirmLabel: 'Registrar cobro',
@@ -1319,7 +1274,6 @@ export function WorkOrderDetailPage() {
     if (!id || !canDeleteLine || !wo) return
     const ln = wo.lines.find((l) => l.id === lineId)
     if (!ln) return
-    if (ln.lineType === 'PART' && !canManageWoPartLines) return
     const ok = await confirm({
       title: 'Quitar línea',
       message: '¿Eliminar esta línea de la orden? El importe de la OT se recalculará.',
@@ -1330,7 +1284,7 @@ export function WorkOrderDetailPage() {
     setMsg(null)
     let lines: WorkOrderLine[]
     try {
-      lines = await deleteLine.mutateAsync({ lineId, touchesInventory: ln.lineType === 'PART' })
+      lines = await deleteLine.mutateAsync({ lineId })
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al eliminar')
@@ -1361,26 +1315,9 @@ export function WorkOrderDetailPage() {
 
   function startEdit(ln: WorkOrderLine) {
     setEditLine(ln)
-    if (
-      ln.lineType === 'PART' &&
-      ln.inventoryItem &&
-      inventoryItemUsesQuarterGallonOtQuantity(ln.inventoryItem)
-    ) {
-      const g = Number(String(ln.quantity).replace(',', '.'))
-      setEditQty(Number.isFinite(g) ? String(Math.round(g * 4)) : ln.quantity)
-    } else {
-      setEditQty(ln.quantity)
-    }
+    setEditQty(ln.quantity)
     setEditPrice(
-      ln.unitPrice != null
-        ? normalizeMoneyDecimalStringForApi(
-            ln.lineType === 'PART' &&
-              ln.inventoryItem &&
-              inventoryItemUsesQuarterGallonOtQuantity(ln.inventoryItem)
-              ? workOrderOilStoredGallonUnitPriceToQuarterPriceString(String(ln.unitPrice))
-              : String(ln.unitPrice),
-          )
-        : '',
+      ln.unitPrice != null ? normalizeMoneyDecimalStringForApi(String(ln.unitPrice)) : '',
     )
     setEditDesc(ln.description ?? '')
     setEditDiscount(ln.discountAmount ? normalizeMoneyDecimalStringForApi(String(ln.discountAmount)) : '')
@@ -1389,9 +1326,8 @@ export function WorkOrderDetailPage() {
 
   async function saveEdit() {
     if (!id || !editLine || !canUpdateLine) return
-    if (editLine.lineType === 'PART' && !canManageWoPartLines) return
     setMsg(null)
-    if (editLine.lineType === 'PART' && editQtyIssue) {
+    if (editQtyIssue) {
       setMsg(editQtyIssue)
       return
     }
@@ -1425,13 +1361,12 @@ export function WorkOrderDetailPage() {
         body.unitPrice = editUp || null
         if (discountPatch !== undefined) body.discountAmount = discountPatch
       }
-      if (editLine.lineType === 'LABOR') body.description = editDesc.trim()
+      body.description = editDesc.trim()
       // Solo emitimos taxRateId cuando cambió respecto al valor actual (evita escribir por nada).
       if ((editLine.taxRateId ?? null) !== taxRatePatch) body.taxRateId = taxRatePatch
       await patchLine.mutateAsync({
         lineId: editLine.id,
         body,
-        touchesInventory: editLine.lineType === 'PART',
       })
       setEditLine(null)
       try {
@@ -1467,33 +1402,12 @@ export function WorkOrderDetailPage() {
   const st = STATUS[wo.status]
   const showLineActionsColumn =
     !closed &&
-    wo.lines.some((ln) => {
-      if (ln.lineType === 'PART') return canEditPartLine || canDeletePartLine
-      return Boolean(canUpdateLine || canDeleteLine)
-    })
+    wo.lines.some(() => Boolean(canUpdateLine || canDeleteLine))
   const linePriceColCount = canViewWoFinancials ? 2 : 0
   const lineTableColSpan = 3 + linePriceColCount + (showLineActionsColumn ? 1 : 0)
 
-  const workshopAssignmentBlock = (helpVariant: 'full' | 'compact') => (
+  const workshopAssignmentBlock = () => (
     <Fragment>
-      {helpVariant === 'full' ? (
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-          Las órdenes nuevas quedan sin técnico. Al tomarla, pasan a{' '}
-          <strong className="font-medium text-slate-700 dark:text-slate-300">Recibida</strong> y quedan asignadas a vos.
-          Con permiso de reasignación podés elegir otro técnico abajo o, en esta misma tarjeta, pasar el estado a{' '}
-          <strong className="font-medium text-slate-700 dark:text-slate-300">Sin asignar</strong> y guardar para quitar
-          al técnico y volver la orden a la cola (solo si la orden no está cerrada).
-        </p>
-      ) : (
-        <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-300">
-          Sin técnico queda en cola. <strong className="font-medium text-slate-600 dark:text-slate-300">Tomar</strong> la
-          pasa a <strong className="font-medium text-slate-600 dark:text-slate-300">Recibida</strong> a tu nombre. Con
-          reasignación podés derivarla; o estado <strong className="font-medium text-slate-600 dark:text-slate-300">
-            Sin asignar
-          </strong>{' '}
-          + guardar arriba.
-        </p>
-      )}
       <div className="mt-3 text-sm text-slate-700 dark:text-slate-200">
         {wo.assignedTo ? (
           <p>
@@ -1589,32 +1503,13 @@ export function WorkOrderDetailPage() {
                   Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}
                 </span>
               ) : null}
-              {wo.inspectionOnly ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100">
-                  Solo revisión
-                </span>
-              ) : null}
             </div>
             {cashierOnly ? (
-              <p className="mt-2 max-w-3xl text-sm text-slate-500 dark:text-slate-300">
-                Vista caja: registrá cobros vinculados a esta orden.
-                {(wo.customerName || wo.vehiclePlate) && (
-                  <>
-                    {' '}
-                    <span className="text-slate-600 dark:text-slate-300">
-                      {[wo.customerName, wo.vehiclePlate].filter(Boolean).join(' · ')}
-                    </span>
-                  </>
-                )}
-              </p>
-            ) : hideWorkOrderCashUi ? (
-              <div className="mt-2 max-w-3xl space-y-2">
-                <p className="text-sm text-slate-500 dark:text-slate-300">
-                  Tu perfil no incluye cobros en caja: acá trabajá la orden, el consentimiento y las líneas. Los importes
-                  y precios los ve y carga caja o administración.
+              (wo.customerName || wo.vehiclePlate) ? (
+                <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">
+                  {[wo.customerName, wo.vehiclePlate].filter(Boolean).join(' · ')}
                 </p>
-                <p className="text-slate-600 dark:text-slate-300">{wo.description}</p>
-              </div>
+              ) : null
             ) : (
               <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">{wo.description}</p>
             )}
@@ -1670,9 +1565,6 @@ export function WorkOrderDetailPage() {
             >
               Nueva orden de garantía o seguimiento…
             </Link>
-            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-300">
-              Abre el alta de orden vinculada a esta (ya entregada). Mismo vehículo si estaba registrado.
-            </p>
           </div>
         ) : null}
 
@@ -1706,11 +1598,7 @@ export function WorkOrderDetailPage() {
             </button>
             {invoiceMsg ? (
               <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-300">{invoiceMsg}</p>
-            ) : (
-              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-300">
-                Crea una factura electrónica (DRAFT) a partir de las líneas de esta orden. Si DIAN está apagado, queda en borrador hasta que se active el proveedor.
-              </p>
-            )}
+            ) : null}
           </div>
         ) : null}
 
@@ -1737,8 +1625,43 @@ export function WorkOrderDetailPage() {
         ) : null}
 
       {canPatchWo && (
-        <form onSubmit={saveWorkOrder} className={sectionCardClass}>
-          <h2 className="va-section-title">Datos de la orden</h2>
+        <section className={sectionCardClass}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="va-section-title">Datos de la orden</h2>
+            </div>
+            <button type="button" onClick={() => setOrderDataModalOpen(true)} className="va-btn-primary">
+              Editar datos de la orden
+            </button>
+          </div>
+        </section>
+      )}
+
+      {canPatchWo && orderDataModalOpen && (
+        <div className="va-modal-overlay" role="presentation" onClick={() => setOrderDataModalOpen(false)}>
+          <div
+            className="va-modal-panel max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Datos de la orden</h2>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-300">
+                  {wo.publicCode} · Orden #{wo.orderNumber}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOrderDataModalOpen(false)}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-lg leading-none text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={saveWorkOrder} className="mt-4">
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm sm:col-span-2">
               <span className="va-label">Descripción</span>
@@ -1767,11 +1690,6 @@ export function WorkOrderDetailPage() {
             </label>
             <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
               <h3 className="va-section-title text-sm">Cliente y vehículo (facturación)</h3>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">
-                Datos guardados en esta OT para notas y facturación. Si hay vehículo enlazado, al cambiar el vínculo el
-                servidor puede copiar nombre, contacto y datos del maestro cuando no enviás esos campos en el mismo
-                guardado.
-              </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="block text-sm">
                   <span className="va-label">Nombre del cliente</span>
@@ -1882,19 +1800,8 @@ export function WorkOrderDetailPage() {
                       />
                     </label>
                     <label className="flex min-w-0 cursor-pointer items-start gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={woInspectionOnly}
-                        onChange={(e) => setWoInspectionOnly(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                      />
                       <span className="min-w-0">
-                        <span className="font-medium text-slate-800 dark:text-slate-100">Solo revisión / diagnóstico</span>
-                        <span className="mt-0.5 block text-xs font-normal text-slate-500 dark:text-slate-300">
-                          El importe al cliente se registra como línea de{' '}
-                          <strong className="font-medium">mano de obra</strong> y se cobra con el flujo habitual de la
-                          orden (sin campos extra de dinero en la OT).
-                        </span>
+                        <span className="font-medium text-slate-800 dark:text-slate-100">Revisión / diagnóstico</span>
                       </span>
                     </label>
                     {!cashierOnly && Boolean(wo.clientConsentSignedAt && wo.clientSignaturePngBase64) ? (
@@ -1931,13 +1838,16 @@ export function WorkOrderDetailPage() {
                 <aside className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200/90 bg-white/60 p-4 shadow-sm dark:border-slate-600/50 dark:bg-slate-900/35 lg:col-span-3">
                   <h3 className="va-section-title text-sm">Asignación al taller</h3>
                   <div className="mt-3 flex min-h-0 flex-1 flex-col">
-                    {workshopAssignmentBlock('compact')}
+                    {workshopAssignmentBlock()}
                   </div>
                 </aside>
               </div>
             </div>
           </div>
-          <div className="mt-6 border-t border-slate-100 pt-6 dark:border-slate-800">
+          <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-100 pt-6 dark:border-slate-800">
+            <button type="button" onClick={() => setOrderDataModalOpen(false)} className="va-btn-secondary">
+              Cancelar
+            </button>
             <button
               type="submit"
               title={
@@ -1954,22 +1864,21 @@ export function WorkOrderDetailPage() {
               Guardar orden
             </button>
           </div>
-        </form>
+          </form>
+          </div>
+        </div>
       )}
 
       {!canPatchWo && !cashierOnly && (
         <section className={sectionCardClass}>
           <h2 className="va-section-title">Asignación al taller</h2>
-          {workshopAssignmentBlock('full')}
+          {workshopAssignmentBlock()}
         </section>
       )}
 
       {!canPatchWo && !cashierOnly && wo.clientConsentSignedAt && wo.clientSignaturePngBase64 ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
           <h3 className="va-section-title text-sm">Cliente y vehículo (facturación)</h3>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">
-            Consentimiento del cliente archivado en esta orden.
-          </p>
           <div className="mt-4 flex justify-start">
             <button type="button" onClick={() => setConsentModal('view')} className={FACTURACION_CONSENT_BTN}>
               Ver consentimiento firmado
@@ -1991,52 +1900,12 @@ export function WorkOrderDetailPage() {
           <div className={financialStatTileClass}>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-300">Saldo pendiente</p>
             <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">${wo.amountDue}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-              Total de líneas (con IVA y descuentos si hubiera) menos lo ya cobrado.
-            </p>
           </div>
         </div>
       )}
 
       {!hideWorkOrderCashUi && canViewWoFinancials && wo.totals && (
         <WorkOrderTotalsPanel totals={wo.totals} canSeeCosts={canRef.current('reports:read')} />
-      )}
-
-      {!cashierOnly && !hideWorkOrderCashUi && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
-          <p className="font-semibold text-slate-900 dark:text-slate-50">Cómo encaja esta orden con la caja</p>
-          <ul className="mt-2 list-disc space-y-1.5 pl-5 text-slate-600 dark:text-slate-300">
-            <li>
-              <strong className="text-slate-800 dark:text-slate-100">El dinero entra en caja</strong> en el momento en que
-              alguien registra un cobro en &quot;Cobros en caja&quot; más abajo: se crea un{' '}
-              <strong>ingreso en la sesión de caja abierta</strong> y el sistema lo vincula solo a esta orden (referencia
-              técnica <span className="font-mono">WorkOrder</span> + id de la OT). No tenés que repetir el ingreso en
-              Caja → Ingreso. Para verlo en pantalla: <strong className="text-slate-800 dark:text-slate-100">              Caja → pestaña Movimientos</strong> (listado de la sesión abierta), con enlace a la orden cuando aplica.
-            </li>
-            <li>
-              <strong className="text-slate-800 dark:text-slate-100">Cambiar el estado</strong> de la orden (por ejemplo a
-              Lista o Entregada) <strong>no mueve dinero por sí solo</strong>: solo indica en qué etapa está el trabajo en
-              el taller.
-            </li>
-            <li>
-              Los <strong>cobros en caja</strong> desde esta pantalla solo se permiten con la orden en{' '}
-              <strong>Recibida</strong>, <strong>En taller</strong>, <strong>Esperando repuestos</strong> o{' '}
-              <strong>Lista</strong>: no en <strong>Sin asignar</strong>, ni cuando ya está <strong>Entregada</strong> o{' '}
-              <strong>Cancelada</strong>.
-            </li>
-            <li>
-              Cada cobro debe marcarse como <strong>abono</strong> (deja saldo; el estado de la orden no cambia) o{' '}
-              <strong>pago total</strong> (debe igualar el saldo pendiente; la orden pasa a <strong>Entregada</strong> y no
-              se pueden editar montos ni líneas hasta que <strong>administración o dueño</strong> la reabra con{' '}
-              <strong>nota y justificación</strong>).
-            </li>
-            <li>
-              Con la orden en <strong>Entregada</strong> o <strong>Cancelada</strong> no se pueden editar líneas. Pasar a
-              esos estados por el selector sigue requiriendo permiso de estado terminal; el cierre por pago total ocurre
-              solo al elegir pago total en el cobro.
-            </li>
-          </ul>
-        </div>
       )}
 
       {closed && (
@@ -2059,10 +1928,6 @@ export function WorkOrderDetailPage() {
               }}
             >
               <h3 className="va-section-title">Reabrir orden entregada</h3>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                Solo administración o dueño. La orden vuelve a <strong>Lista</strong> para permitir correcciones; queda
-                registro en auditoría y en notas internas.
-              </p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="flex flex-col text-sm">
                   <span className="va-label">Justificación</span>
@@ -2109,7 +1974,6 @@ export function WorkOrderDetailPage() {
         <section className={sectionFlushClass}>
           <div className={sectionHeadClass}>
             <h2 className="va-section-title">Cobros en caja</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-300">Ingresos vinculados a esta OT.</p>
           </div>
           <div className="space-y-3 px-4 py-5 sm:px-6">
             {cashOpen === null ? (
@@ -2166,7 +2030,6 @@ export function WorkOrderDetailPage() {
       <section ref={paymentsSectionRef} className={sectionFlushClass}>
         <div className={sectionHeadClass}>
           <h2 className="va-section-title">Cobros en caja</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-300">Ingresos vinculados a esta OT.</p>
         </div>
         {payFormError && (
           <p
@@ -2397,6 +2260,173 @@ export function WorkOrderDetailPage() {
           <h2 className="va-section-title">Líneas</h2>
           <p className="text-sm text-slate-500 dark:text-slate-300">Repuestos (stock) y mano de obra.</p>
         </div>
+        {canMutateLines && (
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-5">
+            <div className="va-tabstrip max-w-md">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={addKind === 'PART'}
+                onClick={() => setAddKind('PART')}
+                className={`va-tab ${addKind === 'PART' ? 'va-tab-active' : 'va-tab-inactive'}`}
+              >
+                Repuesto
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={addKind === 'LABOR'}
+                onClick={() => setAddKind('LABOR')}
+                className={`va-tab ${addKind === 'LABOR' ? 'va-tab-active' : 'va-tab-inactive'}`}
+              >
+                Mano de obra
+              </button>
+            </div>
+
+            {addKind === 'PART' ? (
+              <div className="mt-3">
+                <label className="block text-sm">
+                  <span className="va-label">Descripción del repuesto (catálogo o texto libre)</span>
+                  <div className="relative mt-1">
+                    <input
+                      ref={partDescInputRef}
+                      value={partDesc}
+                      role="combobox"
+                      aria-expanded={partComboOpen && partSuggestions.length > 0}
+                      aria-controls="wo-parts-listbox"
+                      aria-activedescendant={
+                        partComboOpen && partComboIndex >= 0 ? `wo-part-opt-${partComboIndex}` : undefined
+                      }
+                      autoComplete="off"
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setPartDesc(v)
+                        setPartCatalogTerm(v)
+                        setPartComboIndex(-1)
+                        setPartComboOpen(true)
+                      }}
+                      onBlur={() => setPartComboOpen(false)}
+                      onFocus={() => {
+                        if (debouncedPartTerm.trim().length >= 2) setPartComboOpen(true)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          if (!partComboOpen) setPartComboOpen(true)
+                          setPartComboIndex((i) => Math.min(i + 1, partSuggestions.length - 1))
+                        } else if (e.key === 'ArrowUp') {
+                          setPartComboIndex((i) => Math.max(i - 1, 0))
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (partComboOpen && partComboIndex >= 0 && partSuggestions[partComboIndex]) {
+                            void selectPart(partSuggestions[partComboIndex]!)
+                          } else if (partExactCandidate) {
+                            void selectPart(partExactCandidate)
+                          } else if (partDesc.trim().length >= 2) {
+                            void addPartFromFreeText()
+                          }
+                        } else if (e.key === 'Escape') {
+                          setPartComboOpen(false)
+                          setPartComboIndex(-1)
+                        }
+                      }}
+                      className="va-field"
+                      placeholder="ej. ACEITE-15W40 o filtro de aceite · Enter agrega"
+                    />
+                    {partComboOpen && debouncedPartTerm.trim().length >= 2 ? (
+                      <div
+                        id="wo-parts-listbox"
+                        role="listbox"
+                        aria-label="Sugerencias del catálogo de repuestos"
+                        className="absolute left-0 right-0 z-30 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        {partSearchQuery.isFetching ? (
+                          <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Buscando en el catálogo…</p>
+                        ) : partSuggestions.length === 0 ? (
+                          <>
+                            <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                              Sin coincidencias en el catálogo.
+                            </p>
+                            {canCreateSparePart ? (
+                              <button
+                                type="button"
+                                role="option"
+                                id="wo-part-create"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => void addPartFromFreeText()}
+                                className="block w-full px-3 py-1.5 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-slate-800"
+                              >
+                                + Agregar «{debouncedPartTerm.trim()}» al catálogo y a la orden
+                              </button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <>
+                            {partSuggestions.map((s, i) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                role="option"
+                                id={`wo-part-opt-${i}`}
+                                aria-selected={partComboIndex === i}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => void selectPart(s)}
+                                onMouseMove={() => setPartComboIndex(i)}
+                                className={`block w-full px-3 py-1.5 text-left text-sm ${
+                                  partComboIndex === i
+                                    ? 'bg-brand-50 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                    : 'text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                  {s.sku}
+                                </span>{' '}
+                                · {s.name}{' '}
+                                <span className="tabular-nums text-slate-500 dark:text-slate-400">
+                                  {Number(s.price) > 0 ? `· $${formatCopFromString(String(s.price))}` : '· precio variable'}
+                                </span>
+                              </button>
+                            ))}
+                            {!partExactCandidate && canCreateSparePart ? (
+                              <button
+                                type="button"
+                                role="option"
+                                id="wo-part-create-bottom"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => void addPartFromFreeText()}
+                                className="mt-1 block w-full border-t border-slate-200 px-3 py-1.5 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-slate-700 dark:text-brand-300 dark:hover:bg-slate-800"
+                              >
+                                + Agregar «{debouncedPartTerm.trim()}» al catálogo y a la orden
+                              </button>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <label className="block text-sm">
+                  <span className="va-label">Descripción del trabajo</span>
+                  <input
+                    ref={laborDescInputRef}
+                    value={laborDesc}
+                    onChange={(e) => setLaborDesc(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && laborDesc.trim() && !e.shiftKey) {
+                        e.preventDefault()
+                        void addLaborLine()
+                      }
+                    }}
+                    className="va-field mt-1"
+                    placeholder="ej. Cambio de aceite y filtro · Enter agrega"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        )}
         <div className="va-table-scroll">
           <table
             className={`va-table ${showLineActionsColumn || linePriceColCount ? 'min-w-[640px]' : 'min-w-[480px]'}`}
@@ -2440,43 +2470,22 @@ export function WorkOrderDetailPage() {
                     </span>
                   </td>
                   <td className="va-table-td min-w-0 max-w-xs text-slate-700 dark:text-slate-300">
-                    {ln.lineType === 'PART' ? (
-                      <span className="line-clamp-2">
-                        {ln.inventoryItem
-                          ? workOrderPartDisplayText(ln.inventoryItem)
-                          : ln.inventoryItemId}
+                    <span className="line-clamp-2">{ln.description ?? '—'}</span>
+                    {ln.sparePartSku ? (
+                      <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900/70 dark:text-violet-100">
+                        {ln.sparePartSku}
                       </span>
-                    ) : (
-                      <span className="line-clamp-2">{ln.description ?? '—'}</span>
-                    )}
+                    ) : null}
                   </td>
                   <td className="va-table-td font-mono text-slate-800 dark:text-slate-200">
-                    {ln.lineType === 'PART' && ln.inventoryItem
-                      ? partLineQuantityDisplayWithQuarters(ln.quantity, ln.inventoryItem)
-                      : ln.quantity}
+                    {ln.quantity}
                   </td>
                   {canViewWoFinancials ? (
                     <>
                       <td className="va-table-td font-mono text-slate-600 dark:text-slate-300">
                         {ln.unitPrice != null ? (
                           <>
-                            $
-                            {formatCopFromString(
-                              ln.lineType === 'PART' &&
-                                ln.inventoryItem &&
-                                inventoryItemUsesQuarterGallonOtQuantity(ln.inventoryItem)
-                                ? normalizeMoneyDecimalStringForApi(
-                                    workOrderOilStoredGallonUnitPriceToQuarterPriceString(String(ln.unitPrice)),
-                                  )
-                                : normalizeMoneyDecimalStringForApi(String(ln.unitPrice)),
-                            )}
-                            {ln.lineType === 'PART' &&
-                            ln.inventoryItem &&
-                            inventoryItemUsesQuarterGallonOtQuantity(ln.inventoryItem) ? (
-                              <span className="ml-1 text-[10px] font-normal text-slate-500 dark:text-slate-400">
-                                /¼ gal
-                              </span>
-                            ) : null}
+                            ${formatCopFromString(normalizeMoneyDecimalStringForApi(String(ln.unitPrice)))}
                           </>
                         ) : (
                           '—'
@@ -2504,7 +2513,7 @@ export function WorkOrderDetailPage() {
                   {showLineActionsColumn ? (
                     <td className="va-table-td">
                       <div className="flex flex-wrap gap-2">
-                        {(ln.lineType === 'PART' ? canEditPartLine : canUpdateLine) ? (
+                        {canUpdateLine ? (
                           <button
                             type="button"
                             onClick={() => startEdit(ln)}
@@ -2513,7 +2522,7 @@ export function WorkOrderDetailPage() {
                             Editar
                           </button>
                         ) : null}
-                        {(ln.lineType === 'PART' ? canDeletePartLine : canDeleteLine) ? (
+                        {canDeleteLine ? (
                           <button
                             type="button"
                             onClick={() => void removeLine(ln.id)}
@@ -2532,33 +2541,17 @@ export function WorkOrderDetailPage() {
         </div>
       </section>
 
-      {editLine && (editLine.lineType === 'PART' ? canEditPartLine : canUpdateLine) ? (
+      {editLine && canUpdateLine ? (
         <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-800/60 dark:bg-brand-900/35 sm:p-6">
           <h3 className="va-section-title text-sm">Editar línea</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block text-sm">
-                <span className="va-label">
-                  {editLine.lineType === 'PART' &&
-                  editLine.inventoryItem &&
-                  inventoryItemUsesQuarterGallonOtQuantity(editLine.inventoryItem)
-                    ? 'Cantidad (1 = ¼ gal)'
-                    : 'Cantidad'}
-                </span>
+                <span className="va-label">Cantidad</span>
                 <input
                   value={editQty}
                   onChange={(e) => setEditQty(e.target.value)}
                   className="va-field mt-1"
-                  step={
-                    editLine.lineType === 'PART' &&
-                    editLine.inventoryItem &&
-                    inventoryItemUsesQuarterGallonOtQuantity(editLine.inventoryItem)
-                      ? 1
-                      : editLine.lineType === 'PART' &&
-                          editLine.inventoryItem &&
-                          allowsFractionalWorkOrderPartQuantity(editLine.inventoryItem.measurementUnit.slug)
-                        ? 'any'
-                        : '1'
-                  }
+                  step="any"
                   min={0}
                   inputMode="decimal"
                 />
@@ -2566,36 +2559,22 @@ export function WorkOrderDetailPage() {
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{editQtyIssue}</p>
                 ) : null}
               </label>
-              {canViewWoFinancials ? (
-                <label className="block text-sm">
-                  <span className="va-label">
-                    {editLine.lineType === 'PART' &&
-                    editLine.inventoryItem &&
-                    inventoryItemUsesQuarterGallonOtQuantity(editLine.inventoryItem)
-                      ? 'Precio unitario por ¼ gal'
-                      : 'Precio unitario'}
-                  </span>
-                  <input
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(editPrice))}
-                    onChange={(e) => setEditPrice(normalizeMoneyDecimalStringForApi(e.target.value))}
-                    className="va-field mt-1"
-                    placeholder="Opcional"
-                  />
-                </label>
-            ) : (
-              <p className="block text-sm text-slate-500 dark:text-slate-300">
-                Precio unitario: tu perfil no muestra importes en la orden; lo cargan caja o administración.
-              </p>
-            )}
-            {editLine.lineType === 'LABOR' && (
+              <label className="block text-sm">
+                <span className="va-label">Precio unitario</span>
+                <input
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(editPrice))}
+                  onChange={(e) => setEditPrice(normalizeMoneyDecimalStringForApi(e.target.value))}
+                  className="va-field mt-1"
+                  placeholder="Opcional"
+                />
+              </label>
               <label className="block text-sm sm:col-span-2">
                 <span className="va-label">Descripción</span>
                 <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="va-field mt-1" />
               </label>
-            )}
-            {canViewWoFinancials && taxRatesCatalog.length > 0 ? (
+            {editLine.lineType === 'LABOR' && canViewWoFinancials && taxRatesCatalog.length > 0 ? (
               <label className="block text-sm">
                 <span className="va-label">Impuesto (opcional)</span>
                 <select
@@ -2630,7 +2609,7 @@ export function WorkOrderDetailPage() {
             <button
               type="button"
               onClick={() => void saveEdit()}
-              disabled={editLine.lineType === 'PART' && !!editQtyIssue}
+              disabled={!!editQtyIssue}
               className="va-btn-primary disabled:opacity-50"
             >
               Guardar
@@ -2645,232 +2624,6 @@ export function WorkOrderDetailPage() {
           </div>
         </div>
       ) : null}
-
-      {canMutateLines && (
-        <section className={sectionCardClass}>
-          <h2 className="va-section-title">Agregar línea</h2>
-          <div className="va-tabstrip mt-3 max-w-md">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={addKind === 'PART'}
-              onClick={() => setAddKind('PART')}
-              className={`va-tab ${addKind === 'PART' ? 'va-tab-active' : 'va-tab-inactive'}`}
-            >
-              Repuesto
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={addKind === 'LABOR'}
-              onClick={() => setAddKind('LABOR')}
-              className={`va-tab ${addKind === 'LABOR' ? 'va-tab-active' : 'va-tab-inactive'}`}
-            >
-              Mano de obra
-            </button>
-          </div>
-
-          {addKind === 'PART' ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <label className="block text-sm sm:col-span-2">
-                <span className="va-label">Ítem</span>
-                <select value={partItemId} onChange={(e) => setPartItemId(e.target.value)} className="va-field mt-1">
-                  <option value="">Elegí repuesto…</option>
-                  {partOptions}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="va-label">
-                  {selectedPartItem && inventoryItemUsesQuarterGallonOtQuantity(selectedPartItem)
-                    ? 'Cantidad (1 = ¼ gal)'
-                    : 'Cantidad'}
-                </span>
-                <input
-                  value={partQty}
-                  onChange={(e) => setPartQty(e.target.value)}
-                  className="va-field mt-1"
-                  step={
-                    selectedPartItem && inventoryItemUsesQuarterGallonOtQuantity(selectedPartItem)
-                      ? 1
-                      : selectedPartItem &&
-                          allowsFractionalWorkOrderPartQuantity(selectedPartItem.measurementUnit.slug)
-                        ? 'any'
-                        : '1'
-                  }
-                  min={0}
-                  inputMode="decimal"
-                />
-                {partQtyIssue ? (
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{partQtyIssue}</p>
-                ) : null}
-              </label>
-              {canViewWoFinancials ? (
-                <label className="block text-sm sm:col-span-3">
-                  <span className="va-label">
-                    {selectedPartItem && inventoryItemUsesQuarterGallonOtQuantity(selectedPartItem)
-                      ? 'Precio al cliente por ¼ gal (opcional)'
-                      : 'Precio al cliente (opcional)'}
-                  </span>
-                  <input
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(partPrice))}
-                    onChange={(e) => setPartPrice(normalizeMoneyDecimalStringForApi(e.target.value))}
-                    className="va-field mt-1 max-w-xs"
-                    placeholder="ej. 25.000 o 25.000,50"
-                  />
-                  {selectedPartItem && inventoryItemUsesQuarterGallonOtQuantity(selectedPartItem) ? (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      La cantidad va en cuartos (1 = ¼ gal). El importe se calcula como cuartos × este precio; el
-                      sistema guarda el equivalente por galón para stock y totales.
-                    </p>
-                  ) : null}
-                </label>
-              ) : (
-                <p className="text-sm text-slate-500 sm:col-span-3 dark:text-slate-300">
-                  Precio al cliente: lo cargan caja o administración.
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm sm:col-span-2">
-                <span className="va-label">Descripción del trabajo</span>
-                <input
-                  value={laborDesc}
-                  onChange={(e) => setLaborDesc(e.target.value)}
-                  className="va-field mt-1"
-                  placeholder="ej. Cambio de aceite y filtro"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="va-label">Cantidad (horas o unidad)</span>
-                <input value={laborQty} onChange={(e) => setLaborQty(e.target.value)} className="va-field mt-1" />
-              </label>
-              {canViewWoFinancials ? (
-                <label className="block text-sm">
-                  <span className="va-label">Precio (opcional)</span>
-                  <input
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(laborPrice))}
-                    onChange={(e) => setLaborPrice(normalizeMoneyDecimalStringForApi(e.target.value))}
-                    className="va-field mt-1"
-                  />
-                </label>
-              ) : (
-                <p className="block text-sm text-slate-500 dark:text-slate-300">
-                  Precio mano de obra: lo cargan caja o administración.
-                </p>
-              )}
-            </div>
-          )}
-
-          {(servicesCatalog.length > 0 || taxRatesCatalog.length > 0) && canViewWoFinancials ? (
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => setShowFiscalOptions((v) => !v)}
-                className="text-xs font-medium text-slate-600 underline underline-offset-4 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-              >
-                {showFiscalOptions ? 'Ocultar opciones fiscales' : 'Opciones fiscales (servicio del catálogo, IVA, descuento)'}
-              </button>
-              {showFiscalOptions ? (
-                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Se completan solo si los necesitás: como persona natural podés dejarlos vacíos (sin IVA ni descuento).
-                  </p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    {addKind === 'LABOR' && servicesCatalog.length > 0 ? (
-                      <label className="block text-sm sm:col-span-3">
-                        <span className="va-label">Servicio del catálogo (opcional)</span>
-                        <select
-                          value={laborServiceId}
-                          onChange={(e) => {
-                            const next = e.target.value
-                            setLaborServiceId(next)
-                            if (next) {
-                              const svc = servicesCatalog.find((s) => s.id === next)
-                              if (svc?.defaultUnitPrice && !laborPrice.trim()) {
-                                setLaborPrice(normalizeMoneyDecimalStringForApi(svc.defaultUnitPrice))
-                              }
-                              if (svc?.defaultTaxRateId && !laborTaxRateId) {
-                                setLaborTaxRateId(svc.defaultTaxRateId)
-                              }
-                              if (svc?.name && !laborDesc.trim()) setLaborDesc(svc.name)
-                            }
-                          }}
-                          className="va-field mt-1"
-                        >
-                          <option value="">— Sin servicio del catálogo —</option>
-                          {servicesCatalog.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.code} · {s.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    {taxRatesCatalog.length > 0 ? (
-                      <label className="block text-sm">
-                        <span className="va-label">Impuesto (opcional)</span>
-                        <select
-                          value={addKind === 'PART' ? partTaxRateId : laborTaxRateId}
-                          onChange={(e) =>
-                            addKind === 'PART'
-                              ? setPartTaxRateId(e.target.value)
-                              : setLaborTaxRateId(e.target.value)
-                          }
-                          className="va-field mt-1"
-                        >
-                          <option value="">— Sin impuesto —</option>
-                          {taxRatesCatalog.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.kind})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    <label className="block text-sm">
-                      <span className="va-label">Descuento COP (opcional)</span>
-                      <input
-                        inputMode="decimal"
-                        autoComplete="off"
-                        value={formatMoneyInputDisplayFromNormalized(
-                          normalizeMoneyDecimalStringForApi(
-                            addKind === 'PART' ? partDiscount : laborDiscount,
-                          ),
-                        )}
-                        onChange={(e) => {
-                          const next = normalizeMoneyDecimalStringForApi(e.target.value)
-                          if (addKind === 'PART') setPartDiscount(next)
-                          else setLaborDiscount(next)
-                        }}
-                        className="va-field mt-1"
-                        placeholder="ej. 5.000"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => void addLine()}
-            disabled={
-              addKind === 'PART'
-                ? !partItemId || !!partQtyIssue
-                : !laborServiceId
-            }
-            className="va-btn-primary mt-6 px-5 disabled:opacity-50"
-          >
-            Agregar a la orden
-          </button>
-        </section>
-      )}
 
       {consentModal === 'view' && wo.clientConsentSignedAt && wo.clientSignaturePngBase64 ? (
         <ClientConsentSignedModal

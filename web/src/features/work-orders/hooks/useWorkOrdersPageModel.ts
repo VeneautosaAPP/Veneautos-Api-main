@@ -163,7 +163,6 @@ export function useWorkOrdersPageModel() {
   const [vehiclePlate, setVehiclePlate] = useState('')
   const [vehicleBrandCreate, setVehicleBrandCreate] = useState('')
   const [intakeKmCreate, setIntakeKmCreate] = useState('')
-  const [inspectionOnlyCreate, setInspectionOnlyCreate] = useState(false)
   const [vehicleId, setVehicleId] = useState('')
   const [warrantyParentId, setWarrantyParentId] = useState<string | null>(null)
   const [warrantyParentOrderNumber, setWarrantyParentOrderNumber] = useState<number | null>(null)
@@ -458,7 +457,6 @@ export function useWorkOrdersPageModel() {
         }
         body.intakeOdometerKm = n
       }
-      if (inspectionOnlyCreate) body.inspectionOnly = true
       try {
         const created = await createWorkOrderMutation.mutateAsync(body)
         setCreateOpen(false)
@@ -468,7 +466,6 @@ export function useWorkOrdersPageModel() {
         setVehiclePlate('')
         setVehicleBrandCreate('')
         setIntakeKmCreate('')
-        setInspectionOnlyCreate(false)
         setVehicleId('')
         setWarrantyParentId(null)
         setWarrantyParentOrderNumber(null)
@@ -488,7 +485,6 @@ export function useWorkOrdersPageModel() {
     [
       createWorkOrderMutation,
       desc,
-      inspectionOnlyCreate,
       intakeKmCreate,
       vehicleBrandCreate,
       vehicleId,
@@ -582,8 +578,6 @@ export function useWorkOrdersPageModel() {
     setVehicleBrandCreate,
     intakeKmCreate,
     setIntakeKmCreate,
-    inspectionOnlyCreate,
-    setInspectionOnlyCreate,
     vehicleId,
     setVehicleId,
     warrantyParentId,

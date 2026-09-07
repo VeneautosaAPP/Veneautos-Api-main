@@ -135,18 +135,6 @@ const PERMISSIONS: Array<{ resource: string; action: string; description: string
     action: 'reopen_delivered',
     description: 'Reabrir una orden entregada para corregir importes (nota y justificación obligatorias)',
   },
-  { resource: 'measurement_units', action: 'read', description: 'Ver unidades de medida' },
-  { resource: 'inventory_items', action: 'read', description: 'Ver ítems de inventario' },
-  { resource: 'inventory_items', action: 'create', description: 'Crear ítems de inventario' },
-  { resource: 'inventory_items', action: 'update', description: 'Actualizar ítems de inventario' },
-  {
-    resource: 'inventory_items',
-    action: 'delete',
-    description:
-      'Eliminar ítems sin uso operativo (stock cero y sin líneas en OT, ventas, compras, facturas ni cotizaciones)',
-  },
-  { resource: 'purchase_receipts', action: 'read', description: 'Ver recepciones de compra' },
-  { resource: 'purchase_receipts', action: 'create', description: 'Registrar recepción de compra' },
   {
     resource: 'work_order_lines',
     action: 'create',
@@ -188,74 +176,6 @@ const PERMISSIONS: Array<{ resource: string; action: string; description: string
     resource: 'tax_rates',
     action: 'update',
     description: 'Actualizar tarifas de impuesto y activar/desactivar',
-  },
-  {
-    resource: 'services',
-    action: 'read',
-    description: 'Ver catálogo de servicios del taller (mano de obra predefinida)',
-  },
-  {
-    resource: 'services',
-    action: 'create',
-    description: 'Crear servicios nuevos (administrador/dueño)',
-  },
-  {
-    resource: 'services',
-    action: 'update',
-    description: 'Actualizar servicios y activar/desactivar',
-  },
-  // --- Fase 3: Ventas / POS ---
-  {
-    resource: 'sales',
-    action: 'read',
-    description: 'Ver ventas / comprobantes del taller (propias según reglas de visibilidad)',
-  },
-  {
-    resource: 'sales',
-    action: 'read_all',
-    description: 'Ver todas las ventas (sin esto solo las creadas por el usuario)',
-  },
-  { resource: 'sales', action: 'create', description: 'Crear ventas de mostrador o desde OT' },
-  {
-    resource: 'sales',
-    action: 'update',
-    description: 'Editar snapshots del cliente y notas internas en ventas borrador',
-  },
-  {
-    resource: 'sales',
-    action: 'confirm',
-    description: 'Confirmar venta (descuenta inventario en ventas de mostrador y habilita el cobro)',
-  },
-  {
-    resource: 'sales',
-    action: 'cancel',
-    description: 'Anular venta sin pagos (reintegra el inventario consumido)',
-  },
-  {
-    resource: 'sales',
-    action: 'record_payment',
-    description: 'Registrar cobro de venta en caja (ingreso vinculado a la venta)',
-  },
-  {
-    resource: 'sales',
-    action: 'view_financials',
-    description:
-      'Ver importes y totales de la venta (precios, impuestos, saldo); caja y administración; no técnico',
-  },
-  {
-    resource: 'sale_lines',
-    action: 'create',
-    description: 'Agregar líneas de repuesto o mano de obra a una venta borrador',
-  },
-  {
-    resource: 'sale_lines',
-    action: 'update',
-    description: 'Editar cantidad/precio/descripción/impuesto/descuento de líneas de venta borrador',
-  },
-  {
-    resource: 'sale_lines',
-    action: 'delete',
-    description: 'Eliminar líneas de una venta borrador',
   },
   // -------- Fase 4 · Facturación electrónica DIAN (preparación) --------
   {
@@ -346,84 +266,25 @@ const PERMISSIONS: Array<{ resource: string; action: string; description: string
     action: 'manage_dispatch',
     description: 'Administrar la cola de envío a DIAN (reintentos, revisión manual)',
   },
-  // Nómina (Fase 9): pago semanal a técnicos por % de mano de obra.
   {
-    resource: 'payroll',
+    resource: 'repuestos',
     action: 'read',
-    description: 'Ver el panel de nómina técnica (corridas semanales y detalle).',
+    description: 'Ver el catálogo de repuestos (autocompleta las líneas PART de la OT)',
   },
   {
-    resource: 'payroll',
-    action: 'calculate',
-    description: 'Calcular / recalcular la corrida semanal y editar ajustes (BONUS / ADVANCE / DEDUCTION / OTHER).',
-  },
-  {
-    resource: 'payroll',
-    action: 'pay',
-    description: 'Ejecutar el pago semanal (genera CashMovement EXPENSE y congela la corrida).',
-  },
-  {
-    resource: 'payroll',
-    action: 'configure',
-    description: 'Editar el % de comisión de cada técnico (default 50%).',
-  },
-  {
-    resource: 'workshop_finance',
-    action: 'read',
-    description: 'Ver líneas de reserva teórica (cierre caja) y deudas del taller.',
-  },
-  {
-    resource: 'workshop_finance',
-    action: 'manage',
-    description:
-      'Gestionar líneas de reserva, registrar deudas y pagos (efectivo genera egreso en caja).',
-  },
-  // Cotizaciones (presupuesto sin consumo de stock hasta compra/OT).
-  { resource: 'quotes', action: 'create', description: 'Crear cotizaciones / presupuestos' },
-  {
-    resource: 'quotes',
-    action: 'read',
-    description: 'Ver cotizaciones propias u operativas según reglas de visibilidad',
-  },
-  {
-    resource: 'quotes',
-    action: 'read_all',
-    description: 'Ver todas las cotizaciones del taller',
-  },
-  {
-    resource: 'quotes',
-    action: 'update',
-    description: 'Editar cotización (cabecera, estado, snapshots de cliente/vehículo)',
-  },
-  {
-    resource: 'quotes',
-    action: 'view_financials',
-    description: 'Ver y cargar importes en líneas de cotización (precios, descuentos, totales)',
-  },
-  {
-    resource: 'quote_lines',
+    resource: 'repuestos',
     action: 'create',
-    description: 'Agregar líneas de repuesto o mano de obra a una cotización editable',
+    description: 'Crear repuestos en el catálogo',
   },
   {
-    resource: 'quote_lines',
+    resource: 'repuestos',
     action: 'update',
-    description: 'Editar líneas de cotización',
+    description: 'Editar repuestos del catálogo (SKU, nombre o precio sugerido)',
   },
   {
-    resource: 'quote_lines',
+    resource: 'repuestos',
     action: 'delete',
-    description: 'Eliminar líneas de cotización',
-  },
-  {
-    resource: 'employee_credits',
-    action: 'read',
-    description: 'Ver resumen y líneas de crédito / cargos internos de empleados',
-  },
-  {
-    resource: 'employee_credits',
-    action: 'manage',
-    description: 'Crear, editar y anular líneas de crédito de empleados',
+    description: 'Eliminar repuestos del catálogo',
   },
 ];
 
@@ -451,22 +312,12 @@ const BACKEND_REQUIRED_PERMISSION_CODES: readonly string[] = [
   'customers:create',
   'customers:read',
   'customers:update',
-  'inventory_items:create',
-  'inventory_items:read',
-  'inventory_items:update',
-  'inventory_items:delete',
-  'measurement_units:read',
   'permissions:read',
-  'purchase_receipts:create',
-  'purchase_receipts:read',
   'reports:read',
   'roles:create',
   'roles:delete',
   'roles:read',
   'roles:update',
-  'services:create',
-  'services:read',
-  'services:update',
   'settings:read',
   'settings:update',
   'tax_rates:create',
@@ -492,17 +343,6 @@ const BACKEND_REQUIRED_PERMISSION_CODES: readonly string[] = [
   'work_orders:reopen_delivered',
   'work_orders:set_terminal_status',
   'work_orders:update',
-  'sales:read',
-  'sales:read_all',
-  'sales:create',
-  'sales:update',
-  'sales:confirm',
-  'sales:cancel',
-  'sales:record_payment',
-  'sales:view_financials',
-  'sale_lines:create',
-  'sale_lines:update',
-  'sale_lines:delete',
   'fiscal_resolutions:read',
   'fiscal_resolutions:manage',
   'invoices:read',
@@ -519,22 +359,10 @@ const BACKEND_REQUIRED_PERMISSION_CODES: readonly string[] = [
   'debit_notes:issue',
   'debit_notes:void',
   'dian:manage_dispatch',
-  'payroll:read',
-  'payroll:calculate',
-  'payroll:pay',
-  'payroll:configure',
-  'workshop_finance:read',
-  'workshop_finance:manage',
-  'quotes:create',
-  'quotes:read',
-  'quotes:read_all',
-  'quotes:update',
-  'quotes:view_financials',
-  'quote_lines:create',
-  'quote_lines:update',
-  'quote_lines:delete',
-  'employee_credits:read',
-  'employee_credits:manage',
+  'repuestos:read',
+  'repuestos:create',
+  'repuestos:update',
+  'repuestos:delete',
 ];
 
 const CASH_CATEGORIES: Array<{
@@ -634,6 +462,29 @@ async function main() {
     });
   }
 
+  /**
+   * Limpieza de permisos huérfanos: módulos eliminados en la simplificación (cotizaciones,
+   * ventas, inventario, recepción/compras, nómina, finanzas taller, crédito empleados y
+   * servicios). `RolePermission.permission` borra en cascada, así que los roles pierden
+   * las asignaciones viejas automáticamente.
+   */
+  const REMOVED_PERMISSION_RESOURCES = [
+    'employee_credits',
+    'inventory_items',
+    'measurement_units',
+    'payroll',
+    'purchase_receipts',
+    'quote_lines',
+    'quotes',
+    'sale_lines',
+    'sales',
+    'services',
+    'workshop_finance',
+  ];
+  await prisma.permission.deleteMany({
+    where: { resource: { in: REMOVED_PERMISSION_RESOURCES } },
+  });
+
   for (const c of CASH_CATEGORIES) {
     await prisma.cashMovementCategory.upsert({
       where: { slug: c.slug },
@@ -723,50 +574,21 @@ async function main() {
     'vehicles:read',
     'vehicles:create',
     'vehicles:update',
-    'measurement_units:read',
     'work_order_lines:create',
     'work_order_lines:update',
     'work_order_lines:delete',
     'work_order_lines:set_unit_price',
     'work_orders:view_financials',
-    'services:read',
     'tax_rates:read',
-    'sales:read',
-    'sales:read_all',
-    'sales:create',
-    'sales:update',
-    'sales:confirm',
-    'sales:cancel',
-    'sales:record_payment',
-    'sales:view_financials',
-    'sale_lines:create',
-    'sale_lines:update',
-    'sale_lines:delete',
-    // Fase 4: caja puede ver facturas y generarlas desde una venta, pero no
-    // gestiona resoluciones fiscales ni administra la cola DIAN (eso es dueño/admin).
+    'repuestos:read',
+    // Fase 4: caja puede ver facturas y generarlas desde una venta (ahora solo desde OT),
+    // pero no gestiona resoluciones fiscales ni administra la cola DIAN (eso es dueño/admin).
     'fiscal_resolutions:read',
     'invoices:read',
     'invoices:create',
     'invoices:record_payment',
     'credit_notes:read',
     'debit_notes:read',
-    // Fase 9: nómina técnica (dueño+cajero pueden pagar; sólo dueño configura el %).
-    'payroll:read',
-    'payroll:calculate',
-    'payroll:pay',
-    // Finanzas taller: reservas teóricas al cierre + deudas (misma línea operativa que caja/nómina).
-    'workshop_finance:read',
-    'workshop_finance:manage',
-    'employee_credits:read',
-    'employee_credits:manage',
-    'quotes:create',
-    'quotes:read',
-    'quotes:read_all',
-    'quotes:update',
-    'quotes:view_financials',
-    'quote_lines:create',
-    'quote_lines:update',
-    'quote_lines:delete',
   ];
   const cajeroPerms = pick(...cajeroCodes);
   const cajeroRole = await prisma.role.upsert({
@@ -824,11 +646,10 @@ async function main() {
     });
   }
 
-  /** Sin `read_all`: ve cola + asignadas a él + las que creó (reglas en `WorkOrdersService.workOrderVisibilityWhere`). Incluye `payroll:read` (solo comisión en panel/API, sin montos de MO). */
+  /** Sin `read_all`: ve cola + asignadas a él + las que creó (reglas en `WorkOrdersService.workOrderVisibilityWhere`). */
   const mecanicoCodes = [
     'permissions:read',
     'settings:read',
-    'payroll:read',
     'work_orders:read',
     'work_orders:update',
     'work_order_lines:create',
@@ -836,16 +657,8 @@ async function main() {
     'work_order_lines:delete',
     'customers:read',
     'vehicles:read',
-    'measurement_units:read',
-    'inventory_items:read',
-    'services:read',
-    'quotes:create',
-    'quotes:read',
-    'quotes:update',
-    'quote_lines:create',
-    'quote_lines:update',
-    'quote_lines:delete',
     'tax_rates:read',
+    'repuestos:read',
   ];
   const mecanicoPerms = pick(...mecanicoCodes);
   const mecanicoRole = await prisma.role.upsert({
@@ -854,13 +667,13 @@ async function main() {
       name: 'Mecánico',
       slug: 'mecanico',
       description:
-        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar repuestos (ítem y cantidad) y editar mano de obra; no ve importes en la OT ni costo de ítems; no fija precios ni modifica/quita repuestos ya cargados (caja, administrador o dueño). Puede ver nómina y su comisión, no el monto de MO agregado. Sin caja ni ver todas las OT del taller',
+        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar líneas de trabajo (texto libre) y editar descripciones; no ve importes en la OT (precios, saldo, cobros) ni fija precios. Sin caja ni ver todas las OT del taller',
       isSystem: true,
     },
     update: {
       name: 'Mecánico',
       description:
-        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar repuestos (ítem y cantidad) y editar mano de obra; no ve importes en la OT ni costo de ítems; no fija precios ni modifica/quita repuestos ya cargados (caja, administrador o dueño). Puede ver nómina y su comisión, no el monto de MO agregado. Sin caja ni ver todas las OT del taller',
+        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar líneas de trabajo (texto libre) y editar descripciones; no ve importes en la OT (precios, saldo, cobros) ni fija precios. Sin caja ni ver todas las OT del taller',
     },
   });
   await prisma.rolePermission.deleteMany({ where: { roleId: mecanicoRole.id } });
@@ -993,24 +806,6 @@ async function main() {
     update: {},
   });
 
-  const MEASUREMENT_UNITS: Array<{ slug: string; name: string; sortOrder: number }> = [
-    { slug: 'unit', name: 'Unidad', sortOrder: 0 },
-    { slug: 'pair', name: 'Par', sortOrder: 10 },
-    { slug: 'kg', name: 'Kilogramo', sortOrder: 20 },
-    { slug: 'liter', name: 'Litro', sortOrder: 30 },
-    { slug: 'gallon', name: 'Galón', sortOrder: 32 },
-    { slug: 'meter', name: 'Metro', sortOrder: 40 },
-    { slug: 'box', name: 'Caja', sortOrder: 50 },
-    { slug: 'set', name: 'Juego', sortOrder: 60 },
-  ];
-  for (const u of MEASUREMENT_UNITS) {
-    await prisma.measurementUnit.upsert({
-      where: { slug: u.slug },
-      create: { slug: u.slug, name: u.name, sortOrder: u.sortOrder },
-      update: { name: u.name, sortOrder: u.sortOrder },
-    });
-  }
-
   /**
    * Catálogo inicial de impuestos colombianos.
    * - IVA 19% es el default para servicios/repuestos.
@@ -1117,16 +912,6 @@ async function main() {
       where: { key: s.key },
       create: { key: s.key, value: s.value as Prisma.InputJsonValue },
       update: {},
-    });
-  }
-
-  const reserveCount = await prisma.workshopReserveLine.count();
-  if (reserveCount === 0) {
-    await prisma.workshopReserveLine.createMany({
-      data: [
-        { name: 'Capitalización', percent: new Prisma.Decimal(5), sortOrder: 0 },
-        { name: 'Reserva operativa', percent: new Prisma.Decimal(10), sortOrder: 10 },
-      ],
     });
   }
 

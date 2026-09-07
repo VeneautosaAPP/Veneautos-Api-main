@@ -292,6 +292,10 @@ export class CashExpenseRequestsService {
     await this.flushExpiredPendingRequests();
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Bloqueamos la solicitud: dos payOut concurrentes quedan serializados y solo el primero
+      // ve el estado APPROVED (el segundo re-lee el resultado y recibe Conflict).
+      await tx.$queryRaw`SELECT 1 FROM "cash_expense_requests" WHERE id = ${id} FOR UPDATE`;
+
       const req = await tx.cashExpenseRequest.findUnique({
         where: { id },
         include: {

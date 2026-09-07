@@ -22,14 +22,5 @@ export const CASH_EXPENSE_REQUEST_REFERENCE_TYPE = 'CashExpenseRequest';
 /** `CashMovement.referenceType` cuando el movimiento se asocia a una orden de trabajo (Fase 3). */
 export const CASH_WORK_ORDER_REFERENCE_TYPE = 'WorkOrder';
 
-/** `CashMovement.referenceType` cuando el movimiento se asocia a una venta (POS, Fase 3). */
-export const CASH_SALE_REFERENCE_TYPE = 'Sale';
-
 /** `CashMovement.referenceType` cuando el movimiento paga directamente una factura (Fase 5). */
 export const CASH_INVOICE_REFERENCE_TYPE = 'Invoice';
-
-/** Egreso automático al registrar recepción de compra con costo (referencia = id de `PurchaseReceipt`). */
-export const CASH_PURCHASE_RECEIPT_REFERENCE_TYPE = 'PurchaseReceipt';
-
-/** Categoría de egreso para compras de inventario vinculadas a recepción (seed). */
-export const CASH_PURCHASE_RECEIPT_EXPENSE_CATEGORY_SLUG = 'compra_repuestos';

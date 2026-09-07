@@ -1,12 +1,10 @@
 import {
   Allow,
-  IsBoolean,
   IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   Max,
   MaxLength,
   Min,
@@ -17,7 +15,7 @@ import { IsPrismaCuid } from '../../../common/decorators/is-prisma-cuid.decorato
 
 /**
  * Alta de orden: nace en UNASSIGNED sin técnico asignado.
- * Sin `parentWorkOrderId`, debe enviarse `vehicleId` (vehículo activo en maestro). Con garantía, el vehículo puede heredarse de la OT origen.
+ * `vehicleId` es siempre obligatorio (también en orden de garantía).
  */
 export class CreateWorkOrderDto {
   @IsString()
@@ -80,10 +78,6 @@ export class CreateWorkOrderDto {
   intakeOdometerKm?: number | null;
 
   @IsOptional()
-  @IsBoolean()
-  inspectionOnly?: boolean;
-
-  @IsOptional()
   @IsString()
   @MaxLength(2000)
   vehicleNotes?: string;
@@ -93,11 +87,10 @@ export class CreateWorkOrderDto {
   @MaxLength(4000)
   internalNotes?: string;
 
-  /** Vehículo del maestro (obligatorio salvo alta de garantía con `parentWorkOrderId`, donde puede heredarse de la origen). */
-  @ValidateIf((o: CreateWorkOrderDto) => !(o.parentWorkOrderId ?? '').trim())
+  /** Vehículo del maestro (siempre obligatorio, incluso en órdenes de garantía). */
   @IsNotEmpty({ message: 'Debés vincular la orden a un vehículo registrado (vehicleId).' })
   @IsPrismaCuid()
-  vehicleId?: string;
+  vehicleId!: string;
 
   /** OT origen (debe estar **Entregada**). Crea una orden de garantía o seguimiento vinculada. */
   @IsOptional()

@@ -1,6 +1,5 @@
 import { memo } from 'react'
 import type { WorkOrderStatus } from '../../../api/types'
-import { PageHeader } from '../../../components/layout/PageHeader'
 import { ListViewToggle } from './ListViewToggle'
 import { WoPaginationBar } from './WoPaginationBar'
 import {
@@ -33,7 +32,6 @@ export type WorkOrdersToolbarProps = {
   onSetStatus: (s: WorkOrderStatus | '') => void
 
   canCreateWorkOrder: boolean
-  headerDescription: string
   onOpenNewOrder: () => void
 
   showPagination: boolean
@@ -64,7 +62,6 @@ export const WorkOrdersToolbar = memo(function WorkOrdersToolbar({
   onListViewChange,
   onSetStatus,
   canCreateWorkOrder,
-  headerDescription,
   onOpenNewOrder,
   showPagination,
   page,
@@ -77,17 +74,13 @@ export const WorkOrdersToolbar = memo(function WorkOrdersToolbar({
 }: WorkOrdersToolbarProps) {
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Órdenes de trabajo"
-        description={headerDescription}
-        actions={
-          canCreateWorkOrder ? (
-            <button type="button" onClick={onOpenNewOrder} className="va-btn-primary">
-              Nueva orden
-            </button>
-          ) : null
-        }
-      />
+      <div className="flex items-center justify-end">
+        {canCreateWorkOrder ? (
+          <button type="button" onClick={onOpenNewOrder} className="va-btn-primary">
+            Nueva orden
+          </button>
+        ) : null}
+      </div>
 
       {err ? <p className="va-alert-error-lg">{err}</p> : null}
 

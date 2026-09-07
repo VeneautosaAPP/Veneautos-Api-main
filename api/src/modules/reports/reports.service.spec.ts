@@ -82,88 +82,6 @@ describe('ReportsService · Fase 8', () => {
     });
   });
 
-  describe('stockCritical', () => {
-    it('usa el setting global cuando no se pasa `threshold`', async () => {
-      const findMany = jest.fn().mockResolvedValue([]);
-      const prisma = makePrismaMock({
-        inventoryItem: { findMany },
-        workshopSetting: {
-          findUnique: jest.fn().mockResolvedValue({ value: 5 }),
-        },
-      });
-      const svc = new ReportsService(prisma);
-      const r = await svc.stockCritical({});
-      expect(r.threshold).toBe(5);
-      expect(r.source).toBe('setting');
-      // No comparamos Decimal por instancia para no depender de igualdad estructural
-      // de decimal.js; verificamos el shape del filtro y la magnitud como string.
-      const call = findMany.mock.calls[0]?.[0] as {
-        where: {
-          isActive: boolean;
-          trackStock: boolean;
-          quantityOnHand: { lte: Prisma.Decimal };
-        };
-      };
-      expect(call.where.isActive).toBe(true);
-      expect(call.where.trackStock).toBe(true);
-      expect(call.where.quantityOnHand.lte.toString()).toBe('5');
-    });
-
-    it('override por query tiene precedencia sobre el setting', async () => {
-      const prisma = makePrismaMock({
-        inventoryItem: { findMany: jest.fn().mockResolvedValue([]) },
-        workshopSetting: {
-          findUnique: jest.fn().mockResolvedValue({ value: 5 }),
-        },
-      });
-      const svc = new ReportsService(prisma);
-      const r = await svc.stockCritical({ threshold: 1 });
-      expect(r.threshold).toBe(1);
-      expect(r.source).toBe('query');
-    });
-
-    it('fallback a 3 cuando el setting no existe y no hay override', async () => {
-      const prisma = makePrismaMock({
-        inventoryItem: { findMany: jest.fn().mockResolvedValue([]) },
-        workshopSetting: { findUnique: jest.fn().mockResolvedValue(null) },
-      });
-      const svc = new ReportsService(prisma);
-      const r = await svc.stockCritical({});
-      expect(r.threshold).toBe(3);
-    });
-
-    it('serializa ítems con nombre de unidad y costo medio', async () => {
-      const prisma = makePrismaMock({
-        inventoryItem: {
-          findMany: jest.fn().mockResolvedValue([
-            {
-              id: 'it-1',
-              sku: 'SKU-123',
-              name: 'Aceite 10W40',
-              supplier: 'Mobil',
-              category: 'Aceites',
-              itemKind: 'PART',
-              quantityOnHand: new Prisma.Decimal(2),
-              averageCost: new Prisma.Decimal(35000),
-              measurementUnit: { slug: 'galon', name: 'Galón' },
-            },
-          ]),
-        },
-        workshopSetting: { findUnique: jest.fn().mockResolvedValue({ value: 3 }) },
-      });
-      const svc = new ReportsService(prisma);
-      const r = await svc.stockCritical({});
-      expect(r.totals.count).toBe(1);
-      expect(r.rows[0]).toMatchObject({
-        sku: 'SKU-123',
-        quantityOnHand: '2',
-        averageCost: '35000',
-        measurementUnitSlug: 'galon',
-        measurementUnitName: 'Galón',
-      });
-    });
-  });
-
   describe('taxCausado', () => {
     it('separa IVA de INC y expone base + impuesto por tarifa', async () => {
       const prisma = makePrismaMock({
@@ -278,73 +196,6 @@ describe('ReportsService · Fase 8', () => {
     });
   });
 
-  describe('saleProfitability', () => {
-    it('marca `costUnknown` y excluye la venta del agregado cuando una línea PART no tiene snapshot', async () => {
-      const prisma = makePrismaMock({
-        sale: {
-          findMany: jest.fn().mockResolvedValue([
-            {
-              id: 'sale-ok',
-              publicCode: 'VTA-0001',
-              saleNumber: 1,
-              customerName: 'Cliente A',
-              confirmedAt: new Date('2026-04-10T10:00:00Z'),
-              createdBy: { id: 'u1', fullName: 'Cajero', email: 'c@v.a' },
-              lines: [
-                {
-                  id: 'l1',
-                  lineType: 'PART',
-                  quantity: new Prisma.Decimal(1),
-                  unitPrice: new Prisma.Decimal(10000),
-                  discountAmount: null,
-                  costSnapshot: new Prisma.Decimal(6000),
-                  taxRateId: null,
-                  taxRatePercentSnapshot: null,
-                  taxRate: null,
-                },
-              ],
-            },
-            {
-              id: 'sale-unknown',
-              publicCode: 'VTA-0002',
-              saleNumber: 2,
-              customerName: 'Cliente B',
-              confirmedAt: new Date('2026-04-11T10:00:00Z'),
-              createdBy: null,
-              lines: [
-                {
-                  id: 'l2',
-                  lineType: 'PART',
-                  quantity: new Prisma.Decimal(1),
-                  unitPrice: new Prisma.Decimal(5000),
-                  discountAmount: null,
-                  costSnapshot: null,
-                  taxRateId: null,
-                  taxRatePercentSnapshot: null,
-                  taxRate: null,
-                },
-              ],
-            },
-          ]),
-        },
-      });
-      const svc = new ReportsService(prisma);
-      const r = await svc.saleProfitability({ from: '2026-04-01', to: '2026-04-30' });
-      expect(r.totals.salesConsidered).toBe(2);
-      expect(r.totals.salesCounted).toBe(1);
-      expect(r.totals.revenueTotal).toBe('10000');
-      expect(r.totals.costTotal).toBe('6000');
-      expect(r.totals.profitTotal).toBe('4000');
-      expect(r.totals.marginPctAvg).toBe('40');
-      const ok = r.rows.find((x) => x.saleId === 'sale-ok');
-      const unknown = r.rows.find((x) => x.saleId === 'sale-unknown');
-      expect(ok?.costUnknown).toBe(false);
-      expect(unknown?.costUnknown).toBe(true);
-      expect(unknown?.totalCost).toBeNull();
-      expect(unknown?.marginPct).toBeNull();
-    });
-  });
-
   describe('profitabilityByTechnician', () => {
     it('agrupa por `assignedTo.id`, separa OT sin técnico y cuenta las de costo desconocido aparte', async () => {
       const prisma = makePrismaMock({
@@ -420,14 +271,13 @@ describe('ReportsService · Fase 8', () => {
   });
 
   describe('profitabilityByService', () => {
-    it('agrupa líneas LABOR de OT y Sale por `serviceId` y deja null en el cubo «Sin servicio»', async () => {
-      const svcRow = { id: 'srv-diag', code: 'DIAG', name: 'Diagnóstico' };
+    it('agrupa líneas LABOR de OT por descripción (texto libre) y deja «Sin descripción» cuando está vacía', async () => {
       const prisma = makePrismaMock({
         workOrderLine: {
           findMany: jest.fn().mockResolvedValue([
             {
               id: 'wol1',
-              serviceId: 'srv-diag',
+              description: 'Diagnóstico',
               quantity: new Prisma.Decimal(1),
               unitPrice: new Prisma.Decimal(8000),
               discountAmount: null,
@@ -435,15 +285,10 @@ describe('ReportsService · Fase 8', () => {
               taxRateId: null,
               taxRatePercentSnapshot: null,
               taxRate: null,
-              service: svcRow,
             },
-          ]),
-        },
-        saleLine: {
-          findMany: jest.fn().mockResolvedValue([
             {
-              id: 'sl1',
-              serviceId: 'srv-diag',
+              id: 'wol2',
+              description: 'diagnóstico',
               quantity: new Prisma.Decimal(2),
               unitPrice: new Prisma.Decimal(8000),
               discountAmount: null,
@@ -451,11 +296,10 @@ describe('ReportsService · Fase 8', () => {
               taxRateId: null,
               taxRatePercentSnapshot: null,
               taxRate: null,
-              service: svcRow,
             },
             {
-              id: 'sl2',
-              serviceId: null,
+              id: 'wol3',
+              description: null,
               quantity: new Prisma.Decimal(1),
               unitPrice: new Prisma.Decimal(3000),
               discountAmount: null,
@@ -463,7 +307,6 @@ describe('ReportsService · Fase 8', () => {
               taxRateId: null,
               taxRatePercentSnapshot: null,
               taxRate: null,
-              service: null,
             },
           ]),
         },
@@ -472,14 +315,12 @@ describe('ReportsService · Fase 8', () => {
       const r = await svc.profitabilityByService({ from: '2026-04-01', to: '2026-04-30' });
       expect(r.totals.serviceCount).toBe(2);
       expect(r.totals.lineCount).toBe(3);
-      const diag = r.rows.find((x) => x.serviceId === 'srv-diag');
-      const noSrv = r.rows.find((x) => x.serviceId === null);
-      expect(diag?.name).toBe('Diagnóstico');
-      expect(diag?.code).toBe('DIAG');
+      const diag = r.rows.find((x) => x.name === 'Diagnóstico');
+      const noDesc = r.rows.find((x) => x.name === 'Sin descripción');
+      expect(diag).toBeDefined();
       expect(diag?.lineCount).toBe(2);
       expect(diag?.revenueTotal).toBe('24000');
-      expect(noSrv?.name).toBe('Sin servicio del catálogo');
-      expect(noSrv?.revenueTotal).toBe('3000');
+      expect(noDesc?.revenueTotal).toBe('3000');
     });
   });
 

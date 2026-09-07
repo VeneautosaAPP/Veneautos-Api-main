@@ -11,8 +11,6 @@ import {
   InvoiceSource,
   InvoiceStatus,
   Prisma,
-  SaleLineType,
-  SaleStatus,
   TaxRateKind,
   WorkOrderLineType,
   WorkOrderStatus,
@@ -27,7 +25,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';
 import { AUDIT_INVOICE_ENTITY } from './billing.constants';
-import type { CreateInvoiceFromSaleDto } from './dto/create-invoice-from-sale.dto';
 import type { CreateInvoiceFromWorkOrderDto } from './dto/create-invoice-from-work-order.dto';
 import type { ListInvoicesQueryDto } from './dto/list-invoices.query.dto';
 import type { VoidInvoiceDto } from './dto/void-invoice.dto';
@@ -40,12 +37,7 @@ const invoiceLineSelect = {
   invoiceId: true,
   lineType: true,
   sortOrder: true,
-  sourceSaleLineId: true,
   sourceWorkOrderLineId: true,
-  inventoryItemId: true,
-  inventoryItem: { select: { id: true, sku: true, name: true } },
-  serviceId: true,
-  service: { select: { id: true, code: true, name: true } },
   taxRateId: true,
   taxRate: { select: { id: true, slug: true, name: true, kind: true, ratePercent: true } },
   description: true,
@@ -72,11 +64,9 @@ const invoiceDetailInclude = {
       validUntil: true,
     },
   },
-  sale: { select: { id: true, publicCode: true, saleNumber: true } },
   workOrder: { select: { id: true, publicCode: true, orderNumber: true } },
   lines: { orderBy: { sortOrder: 'asc' as const }, select: invoiceLineSelect },
   dispatchEvents: {
-    orderBy: { requestedAt: 'desc' as const },
     take: 20,
     select: {
       id: true,
@@ -185,7 +175,6 @@ export class InvoicesService {
           invoiceNumber: true,
           status: true,
           source: true,
-          saleId: true,
           workOrderId: true,
           customerName: true,
           customerDocumentId: true,
@@ -225,152 +214,7 @@ export class InvoicesService {
   }
 
   // ---------------------------------------------------------------------------
-  // Creación desde una venta
-  // ---------------------------------------------------------------------------
-
-  async createFromSale(
-    saleId: string,
-    actor: JwtUserPayload,
-    dto: CreateInvoiceFromSaleDto,
-    meta: { ip?: string; userAgent?: string },
-  ) {
-    const sale = await this.prisma.sale.findUnique({
-      where: { id: saleId },
-      include: {
-        lines: { include: { taxRate: true, inventoryItem: true, service: true } },
-        customer: true,
-      },
-    });
-    if (!sale) throw new NotFoundException('Venta no encontrada.');
-    if (sale.status !== SaleStatus.CONFIRMED) {
-      throw new BadRequestException('Solo puede facturarse una venta confirmada.');
-    }
-    if (sale.lines.length === 0) {
-      throw new BadRequestException('La venta no tiene líneas para facturar.');
-    }
-    const existing = await this.prisma.invoice.findFirst({
-      where: { saleId: sale.id, status: { not: InvoiceStatus.VOIDED } },
-    });
-    if (existing) {
-      throw new ConflictException(
-        `La venta ya tiene una factura viva (${existing.documentNumber}). Anula o emite nota crédito antes de refacturar.`,
-      );
-    }
-
-    const linesForTotals: LineForTotals[] = sale.lines.map((ln) => ({
-      id: ln.id,
-      lineType:
-        ln.lineType === SaleLineType.LABOR ? WorkOrderLineType.LABOR : WorkOrderLineType.PART,
-      quantity: ln.quantity,
-      unitPrice: ln.unitPrice,
-      discountAmount: ln.discountAmount,
-      costSnapshot: ln.costSnapshot,
-      taxRateId: ln.taxRateId,
-      taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
-      taxRate: ln.taxRate ? { kind: ln.taxRate.kind } : null,
-    }));
-
-    const lineTotals = linesForTotals.map((ln) => computeLineTotals(ln));
-
-    const subtotal = sumDecimal(lineTotals.map((t) => t.grossAmount));
-    const totalDiscount = sumDecimal(lineTotals.map((t) => t.discountAmount));
-    const totalVat = sumDecimal(
-      lineTotals
-        .filter((t) => t.taxKind !== TaxRateKind.INC)
-        .map((t) => t.taxAmount),
-    );
-    const totalInc = sumDecimal(
-      lineTotals
-        .filter((t) => t.taxKind === TaxRateKind.INC)
-        .map((t) => t.taxAmount),
-    );
-    const totalTax = totalVat.plus(totalInc);
-    const grandTotal = subtotal.minus(totalDiscount).plus(totalTax);
-
-    const invoice = await this.prisma.$transaction(async (tx) => {
-      const numbering = await this.numbering.assignConsecutive(
-        tx,
-        dto.fiscalResolutionId
-          ? { resolutionId: dto.fiscalResolutionId }
-          : { kind: FiscalResolutionKind.ELECTRONIC_INVOICE },
-      );
-
-      return tx.invoice.create({
-        data: {
-          fiscalResolutionId: numbering.resolutionId,
-          invoiceNumber: numbering.consecutiveNumber,
-          documentNumber: numbering.documentNumber,
-          status: InvoiceStatus.DRAFT,
-          source: InvoiceSource.SALE,
-          saleId: sale.id,
-          workOrderId: null,
-          customerId: sale.customerId,
-          customerName:
-            sale.customerName ?? sale.customer?.displayName ?? 'Consumidor final',
-          customerDocumentId: sale.customerDocumentId ?? sale.customer?.documentId ?? null,
-          customerPhone: sale.customerPhone ?? sale.customer?.primaryPhone ?? null,
-          customerEmail: sale.customerEmail ?? sale.customer?.email ?? null,
-          subtotal,
-          totalDiscount,
-          totalTax,
-          totalVat,
-          totalInc,
-          grandTotal,
-          internalNotes: dto.internalNotes?.trim() || null,
-          createdById: actor.sub,
-          lines: {
-            create: sale.lines.map((ln, index) => {
-              const t = lineTotals[index];
-              return {
-                lineType:
-                  ln.lineType === SaleLineType.LABOR
-                    ? InvoiceLineType.LABOR
-                    : InvoiceLineType.PART,
-                sortOrder: ln.sortOrder,
-                sourceSaleLineId: ln.id,
-                inventoryItemId: ln.inventoryItemId,
-                serviceId: ln.serviceId,
-                taxRateId: ln.taxRateId,
-                description:
-                  ln.description ??
-                  ln.inventoryItem?.name ??
-                  ln.service?.name ??
-                  (ln.lineType === SaleLineType.LABOR ? 'Mano de obra' : 'Ítem'),
-                quantity: ln.quantity,
-                unitPrice: ln.unitPrice ?? new Prisma.Decimal(0),
-                discountAmount: ln.discountAmount ?? new Prisma.Decimal(0),
-                taxRatePercentSnapshot: ln.taxRatePercentSnapshot ?? new Prisma.Decimal(0),
-                taxRateKindSnapshot: ln.taxRate?.kind ?? null,
-                lineTotal: t.lineTotal,
-                taxAmount: t.taxAmount,
-              };
-            }),
-          },
-        },
-        include: invoiceDetailInclude,
-      });
-    });
-
-    await this.audit.recordDomain({
-      actorUserId: actor.sub,
-      action: 'invoices.created_from_sale',
-      entityType: AUDIT_INVOICE_ENTITY,
-      entityId: invoice.id,
-      previousPayload: null,
-      nextPayload: {
-        saleId: sale.id,
-        documentNumber: invoice.documentNumber,
-        grandTotal: invoice.grandTotal.toString(),
-      },
-      ipAddress: meta.ip ?? null,
-      userAgent: meta.userAgent ?? null,
-    });
-
-    return this.shape(invoice);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Creación directa desde una OT entregada (sin Sale intermedia)
+  // Creación directa desde una OT entregada
   // ---------------------------------------------------------------------------
 
   async createFromWorkOrder(
@@ -382,9 +226,8 @@ export class InvoicesService {
     const wo = await this.prisma.workOrder.findUnique({
       where: { id: workOrderId },
       include: {
-        lines: { include: { taxRate: true, inventoryItem: true, service: true } },
+        lines: { include: { taxRate: true } },
         vehicle: { include: { customer: true } },
-        sale: true,
       },
     });
     if (!wo) throw new NotFoundException('Orden de trabajo no encontrada.');
@@ -400,10 +243,7 @@ export class InvoicesService {
     const existing = await this.prisma.invoice.findFirst({
       where: {
         status: { not: InvoiceStatus.VOIDED },
-        OR: [
-          { workOrderId: wo.id },
-          ...(wo.sale ? [{ saleId: wo.sale.id }] : []),
-        ],
+        workOrderId: wo.id,
       },
     });
     if (existing) {
@@ -458,7 +298,6 @@ export class InvoicesService {
           documentNumber: numbering.documentNumber,
           status: InvoiceStatus.DRAFT,
           source: InvoiceSource.WORK_ORDER,
-          saleId: null,
           workOrderId: wo.id,
           customerId: customer?.id ?? null,
           customerName:
@@ -484,13 +323,9 @@ export class InvoicesService {
                     : InvoiceLineType.PART,
                 sortOrder: ln.sortOrder,
                 sourceWorkOrderLineId: ln.id,
-                inventoryItemId: ln.inventoryItemId,
-                serviceId: ln.serviceId,
                 taxRateId: ln.taxRateId,
                 description:
                   ln.description ??
-                  ln.inventoryItem?.name ??
-                  ln.service?.name ??
                   (ln.lineType === WorkOrderLineType.LABOR ? 'Mano de obra' : 'Ítem'),
                 quantity: ln.quantity,
                 unitPrice: ln.unitPrice ?? new Prisma.Decimal(0),
@@ -530,84 +365,97 @@ export class InvoicesService {
   // ---------------------------------------------------------------------------
 
   async issue(id: string, actor: JwtUserPayload, meta: { ip?: string; userAgent?: string }) {
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id },
-      include: { lines: { include: { taxRate: true } } },
-    });
-    if (!invoice) throw new NotFoundException('Factura no encontrada.');
-    if (invoice.status !== InvoiceStatus.DRAFT) {
-      throw new BadRequestException(
-        `Solo se pueden emitir facturas en DRAFT; estado actual: ${invoice.status}.`,
-      );
-    }
-
     const provider = await this.providers.resolve();
     const now = new Date();
 
-    const payload = this.buildDianPayload(invoice, now);
+    // Bloqueamos la fila de la factura dentro de una transacción para serializar emisiones
+    // concurrentes del mismo documento (evita doble envío al proveedor DIAN). El envío es una
+    // llamada externa y lenta, pero es una operación ocasional en este dominio: la exclusión
+    // mutua garantizada vale más que mantener una conexión ocupada brevemente.
+    const { docId, dispatch, statusAfter } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "invoices" WHERE id = ${id} FOR UPDATE`;
 
-    const previousAttempts = await this.prisma.invoiceDispatchEvent.count({
-      where: { invoiceId: invoice.id },
-    });
+      const invoice = await tx.invoice.findUnique({
+        where: { id },
+        include: { lines: { include: { taxRate: true } } },
+      });
+      if (!invoice) throw new NotFoundException('Factura no encontrada.');
+      if (invoice.status !== InvoiceStatus.DRAFT) {
+        throw new BadRequestException(
+          `Solo se pueden emitir facturas en DRAFT; estado actual: ${invoice.status}.`,
+        );
+      }
 
-    const result = await provider.submitInvoice(payload);
+      const payload = this.buildDianPayload(invoice, now);
 
-    const dispatch = await this.prisma.invoiceDispatchEvent.create({
-      data: {
-        invoiceId: invoice.id,
-        attempt: previousAttempts + 1,
-        status:
-          result.status === 'ACCEPTED'
-            ? InvoiceDispatchStatus.ACCEPTED
-            : result.status === 'REJECTED'
-              ? InvoiceDispatchStatus.REJECTED
-              : result.status === 'ERROR'
-                ? InvoiceDispatchStatus.ERROR
-                : InvoiceDispatchStatus.NOT_CONFIGURED,
-        provider: 'provider' in result ? result.provider : provider.name,
-        environment: 'environment' in result ? result.environment : provider.environment,
-        requestPayload: payload as unknown as Prisma.InputJsonValue,
-        responsePayload:
-          'response' in result && result.response !== undefined
-            ? (result.response as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
-        errorMessage: 'errorMessage' in result ? result.errorMessage : null,
-        externalId: 'externalId' in result ? result.externalId ?? null : null,
-        requestedById: actor.sub,
-        completedAt: now,
-      },
-    });
+      const previousAttempts = await tx.invoiceDispatchEvent.count({
+        where: { invoiceId: invoice.id },
+      });
 
-    if (result.status === 'ACCEPTED') {
-      await this.prisma.invoice.update({
-        where: { id: invoice.id },
+      const result = await provider.submitInvoice(payload);
+
+      const dispatch = await tx.invoiceDispatchEvent.create({
         data: {
-          status: InvoiceStatus.ISSUED,
-          cufe: result.cufe,
-          dianProvider: result.provider,
-          dianEnvironment: result.environment,
-          issuedAt: now,
+          invoiceId: invoice.id,
+          attempt: previousAttempts + 1,
+          status:
+            result.status === 'ACCEPTED'
+              ? InvoiceDispatchStatus.ACCEPTED
+              : result.status === 'REJECTED'
+                ? InvoiceDispatchStatus.REJECTED
+                : result.status === 'ERROR'
+                  ? InvoiceDispatchStatus.ERROR
+                  : InvoiceDispatchStatus.NOT_CONFIGURED,
+          provider: 'provider' in result ? result.provider : provider.name,
+          environment: 'environment' in result ? result.environment : provider.environment,
+          requestPayload: payload as unknown as Prisma.InputJsonValue,
+          responsePayload:
+            'response' in result && result.response !== undefined
+              ? (result.response as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          errorMessage: 'errorMessage' in result ? result.errorMessage : null,
+          externalId: 'externalId' in result ? result.externalId ?? null : null,
+          requestedById: actor.sub,
+          completedAt: now,
         },
       });
-    }
+
+      if (result.status === 'ACCEPTED') {
+        await tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: InvoiceStatus.ISSUED,
+            cufe: result.cufe,
+            dianProvider: result.provider,
+            dianEnvironment: result.environment,
+            issuedAt: now,
+          },
+        });
+      }
+
+      return {
+        docId: invoice.id,
+        dispatch,
+        statusAfter: result.status === 'ACCEPTED' ? InvoiceStatus.ISSUED : invoice.status,
+      };
+    });
 
     await this.audit.recordDomain({
       actorUserId: actor.sub,
       action: 'invoices.issue_attempt',
       entityType: AUDIT_INVOICE_ENTITY,
-      entityId: invoice.id,
-      previousPayload: { status: invoice.status },
+      entityId: docId,
+      previousPayload: { status: InvoiceStatus.DRAFT },
       nextPayload: {
         dispatchId: dispatch.id,
         dispatchStatus: dispatch.status,
-        invoiceStatusAfter:
-          result.status === 'ACCEPTED' ? InvoiceStatus.ISSUED : invoice.status,
+        invoiceStatusAfter: statusAfter,
       },
       ipAddress: meta.ip ?? null,
       userAgent: meta.userAgent ?? null,
     });
 
-    return this.findOne(invoice.id);
+    return this.findOne(docId);
   }
 
   // ---------------------------------------------------------------------------
@@ -735,7 +583,6 @@ export class InvoicesService {
       invoiceNumber: inv.invoiceNumber,
       status: inv.status,
       source: inv.source,
-      saleId: inv.saleId,
       workOrderId: inv.workOrderId,
       customerId: inv.customerId,
       customerName: inv.customerName,
@@ -755,7 +602,6 @@ export class InvoicesService {
               inv.fiscalResolution.validUntil?.toISOString().slice(0, 10) ?? null,
           }
         : null,
-      sale: inv.sale,
       workOrder: inv.workOrder,
       subtotal: inv.subtotal.toString(),
       totalDiscount: inv.totalDiscount.toString(),
@@ -778,12 +624,7 @@ export class InvoicesService {
         invoiceId: ln.invoiceId,
         lineType: ln.lineType,
         sortOrder: ln.sortOrder,
-        sourceSaleLineId: ln.sourceSaleLineId,
         sourceWorkOrderLineId: ln.sourceWorkOrderLineId,
-        inventoryItemId: ln.inventoryItemId,
-        inventoryItem: ln.inventoryItem,
-        serviceId: ln.serviceId,
-        service: ln.service,
         taxRateId: ln.taxRateId,
         taxRate: ln.taxRate
           ? {

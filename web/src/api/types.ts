@@ -25,32 +25,6 @@ export type PublicWorkOrderLookupResponse = {
 
 export type WorkOrderLineType = 'PART' | 'LABOR'
 
-export type MeasurementUnit = {
-  id: string
-  slug: string
-  name: string
-}
-
-/** Clasificación fiscal/operativa del ítem de inventario (Fase 6). */
-export type InventoryItemKind = 'PART' | 'SUPPLY' | 'PRODUCT'
-
-export type InventoryItem = {
-  id: string
-  sku: string
-  supplier: string
-  category: string
-  /** `PART` por defecto para filas heredadas sin especificar. */
-  itemKind?: InventoryItemKind
-  name: string
-  /** Referencia del fabricante/número de parte, separada del nombre (opcional). */
-  reference?: string
-  quantityOnHand: string
-  trackStock: boolean
-  isActive: boolean
-  averageCost: string | null
-  measurementUnit: MeasurementUnit
-}
-
 /** Familia del impuesto (Fase 6). IVA estándar, INC reservado. */
 export type TaxRateKind = 'VAT' | 'INC'
 
@@ -66,60 +40,17 @@ export type TaxRate = {
   sortOrder: number
 }
 
-export type TaxRateBrief = Pick<TaxRate, 'id' | 'slug' | 'name' | 'kind' | 'ratePercent' | 'isActive'>
-
-export type Service = {
+/** Repuesto del catálogo maestro (`GET /spare-parts`). Stock ilimitado: no se valida ni descuenta. */
+export type SparePart = {
   id: string
-  code: string
-  name: string
-  description: string | null
-  /** COP entero en string; si es null, se fija al agregar a la OT/venta. */
-  defaultUnitPrice: string | null
-  defaultTaxRateId: string | null
-  defaultTaxRate: TaxRateBrief | null
-  isActive: boolean
-  sortOrder: number
-}
-
-/** `GET /inventory/items/oil-drum-economics` — montos según permisos (ver flags). */
-export type OilDrumEconomicsFlags = {
-  includesPurchaseSnapshot: boolean
-  includesStockAtCost: boolean
-  includesOtApproxMargin: boolean
-}
-
-export type OilDrumEconomicsLastPurchase = {
-  receivedAt: string
-  paymentSource: string
-  quantity: string
-  lineTotalCost: string | null
-  unitCost: string | null
-  totalPaidCop: string | null
-}
-
-export type OilDrumEconomicsWoPart = {
-  quantitySold: string
-  revenueCop: string
-  approximateCostAtAverageCop: string | null
-  approximateMarginCop: string | null
-}
-
-export type OilDrumEconomicsItem = {
-  inventoryItemId: string
+  /** SKU normalizado (MAYÚSCULAS alfanumérico), único en el catálogo. */
   sku: string
+  /** Descripción/nombre del repuesto. */
   name: string
-  category: string
-  measurementUnit: MeasurementUnit
-  quantityOnHand: string
-  averageCost: string | null
-  stockAtAverageCostCop: string | null
-  lastPurchase: OilDrumEconomicsLastPurchase | null
-  workOrderPart: OilDrumEconomicsWoPart | null
-}
-
-export type OilDrumEconomicsResponse = {
-  flags: OilDrumEconomicsFlags
-  items: OilDrumEconomicsItem[]
+  /** Precio de venta COP entero. `0` = precio variable (se carga en la OT al momento). */
+  price: string
+  createdAt: string
+  updatedAt: string
 }
 
 /** Totales calculados para una línea (Fase 2). `null` si el perfil no puede verlos. */
@@ -141,15 +72,13 @@ export type WorkOrderLine = {
   id: string
   lineType: WorkOrderLineType
   sortOrder: number
-  inventoryItemId: string | null
-  /** Servicio del catálogo enlazado (LABOR con servicio predefinido). */
-  serviceId?: string | null
-  service?: { id: string; code: string; name: string } | null
   /** Tarifa de impuesto aplicada (puede ser null en líneas legadas). */
   taxRateId?: string | null
   taxRate?: { id: string; slug: string; name: string; kind: TaxRateKind; ratePercent: string } | null
   /** Porcentaje congelado al guardar la línea (decimal 5,2 como string). */
   taxRatePercentSnapshot?: string | null
+  /** SKU del catálogo de repuestos asociado (snapshot; null = línea en texto libre). */
+  sparePartSku?: string | null
   description: string | null
   quantity: string
   unitPrice: string | null
@@ -157,7 +86,6 @@ export type WorkOrderLine = {
   discountAmount?: string | null
   /** Copia del costo medio al momento de crear la línea PART (margen histórico). */
   costSnapshot?: string | null
-  inventoryItem: InventoryItem | null
   /** Totales calculados por el backend. `null` si el perfil no puede ver importes. */
   totals?: WorkOrderLineTotals | null
 }
@@ -208,8 +136,6 @@ export type WorkOrderSummary = {
   vehicleColor?: string | null
   /** Odómetro al ingreso (instantánea). */
   intakeOdometerKm?: number | null
-  /** Solo revisión / diagnóstico: el cobro al cliente va como línea de mano de obra. */
-  inspectionOnly?: boolean
   createdAt: string
   /** Legado: el API devuelve siempre `null` (ya no hay tope de cobro en OT). */
   authorizedAmount?: string | null
@@ -264,71 +190,6 @@ export type WorkOrderDetail = WorkOrderSummary & {
 }
 
 /** Cotización / presupuesto (sin consumo de inventario). */
-export type QuoteStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED'
-export type QuoteLineType = 'PART' | 'LABOR'
-
-export type QuoteSummary = {
-  id: string
-  quoteNumber: number
-  publicCode: string
-  status: QuoteStatus
-  /** Maestro vehículo vinculado (si existe). */
-  vehicleId?: string | null
-  title: string
-  description: string | null
-  customerName: string | null
-  customerPhone?: string | null
-  customerEmail?: string | null
-  vehiclePlate: string | null
-  vehicleBrand?: string | null
-  vehicleModel?: string | null
-  validUntil?: string | null
-  createdAt: string
-  updatedAt?: string
-  createdBy?: { id: string; fullName: string; email: string }
-  vehicle?: WorkOrderSummary['vehicle']
-}
-
-export type QuoteLine = {
-  id: string
-  lineType: QuoteLineType
-  sortOrder: number
-  inventoryItemId: string | null
-  serviceId: string | null
-  taxRateId: string | null
-  description: string | null
-  quantity: string
-  unitPrice: string | null
-  discountAmount: string | null
-  taxRatePercentSnapshot: string | null
-  inventoryItem: InventoryItem | null
-  taxRate?: {
-    id: string
-    slug: string
-    name: string
-    kind: string
-    ratePercent: string
-  } | null
-  service?: { id: string; code: string; name: string } | null
-  totals?: WorkOrderLineTotals | null
-}
-
-export type QuoteTotals = Omit<WorkOrderTotals, 'totalCost' | 'totalProfit'> & {
-  /** Cotización sin costos de línea consolidados como la OT; suele ser null si no hay snapshot. */
-  totalCost?: string | null
-  totalProfit?: string | null
-}
-
-export type QuoteDetail = QuoteSummary & {
-  lines: QuoteLine[]
-  internalNotes?: string | null
-  totals: QuoteTotals | null
-}
-
-export type QuoteListResponse = {
-  items: QuoteSummary[]
-  total: number
-}
 
 /** Respuesta de PATCH `/work-orders/:id` (fila actualizada; sin líneas ni paymentSummary del GET detalle). */
 export type WorkOrderPatchResult = {
@@ -362,157 +223,6 @@ export type PermissionRow = {
   resource: string
   action: string
   description: string | null
-}
-
-/** ---------- Fase 3 · Ventas / POS ---------- */
-
-export type SaleStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
-export type SaleOrigin = 'COUNTER' | 'WORK_ORDER'
-export type SaleLineType = 'PART' | 'LABOR'
-export type SalePaymentKind = 'PARTIAL' | 'FULL_SETTLEMENT'
-
-export type SaleLineTotals = WorkOrderLineTotals
-export type SaleTotals = WorkOrderTotals
-
-export type SaleLine = {
-  id: string
-  saleId: string
-  lineType: SaleLineType
-  sortOrder: number
-  inventoryItemId: string | null
-  inventoryItem: {
-    id: string
-    sku: string
-    name: string
-    itemKind: InventoryItemKind
-    averageCost: string | null
-    measurementUnit: MeasurementUnit
-  } | null
-  serviceId: string | null
-  service: { id: string; code: string; name: string } | null
-  taxRateId: string | null
-  taxRate: { id: string; slug: string; name: string; kind: TaxRateKind; ratePercent: string } | null
-  taxRatePercentSnapshot: string | null
-  description: string | null
-  quantity: string
-  unitPrice: string | null
-  discountAmount: string | null
-  costSnapshot: string | null
-  totals?: SaleLineTotals | null
-}
-
-export type SalePayment = {
-  id: string
-  saleId: string
-  amount: string | null
-  kind: SalePaymentKind
-  cashMovementId: string
-  note: string | null
-  createdAt: string
-  recordedBy: { id: string; email: string; fullName: string }
-  cashMovement: {
-    id: string
-    amount: string
-    tenderAmount: string | null
-    changeAmount: string | null
-    note: string | null
-    createdAt: string
-    category: { id: string; slug: string; name: string }
-  }
-}
-
-export type SaleSummary = {
-  id: string
-  saleNumber: number
-  publicCode: string
-  status: SaleStatus
-  origin: SaleOrigin
-  originWorkOrderId: string | null
-  customerId: string | null
-  customerName: string | null
-  customerDocumentId: string | null
-  customerPhone: string | null
-  customerEmail: string | null
-  createdAt: string
-  confirmedAt: string | null
-  cancelledAt: string | null
-  customer?: { id: string; displayName: string } | null
-  createdBy?: { id: string; email: string; fullName: string }
-  _count?: { lines: number; payments: number }
-}
-
-export type SaleListResponse = {
-  page: number
-  pageSize: number
-  total: number
-  items: SaleSummary[]
-}
-
-export type SaleDetail = SaleSummary & {
-  internalNotes: string | null
-  cancelledReason: string | null
-  originWorkOrder: {
-    id: string
-    orderNumber: number
-    publicCode: string
-    status: WorkOrderStatus
-  } | null
-  lines: SaleLine[]
-  payments: SalePayment[]
-  totals: SaleTotals | null
-  linesSubtotal: string | null
-  amountDue: string | null
-  paymentSummary: {
-    paymentCount: number
-    totalPaid: string | null
-    remaining: string | null
-  }
-}
-
-export type CreateSalePayload = {
-  customerId?: string
-  customerName?: string
-  customerDocumentId?: string
-  customerPhone?: string
-  customerEmail?: string
-  internalNotes?: string
-}
-
-export type CreateSaleFromWorkOrderPayload = {
-  workOrderId: string
-  customerName?: string
-  customerDocumentId?: string
-  customerPhone?: string
-  customerEmail?: string
-  internalNotes?: string
-}
-
-export type CreateSaleLinePayload = {
-  lineType: SaleLineType
-  inventoryItemId?: string
-  description?: string
-  quantity: string
-  unitPrice?: string
-  serviceId?: string
-  taxRateId?: string
-  discountAmount?: string
-}
-
-export type UpdateSaleLinePayload = Partial<{
-  quantity: string
-  unitPrice: string | null
-  discountAmount: string | null
-  taxRateId: string | null
-  serviceId: string | null
-  description: string | null
-}>
-
-export type RecordSalePaymentPayload = {
-  paymentKind: 'partial' | 'full'
-  amount: string
-  note: string
-  categorySlug?: string
-  tenderAmount?: string
 }
 
 /** ---------- Fase 4 · Factura electrónica DIAN (preparación) ---------- */
@@ -609,10 +319,6 @@ export type InvoiceLine = {
   sortOrder: number
   sourceSaleLineId: string | null
   sourceWorkOrderLineId: string | null
-  inventoryItemId: string | null
-  inventoryItem: { id: string; sku: string; name: string } | null
-  serviceId: string | null
-  service: { id: string; code: string; name: string } | null
   taxRateId: string | null
   taxRate: { id: string; slug: string; name: string; kind: TaxRateKind; ratePercent: string } | null
   description: string | null
@@ -885,7 +591,6 @@ export type CreateWorkOrderPayload = {
   vehicleCylinderCc?: string
   vehicleColor?: string
   intakeOdometerKm?: number | null
-  inspectionOnly?: boolean
   vehicleNotes?: string
   internalNotes?: string
   assignedToId?: string

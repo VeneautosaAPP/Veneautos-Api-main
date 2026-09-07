@@ -6,8 +6,7 @@ import { queryKeys } from '../../../lib/queryKeys'
 import { emitWorkOrderChanged } from '../../../services/workOrderEvents'
 
 /**
- * Mutaciones de OT en detalle: mismos endpoints que antes; tras éxito invalida la lista y emite el evento global.
- * Si la operación afecta repuestos (línea PART), también invalida `inventory.items` y economía de canecas.
+ * Mutaciones de OT en detalle: invalida líneas/pagos/lista y emite el evento global.
  */
 export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
   const queryClient = useQueryClient()
@@ -21,13 +20,6 @@ export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
     ])
     emitWorkOrderChanged(workOrderId)
   }, [queryClient, workOrderId])
-
-  const invalidateInventoryCatalog = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.items() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.oilDrumEconomics() }),
-    ])
-  }, [queryClient])
 
   const notify = useCallback(() => {
     void invalidateWorkOrderCaches()
@@ -64,50 +56,28 @@ export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
         body: JSON.stringify(payload),
       })
     },
-    onSuccess: async (_data, variables) => {
-      await invalidateWorkOrderCaches()
-      if (variables && variables.lineType === 'PART') {
-        await invalidateInventoryCatalog()
-      }
-    },
+    onSuccess: notify,
   })
 
   const deleteLine = useMutation({
-    mutationFn: ({ lineId }: { lineId: string; touchesInventory: boolean }) => {
+    mutationFn: ({ lineId }: { lineId: string }) => {
       if (!workOrderId) throw new Error('Falta id de orden')
       return api<WorkOrderLine[]>(`/work-orders/${workOrderId}/lines/${lineId}`, {
         method: 'DELETE',
       })
     },
-    onSuccess: async (_data, variables) => {
-      await invalidateWorkOrderCaches()
-      if (variables.touchesInventory) {
-        await invalidateInventoryCatalog()
-      }
-    },
+    onSuccess: notify,
   })
 
   const patchLine = useMutation({
-    mutationFn: ({
-      lineId,
-      body,
-    }: {
-      lineId: string
-      body: Record<string, unknown>
-      touchesInventory: boolean
-    }) => {
+    mutationFn: ({ lineId, body }: { lineId: string; body: Record<string, unknown> }) => {
       if (!workOrderId) throw new Error('Falta id de orden')
       return api(`/work-orders/${workOrderId}/lines/${lineId}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       })
     },
-    onSuccess: async (_data, variables) => {
-      await invalidateWorkOrderCaches()
-      if (variables.touchesInventory) {
-        await invalidateInventoryCatalog()
-      }
-    },
+    onSuccess: notify,
   })
 
   const reopenDelivered = useMutation({

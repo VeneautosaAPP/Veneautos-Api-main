@@ -19,19 +19,15 @@ import type { Request, Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
-  RequireAnyPermission,
   RequirePermissions,
 } from '../../common/decorators/permissions.decorator';
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';
 import {
   type CashSessionForReceipt,
   ReceiptsService,
-  type SaleForReceipt,
   type WorkOrderForReceipt,
 } from '../receipts/receipts.service';
 import { TicketBuilderService } from '../receipts/ticket-builder.service';
-import { SalePaymentsService } from '../sales/sale-payments.service';
-import { SalesService } from '../sales/sales.service';
 import { WorkOrderPaymentsService } from '../work-orders/work-order-payments.service';
 import { WorkOrdersService } from '../work-orders/work-orders.service';
 import { CashSessionsService } from './cash-sessions.service';
@@ -53,8 +49,6 @@ export class CashSessionsController {
     // movimiento. Esto requiere consultar la OT/venta y la lista de cobros.
     private readonly workOrders: WorkOrdersService,
     private readonly workOrderPayments: WorkOrderPaymentsService,
-    private readonly sales: SalesService,
-    private readonly salePayments: SalePaymentsService,
   ) {}
 
   /** Solo `{ open: boolean }` — sin permiso extra; sirve para ocultar UI que exige caja abierta. */
@@ -64,7 +58,7 @@ export class CashSessionsController {
   }
 
   @Get('current')
-  @RequireAnyPermission('cash_sessions:read', 'purchase_receipts:create')
+  @RequirePermissions('cash_sessions:read')
   current() {
     return this.sessions.getCurrentOpen();
   }
@@ -181,11 +175,10 @@ export class CashSessionsController {
       include: {
         category: true,
         createdBy: { select: { id: true, email: true, fullName: true } },
-        // Si el movimiento corresponde a un cobro de OT/venta, hay un registro
-        // 1:1 en `workOrderPayment`/`salePayment`. Lo usamos para redirigir a
-        // los builders completos de pago (con detalle, cliente, saldo, etc.).
+        // Si el movimiento corresponde a un cobro de OT, hay un registro
+        // 1:1 en `workOrderPayment`. Lo usamos para redirigir al builder
+        // completo de pago (con detalle, cliente, saldo, etc.).
         workOrderPayment: { select: { id: true, workOrderId: true } },
-        salePayment: { select: { id: true, saleId: true } },
       },
     });
     if (!movement) {
@@ -204,17 +197,7 @@ export class CashSessionsController {
       );
     }
 
-    // Caso 2 · Cobro de una venta → mismo ticket que imprimió el cajero al cobrarla.
-    // Replica exacta de `SalesController.paymentReceiptTicket`.
-    if (movement.salePayment) {
-      return this.buildSalePaymentReprint(
-        movement.salePayment.saleId,
-        movement.salePayment.id,
-        actor,
-      );
-    }
-
-    // Caso 3 · Ingreso/egreso manual (sin vínculo) → mini-ticket tradicional.
+    // Caso 2 · Ingreso/egreso manual (sin vínculo) → mini-ticket tradicional.
     return this.ticketBuilder.buildCashMovementTicket(
       {
         direction: movement.direction,
@@ -289,56 +272,6 @@ export class CashSessionsController {
         amountDueAfter: dueAfter.toString(),
       },
       payment,
-    );
-  }
-
-  /** Análogo a `buildWorkOrderPaymentReprint` pero para ventas. */
-  private async buildSalePaymentReprint(
-    saleId: string,
-    paymentId: string,
-    actor: JwtUserPayload,
-  ) {
-    const detail = (await this.sales.findOne(saleId, actor)) as unknown as SaleForReceipt;
-    const payments = (await this.salePayments.list(saleId, actor)) as Array<{
-      id: string;
-      amount: { toString(): string };
-      createdAt: Date | string;
-      note?: string | null;
-      cashMovement?: {
-        category?: { name?: string | null; slug?: string | null } | null;
-        tenderAmount?: { toString(): string } | null;
-        changeAmount?: { toString(): string } | null;
-      } | null;
-      recordedBy?: { fullName?: string | null; email?: string | null } | null;
-    }>;
-    const payment = payments.find((p) => p.id === paymentId);
-    if (!payment) {
-      throw new InternalServerErrorException(
-        'El cobro vinculado ya no existe en la venta.',
-      );
-    }
-    const paidSoFar = payments
-      .filter(
-        (p) =>
-          new Date(p.createdAt as string).getTime() <=
-          new Date(payment.createdAt as string).getTime(),
-      )
-      .reduce((acc, p) => acc + Number(p.amount.toString()), 0);
-    const grand = Number(detail.totals?.grandTotal ?? 0);
-    const dueAfter = Math.max(0, grand - paidSoFar);
-    return this.ticketBuilder.buildSalePaymentTicket(
-      {
-        publicCode: detail.publicCode,
-        customerName: detail.customerName,
-        customerDocumentId: detail.customerDocumentId ?? null,
-        lines: detail.lines,
-        totals: detail.totals,
-      },
-      payment,
-      {
-        totalPaidAfter: paidSoFar.toString(),
-        amountDueAfter: dueAfter.toString(),
-      },
     );
   }
 

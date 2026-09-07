@@ -117,7 +117,22 @@ export function BackupPanel({ canWrite }: BackupPanelProps) {
       })
 
       if (!res.ok) {
-        throw new Error('Error al descargar')
+        let detail = `HTTP ${res.status}`
+        try {
+          const text = await res.text()
+          if (text) {
+            try {
+              const body = JSON.parse(text) as { message?: unknown; error?: unknown }
+              const m = body.message ?? body.error
+              detail = `${detail} — ${m ? JSON.stringify(m) : text}`
+            } catch {
+              detail = `${detail} — ${text}`
+            }
+          }
+        } catch {
+          /* sin cuerpo legible */
+        }
+        throw new Error(detail)
       }
 
       const blob = await res.blob()

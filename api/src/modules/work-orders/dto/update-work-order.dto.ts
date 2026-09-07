@@ -1,7 +1,6 @@
 import { WorkOrderStatus } from '@prisma/client';
 import {
   Allow,
-  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
@@ -89,10 +88,6 @@ export class UpdateWorkOrderDto {
   @Min(0)
   @Max(9_999_999)
   intakeOdometerKm?: number | null;
-
-  @IsOptional()
-  @IsBoolean()
-  inspectionOnly?: boolean;
 
   @IsOptional()
   @IsString()

@@ -95,7 +95,6 @@ export class InvoicePaymentsService {
             documentNumber: true,
             status: true,
             grandTotal: true,
-            saleId: true,
             workOrderId: true,
           },
         });

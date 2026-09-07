@@ -570,9 +570,6 @@ export function InvoiceDetailPage() {
               <tr key={ln.id}>
                 <td className="px-4 py-2">
                   <div className="font-medium">{ln.description ?? '—'}</div>
-                  {ln.inventoryItem && (
-                    <div className="text-xs text-slate-500">{ln.inventoryItem.sku}</div>
-                  )}
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">{ln.quantity}</td>
                 <td className="px-4 py-2 text-right tabular-nums">

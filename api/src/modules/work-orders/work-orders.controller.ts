@@ -5,6 +5,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   InternalServerErrorException,
@@ -80,6 +81,21 @@ export class WorkOrdersController {
   @RequirePermissions('work_orders:reassign')
   listAssignableUsers() {
     return this.workOrders.listAssignableUsers();
+  }
+
+  /**
+   * Diccionario de líneas de OT → autocompletado del front. Devuelve las etiquetas más
+   * recientes (`lastUsedAt`) que coinciden con `q` (insensible a mayúsculas); sin `q`
+   * trae las últimas usadas.
+   */
+  @Get('line-catalog/suggestions')
+  @RequireAnyPermission('work_orders:read', 'work_order_lines:create', 'work_order_lines:update')
+  lineCatalogSuggestions(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : 15;
+    return this.workOrderLines.suggestCatalogDescriptions(
+      q,
+      Number.isFinite(parsedLimit) ? parsedLimit : 15,
+    );
   }
 
   @Get(':id/payments')
@@ -211,8 +227,12 @@ export class WorkOrdersController {
     let payments: unknown[] = [];
     try {
       payments = (await this.workOrderPayments.list(id, actor)) as unknown[];
-    } catch {
-      payments = [];
+    } catch (err) {
+      // Sin permiso para ver montos: imprimimos el recibo sin la sección de pagos (deliberado).
+      // Cualquier otro error (BD, no encontrado) debe propagarse, no silenciarse como "no hay pagos".
+      if (!(err instanceof ForbiddenException)) {
+        throw err;
+      }
     }
     try {
       const payload: WorkOrderForReceipt = {
@@ -246,8 +266,10 @@ export class WorkOrdersController {
     let payments: unknown[] = [];
     try {
       payments = (await this.workOrderPayments.list(id, actor)) as unknown[];
-    } catch {
-      payments = [];
+    } catch (err) {
+      if (!(err instanceof ForbiddenException)) {
+        throw err;
+      }
     }
     const payload: WorkOrderForReceipt = {
       ...(detail as unknown as WorkOrderForReceipt),

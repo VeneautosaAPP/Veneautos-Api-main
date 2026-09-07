@@ -1,9 +1,9 @@
 /**
  * Recibos imprimibles (Fase 7.5).
  *
- * Genera HTML listo para imprimir con el navegador (`window.print()`) para dos casos:
+ * Genera HTML listo para imprimir con el navegador (`window.print()`):
  *  - Orden de trabajo (`renderWorkOrderReceipt`): comprobante interno de servicio.
- *  - Venta de mostrador (`renderSaleReceipt`): recibo de venta sin OT.
+ *  - Arqueo de caja (`renderCashSessionReceipt`): constancia del cierre de jornada.
  *
  * Mientras la facturación electrónica esté apagada (`billing.electronic_invoice_enabled=false`),
  * estos son los documentos que se entregan al cliente como soporte. El pie del recibo deja
@@ -15,7 +15,6 @@
  */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { inventoryItemUsesQuarterGallonOtQuantity } from '../inventory/oil-gallon-ot';
 import { WorkshopLogoService } from './workshop-logo.service';
 
 export type WorkshopInfo = {
@@ -42,21 +41,6 @@ type WorkOrderLineForReceipt = {
   unitPrice: { toString(): string } | null;
   /** `WorkOrderLine.discountAmount` es opcional en la schema; puede llegar como `null`. */
   discountAmount: { toString(): string } | null;
-  /** Presente en líneas PART del detalle de OT: para mostrar aceite en galón por cuartos en el recibo. */
-  inventoryItem?: {
-    sku: string;
-    name: string;
-    /** Referencia de fabricante separada del nombre (opcional). Se anexa como "Nombre — Ref" en el recibo. */
-    reference?: string | null;
-    category: string | null;
-    measurementUnit: { slug: string };
-  } | null;
-  /** Presente en líneas LABOR con un servicio predefinido seleccionado. */
-  service?: {
-    id?: string;
-    code?: string | null;
-    name?: string | null;
-  } | null;
   totals?: {
     lineTotal?: string | null;
     taxAmount?: string | null;
@@ -108,84 +92,6 @@ export type WorkOrderForReceipt = {
     totalPaid?: string | null;
   };
   payments?: WorkOrderPaymentForReceipt[];
-};
-
-/** Cotización / presupuesto (HTML imprimible; mismo layout base que OT, sin cobros). */
-export type QuoteForReceipt = {
-  quoteNumber: number;
-  publicCode: string;
-  title: string;
-  description?: string | null;
-  status: string;
-  validUntil?: Date | string | null;
-  createdAt: Date | string;
-  customerName?: string | null;
-  customerPhone?: string | null;
-  customerEmail?: string | null;
-  vehiclePlate?: string | null;
-  vehicleBrand?: string | null;
-  vehicleModel?: string | null;
-  /** `GET /quotes/:id` incluye cliente del maestro cuando hay vehículo enlazado. */
-  vehicle?: (WorkOrderForReceipt['vehicle'] & {
-    customer?: {
-      displayName?: string | null;
-      primaryPhone?: string | null;
-      email?: string | null;
-    };
-  }) | null;
-  lines: WorkOrderLineForReceipt[];
-  totals?: WorkOrderForReceipt['totals'];
-};
-
-type SaleLineForReceipt = {
-  lineType: 'LABOR' | 'PART' | 'SERVICE' | 'SUPPLY' | string;
-  description: string | null;
-  quantity: { toString(): string };
-  unitPrice: { toString(): string } | null;
-  /** Defensivo: aunque en schema es `@default(0)`, aceptamos nullable para blindaje. */
-  discountAmount: { toString(): string } | null;
-  lineTotal?: { toString(): string } | null;
-  taxAmount?: { toString(): string } | null;
-  /** Presente en líneas PART: fallback para el nombre visible cuando `description` está vacío. */
-  inventoryItem?: {
-    sku?: string | null;
-    name?: string | null;
-    reference?: string | null;
-    category?: string | null;
-    measurementUnit?: { slug?: string | null } | null;
-  } | null;
-  /** Líneas LABOR con servicio del catálogo. */
-  service?: { code?: string | null; name?: string | null } | null;
-};
-
-type SalePaymentForReceipt = {
-  amount: { toString(): string };
-  createdAt?: Date | string;
-  note?: string | null;
-  cashMovement?: { category?: { name?: string | null } | null } | null;
-};
-
-export type SaleForReceipt = {
-  id: string;
-  publicCode: string;
-  status: string;
-  origin: string;
-  createdAt: Date | string;
-  confirmedAt?: Date | string | null;
-  customerName: string | null;
-  customerPhone?: string | null;
-  customerDocumentId?: string | null;
-  lines: SaleLineForReceipt[];
-  linesSubtotal?: string | null;
-  amountDue?: string | null;
-  totals?: {
-    grandTotal?: string | null;
-    totalDiscount?: string | null;
-    totalTax?: string | null;
-    linesSubtotal?: string | null;
-  } | null;
-  paymentSummary?: { totalPaid?: string | null };
-  payments?: SalePaymentForReceipt[];
 };
 
 /**
@@ -343,8 +249,8 @@ export class ReceiptsService {
             <td>${escapeHtml(resolveReceiptLineLabel(ln))}
               <span class="muted">${ln.lineType === 'LABOR' ? 'servicio' : 'repuesto/insumo'}</span>
             </td>
-            <td class="num">${workOrderReceiptQuantityLabel(ln)}</td>
-            <td class="num">${workOrderReceiptUnitPriceLabel(ln)}</td>
+            <td class="num">${quantityLabel(ln.quantity)}</td>
+            <td class="num">${unitPriceLabel(ln.unitPrice)}</td>
             <td class="num">${discountNum > 0 ? '-' + formatCop(ln.discountAmount) : '—'}</td>
             <td class="num">${formatCop(total)}</td>
           </tr>`;
@@ -449,235 +355,6 @@ export class ReceiptsService {
       logoDataUrl,
       watermarkDataUrl,
     });
-  }
-
-  async renderQuoteReceipt(q: QuoteForReceipt): Promise<string> {
-    const workshop = await this.getWorkshopInfo();
-    const [logoDataUrl, watermarkDataUrl] = await Promise.all([
-      this.logos.getDataUrl('invoice'),
-      this.logos.getDataUrl('watermark'),
-    ]);
-    const title = `Cotización ${q.publicCode}`;
-    const vc = q.vehicle?.customer;
-    const displayCustomerName = coalesceNonEmpty(q.customerName, vc?.displayName);
-    const displayCustomerPhone = coalesceNonEmpty(q.customerPhone, vc?.primaryPhone);
-    const displayCustomerEmail = coalesceNonEmpty(q.customerEmail, vc?.email);
-    const { plate, brand, model } = receiptVehicleSnapshot({
-      vehiclePlate: q.vehiclePlate,
-      vehicleBrand: q.vehicleBrand,
-      vehicleModel: q.vehicleModel,
-      vehicle: q.vehicle ?? null,
-    } as WorkOrderForReceipt);
-    const vehicleLine = [plate, [brand, model].filter(Boolean).join(' ')]
-      .filter(Boolean)
-      .join(' · ');
-
-    const lineRows = q.lines
-      .map((ln) => {
-        const total = ln.totals?.lineTotal ?? computeLineTotalFallback(ln);
-        const discountNum = toNumberSafe(ln.discountAmount);
-        return `
-          <tr>
-            <td>${escapeHtml(resolveReceiptLineLabel(ln))}
-              <span class="muted">${ln.lineType === 'LABOR' ? 'servicio' : 'repuesto/insumo'}</span>
-            </td>
-            <td class="num">${workOrderReceiptQuantityLabel(ln)}</td>
-            <td class="num">${workOrderReceiptUnitPriceLabel(ln)}</td>
-            <td class="num">${discountNum > 0 ? '-' + formatCop(ln.discountAmount) : '—'}</td>
-            <td class="num">${formatCop(total)}</td>
-          </tr>`;
-      })
-      .join('');
-
-    const totals = q.totals ?? {};
-    const subtotal = totals.linesSubtotal ?? '0';
-    const discount = totals.totalDiscount ?? '0';
-    const tax = totals.totalTax ?? '0';
-    const grand = totals.grandTotal ?? '0';
-
-    const validNote = q.validUntil
-      ? `<div><strong>Válida hasta:</strong> ${formatDateDay(q.validUntil)}</div>`
-      : '';
-
-    const body = `
-      <section class="doc-meta">
-        <div>
-          <div class="doc-kind">COTIZACIÓN · PRESUPUESTO DE REFERENCIA</div>
-          <div class="doc-code">${escapeHtml(q.publicCode)} <span class="muted">· #${q.quoteNumber}</span></div>
-          <div class="muted" style="margin-top:6px;font-weight:600;">${escapeHtml(q.title)}</div>
-        </div>
-        <div class="doc-dates">
-          <div><strong>Fecha:</strong> ${formatDate(q.createdAt)}</div>
-          ${validNote}
-          <div><strong>Estado:</strong> ${escapeHtml(q.status)}</div>
-        </div>
-      </section>
-
-      <section class="parties">
-        <div class="party">
-          <h4>Cliente</h4>
-          <div>${escapeHtml(displayCustomerName ?? '—')}</div>
-          ${
-            displayCustomerPhone
-              ? `<div class="muted">Tel: ${escapeHtml(displayCustomerPhone)}</div>`
-              : ''
-          }
-          ${displayCustomerEmail ? `<div class="muted">${escapeHtml(displayCustomerEmail)}</div>` : ''}
-        </div>
-        <div class="party">
-          <h4>Vehículo</h4>
-          <div>${escapeHtml(vehicleLine.trim() ? vehicleLine : '—')}</div>
-        </div>
-      </section>
-
-      ${
-        q.description
-          ? `<section class="desc"><h4>Detalle / alcance</h4><p>${escapeHtml(q.description)}</p></section>`
-          : ''
-      }
-
-      <section>
-        <table class="lines">
-          <thead>
-            <tr>
-              <th>Descripción</th>
-              <th class="num">Cant.</th>
-              <th class="num">Valor</th>
-              <th class="num">Dcto.</th>
-              <th class="num">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>${lineRows || '<tr><td colspan="5" class="muted center">Sin líneas</td></tr>'}</tbody>
-        </table>
-      </section>
-
-      <section class="totals">
-        <table>
-          <tr><th>Subtotal</th><td class="num">${formatCop(subtotal)}</td></tr>
-          ${Number(discount) > 0 ? `<tr><th>Descuento</th><td class="num">-${formatCop(discount)}</td></tr>` : ''}
-          ${Number(tax) > 0 ? `<tr><th>Impuestos</th><td class="num">${formatCop(tax)}</td></tr>` : ''}
-          <tr class="grand"><th>Total estimado</th><td class="num">${formatCop(grand)}</td></tr>
-        </table>
-      </section>
-    `;
-
-    return renderPage({
-      title,
-      workshop,
-      body,
-      logoDataUrl,
-      watermarkDataUrl,
-      stampLabel: 'Cotización — documento no fiscal',
-      overrideFiscalLegend:
-        'Este documento es una cotización o presupuesto de referencia: no es factura de venta ni orden de trabajo. Los precios y condiciones pueden cambiar hasta la aceptación formal por parte del cliente y del taller.',
-    });
-  }
-
-  async renderSaleReceipt(sale: SaleForReceipt): Promise<string> {
-    const workshop = await this.getWorkshopInfo();
-    const [logoDataUrl, watermarkDataUrl] = await Promise.all([
-      this.logos.getDataUrl('invoice'),
-      this.logos.getDataUrl('watermark'),
-    ]);
-    const title = `Recibo de venta ${sale.publicCode}`;
-
-    const lineRows = sale.lines
-      .map((ln) => {
-        const totalsSrc = (ln as unknown as { totals?: { lineTotal?: string | null } }).totals;
-        const total =
-          totalsSrc?.lineTotal ?? (ln.lineTotal ? ln.lineTotal.toString() : computeLineTotalFallback(ln));
-        const discountNum = toNumberSafe(ln.discountAmount);
-        return `
-          <tr>
-            <td>${escapeHtml(resolveReceiptLineLabel(ln))}</td>
-            <td class="num">${formatQty(ln.quantity)}</td>
-            <td class="num">${formatCop(ln.unitPrice ?? '0')}</td>
-            <td class="num">${discountNum > 0 ? '-' + formatCop(ln.discountAmount) : '—'}</td>
-            <td class="num">${formatCop(total)}</td>
-          </tr>`;
-      })
-      .join('');
-
-    const totals = sale.totals ?? {};
-    const subtotal = totals.linesSubtotal ?? sale.linesSubtotal ?? '0';
-    const discount = totals.totalDiscount ?? '0';
-    const tax = totals.totalTax ?? '0';
-    const grand = totals.grandTotal ?? '0';
-    const paid = sale.paymentSummary?.totalPaid ?? '0';
-    const due = sale.amountDue ?? '0';
-
-    const paymentsHtml = (sale.payments ?? [])
-      .map(
-        (p) => `
-          <tr>
-            <td>${p.createdAt ? formatDate(p.createdAt) : '—'}</td>
-            <td>${escapeHtml(p.cashMovement?.category?.name ?? 'Cobro')}</td>
-            <td class="num">${formatCop(p.amount)}</td>
-          </tr>`,
-      )
-      .join('');
-
-    const body = `
-      <section class="doc-meta">
-        <div>
-          <div class="doc-kind">RECIBO DE VENTA</div>
-          <div class="doc-code">${escapeHtml(sale.publicCode)}</div>
-        </div>
-        <div class="doc-dates">
-          <div><strong>Fecha:</strong> ${formatDate(sale.confirmedAt ?? sale.createdAt)}</div>
-          <div><strong>Estado:</strong> ${escapeHtml(sale.status)}</div>
-          ${sale.origin === 'WORK_ORDER' ? '<div class="muted">Originada desde orden de trabajo</div>' : '<div class="muted">Venta de mostrador</div>'}
-        </div>
-      </section>
-
-      <section class="parties">
-        <div class="party">
-          <h4>Cliente</h4>
-          <div>${escapeHtml(sale.customerName ?? 'Consumidor final')}</div>
-          ${sale.customerDocumentId ? `<div class="muted">Doc: ${escapeHtml(sale.customerDocumentId)}</div>` : ''}
-          ${sale.customerPhone ? `<div class="muted">Tel: ${escapeHtml(sale.customerPhone)}</div>` : ''}
-        </div>
-      </section>
-
-      <section>
-        <table class="lines">
-          <thead>
-            <tr>
-              <th>Descripción</th>
-              <th class="num">Cant.</th>
-              <th class="num">Valor</th>
-              <th class="num">Dcto.</th>
-              <th class="num">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>${lineRows || '<tr><td colspan="5" class="muted center">Sin líneas registradas</td></tr>'}</tbody>
-        </table>
-      </section>
-
-      <section class="totals">
-        <table>
-          <tr><th>Subtotal</th><td class="num">${formatCop(subtotal)}</td></tr>
-          ${Number(discount.toString()) > 0 ? `<tr><th>Descuento</th><td class="num">-${formatCop(discount)}</td></tr>` : ''}
-          ${Number(tax.toString()) > 0 ? `<tr><th>Impuestos</th><td class="num">${formatCop(tax)}</td></tr>` : ''}
-          <tr class="grand"><th>Total</th><td class="num">${formatCop(grand)}</td></tr>
-          <tr><th>Abonado</th><td class="num">${formatCop(paid)}</td></tr>
-          <tr class="${Number(due) > 0 ? 'due' : ''}"><th>Saldo pendiente</th><td class="num">${formatCop(due)}</td></tr>
-        </table>
-      </section>
-
-      ${
-        paymentsHtml
-          ? `<section><h4>Pagos registrados</h4>
-              <table class="payments">
-                <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th></tr></thead>
-                <tbody>${paymentsHtml}</tbody>
-              </table>
-            </section>`
-          : ''
-      }
-    `;
-
-    return renderPage({ title, workshop, body, logoDataUrl, watermarkDataUrl });
   }
 
   /**
@@ -834,16 +511,6 @@ function shortId(id: string): string {
   return id.length > 10 ? id.slice(-8).toUpperCase() : id.toUpperCase();
 }
 
-/** Primer cadena no vacía (tras trim); útil para PDF cuando el maestro tiene datos pero la cotización guardó "" o null. */
-function coalesceNonEmpty(...candidates: (string | null | undefined)[]): string | null {
-  for (const c of candidates) {
-    if (c == null) continue;
-    const t = String(c).trim();
-    if (t) return t;
-  }
-  return null;
-}
-
 /**
  * Texto de vehículo en comprobantes: datos **congelados en la OT** tienen prioridad sobre
  * el maestro `Vehicle`. Evita que varias órdenes enlazadas al mismo vehículo — o ediciones
@@ -861,67 +528,26 @@ export function receiptVehicleSnapshot(wo: WorkOrderForReceipt): {
 }
 
 /**
- * Nombre visible para el HTML del recibo (PDF). Unifica la lógica entre OT y venta:
- *   - LABOR → texto de la línea (`description`), si viene del catálogo/servicio o fue editado;
- *     si está vacío, nombre del `service` enlazado (código · nombre si hay código); último recurso "Mano de obra".
- *   - PART  → "{inventoryItem.name} — {reference}" si hay ambos, o solo `name`.
- *   - Fallbacks: `description` libre, luego `lineType`.
+ * Nombre visible para el HTML del recibo (PDF). Las líneas de OT son texto libre:
+ * se usa `description` si existe; último recurso el tipo de línea.
  */
 function resolveReceiptLineLabel(ln: {
   lineType?: string | null;
   description?: string | null;
-  inventoryItem?: { name?: string | null; reference?: string | null } | null;
-  service?: { code?: string | null; name?: string | null } | null;
 }): string {
-  if (ln.lineType === 'LABOR') {
-    const desc = (ln.description ?? '').trim();
-    if (desc) return desc;
-    const svcName = (ln.service?.name ?? '').trim();
-    if (svcName) {
-      const code = (ln.service?.code ?? '').trim();
-      return code ? `${code} · ${svcName}` : svcName;
-    }
-    return 'Mano de obra';
-  }
-  const inv = ln.inventoryItem;
-  if (inv) {
-    const name = (inv.name ?? '').trim();
-    const ref = (inv.reference ?? '').trim();
-    if (name) return ref ? `${name} — ${ref}` : name;
-  }
   const desc = (ln.description ?? '').trim();
   if (desc) return desc;
+  if (ln.lineType === 'LABOR') return 'Mano de obra';
   return ln.lineType ?? 'Ítem';
 }
 
-function workOrderReceiptOilPartHint(ln: WorkOrderLineForReceipt): boolean {
-  if (ln.lineType !== 'PART' || !ln.inventoryItem) return false;
-  const inv = ln.inventoryItem;
-  return inventoryItemUsesQuarterGallonOtQuantity({
-    sku: inv.sku,
-    name: inv.name,
-    category: inv.category ?? '',
-    measurementUnit: inv.measurementUnit,
-  });
+function quantityLabel(quantity: { toString(): string }): string {
+  return formatQty(quantity);
 }
 
-function workOrderReceiptQuantityLabel(ln: WorkOrderLineForReceipt): string {
-  const base = formatQty(ln.quantity);
-  if (!workOrderReceiptOilPartHint(ln)) return base;
-  const g = Number(ln.quantity.toString());
-  if (!Number.isFinite(g)) return base;
-  const q = Math.round(g * 4);
-  if (Math.abs(g * 4 - q) > 1e-6) return base;
-  return `${base} <span class="muted">(${q}×¼)</span>`;
-}
-
-/** Precio unitario mostrado: en aceite por cuartos el valor guardado es por galón → se muestra COP por ¼ gal. */
-function workOrderReceiptUnitPriceLabel(ln: WorkOrderLineForReceipt): string {
-  const up = ln.unitPrice;
-  if (up == null) return formatCop('0');
-  if (!workOrderReceiptOilPartHint(ln)) return formatCop(up);
-  const n = toNumberSafe(up);
-  return `${formatCop(String(Math.round(n / 4)))} <span class="muted">/¼ gal</span>`;
+function unitPriceLabel(unitPrice: { toString(): string } | null): string {
+  if (unitPrice == null) return formatCop('0');
+  return formatCop(unitPrice);
 }
 
 function computeLineTotalFallback(ln: {
@@ -1211,15 +837,5 @@ function formatDate(value: Date | string): string {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-  });
-}
-
-function formatDateDay(value: Date | string): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('es-CO', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
   });
 }

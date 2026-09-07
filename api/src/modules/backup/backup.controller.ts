@@ -162,8 +162,8 @@ export class BackupController {
       throw new BadRequestException('Tipo debe ser "local" o "production"');
     }
 
-    // Validar archivo
-    const validation = this.backupService.validateBackupFile(file.path);
+    // Validar archivo (la extensión se toma del nombre ORIGINAL, no de la ruta temporal)
+    const validation = this.backupService.validateBackupFile(file.path, file.originalname);
     if (!validation.valid) {
       // Limpiar archivo temporal
       fs.unlinkSync(file.path);
@@ -171,7 +171,7 @@ export class BackupController {
     }
 
     try {
-      const result = await this.backupService.restoreFromUpload(file.path, type);
+      const result = await this.backupService.restoreFromUpload(file.path, type, file.originalname);
 
       // Limpiar archivo temporal
       if (fs.existsSync(file.path)) {
@@ -213,7 +213,7 @@ export class BackupController {
       throw new BadRequestException('No se proporcionó un archivo');
     }
 
-    const validation = this.backupService.validateBackupFile(file.path);
+    const validation = this.backupService.validateBackupFile(file.path, file.originalname);
 
     // Limpiar archivo temporal
     if (fs.existsSync(file.path)) {

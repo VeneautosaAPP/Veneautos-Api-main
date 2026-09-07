@@ -21,16 +21,10 @@ import { CashModule } from './modules/cash/cash.module';
 import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
-import { InventoryModule } from './modules/inventory/inventory.module';
 import { ReportsModule } from './modules/reports/reports.module';
-import { ServicesModule } from './modules/services/services.module';
 import { TaxRatesModule } from './modules/tax-rates/tax-rates.module';
-import { SalesModule } from './modules/sales/sales.module';
+import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
 import { BillingModule } from './modules/billing/billing.module';
-import { PayrollModule } from './modules/payroll/payroll.module';
-import { WorkshopFinanceModule } from './modules/workshop-finance/workshop-finance.module';
-import { QuotesModule } from './modules/quotes/quotes.module';
-import { EmployeeCreditsModule } from './modules/employee-credits/employee-credits.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { HealthController } from './health/health.controller';
 import { RootController } from './root.controller';
@@ -51,16 +45,10 @@ import { RootController } from './root.controller';
     WorkOrdersModule,
     CustomersModule,
     VehiclesModule,
-    InventoryModule,
     TaxRatesModule,
-    ServicesModule,
-    SalesModule,
+    SparePartsModule,
     BillingModule,
     ReportsModule,
-    PayrollModule,
-    WorkshopFinanceModule,
-    QuotesModule,
-    EmployeeCreditsModule,
     BackupModule,
   ],
   controllers: [RootController, HealthController],

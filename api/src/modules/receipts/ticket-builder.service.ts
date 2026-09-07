@@ -23,11 +23,9 @@ import {
   ReceiptsService,
   receiptVehicleSnapshot,
   type CashSessionForReceipt,
-  type SaleForReceipt,
   type WorkOrderForReceipt,
   type WorkshopInfo,
 } from './receipts.service';
-import { inventoryItemUsesQuarterGallonOtQuantity } from '../inventory/oil-gallon-ot';
 
 /** Alineación soportada por el puente (must match Go side). */
 export type TicketAlign = 'left' | 'center' | 'right';
@@ -128,124 +126,30 @@ type LineForTicket = {
   discountAmount?: { toString(): string } | number | string | null;
   lineTotal?: { toString(): string } | number | string | null;
   totals?: { lineTotal?: { toString(): string } | number | string | null } | null;
-  inventoryItem?: {
-    sku?: string | null;
-    name?: string | null;
-    reference?: string | null;
-    category?: string | null;
-    measurementUnit?: { slug?: string | null } | null;
-  } | null;
-  service?: { code?: string | null; name?: string | null } | null;
 };
 
 /**
- * Resuelve el nombre visible de una línea en el ticket.
- *   - LABOR → `description` de la línea (nombre del servicio o texto libre); si vacío,
- *     nombre del servicio del catálogo (`service.name`, con código si aplica); último "Mano de obra".
- *   - PART  → si hay `inventoryItem`, construye `"{name} — {reference}"` (si hay ref).
- *            Si no, cae a `description` o nombre/servicio como fallback genérico.
- *
- * Se prioriza inventoryItem sobre `description` para aprovechar la nueva separación
- * `name`/`reference` del catálogo (antes la referencia venía embebida con guiones).
+ * Resuelve el nombre visible de una línea en el ticket. Las líneas de OT son
+ * texto libre: se usa `description` si existe; último recurso "Mano de obra"/"Item".
  */
 function resolveLineLabel(ln: LineForTicket): string {
-  if (ln.lineType === 'LABOR') {
-    const desc = (ln.description ?? '').trim();
-    if (desc) return desc;
-    const svcName = (ln.service?.name ?? '').trim();
-    if (svcName) {
-      const code = (ln.service?.code ?? '').trim();
-      return code ? `${code} · ${svcName}` : svcName;
-    }
-    return 'Mano de obra';
-  }
-  const inv = ln.inventoryItem;
-  if (inv) {
-    const name = (inv.name ?? '').trim();
-    const ref = (inv.reference ?? '').trim();
-    if (name) return ref ? `${name} — ${ref}` : name;
-  }
   const desc = (ln.description ?? '').trim();
   if (desc) return desc;
-  const svcName = (ln.service?.name ?? '').trim();
-  if (svcName) return svcName;
+  if (ln.lineType === 'LABOR') return 'Mano de obra';
   return 'Item';
 }
 
 /**
- * Abreviaciones cortas de las unidades del catálogo. El slug proviene de
- * `measurement_units.slug` (seed). Mantenemos esto como fuente única para
- * los prefijos de cantidad del ticket: "3 Gal ...", "2 L ...", "5 Und ...".
- */
-const UNIT_ABBR: Record<string, string> = {
-  unit: 'Und',
-  pair: 'Par',
-  kg: 'Kg',
-  liter: 'L',
-  gallon: 'Gal',
-  meter: 'm',
-  box: 'Cja',
-  set: 'Jgo',
-};
-
-function isOilLine(ln: LineForTicket): boolean {
-  const inv = ln.inventoryItem;
-  if (!inv) return false;
-  return inventoryItemUsesQuarterGallonOtQuantity({
-    sku: inv.sku ?? '',
-    name: inv.name ?? '',
-    category: inv.category ?? '',
-    measurementUnit: { slug: inv.measurementUnit?.slug ?? '' },
-  });
-}
-
-/**
- * Prefijo `"{qty} {UNIDAD} "` que antecede al nombre del ítem en el detalle.
- *   - LABOR: sin prefijo ("Mano de obra" va solo).
- *   - Aceite por cuartos: **siempre** muestra los galones, incluso qty = 1,
- *     para que el cliente vea el volumen físico (p.ej. "3 Gal", "0.5 Gal").
- *   - Otros ítems con qty = 1: omitimos el prefijo (ruido innecesario).
- *   - Otros ítems con qty ≠ 1: "{qty} {UND} " según la unidad del inventario.
- *
- * Devuelve string vacío cuando no corresponde prefijo (no un null para facilitar
- * la concatenación directa con el label).
- */
-function buildLinePrefix(ln: LineForTicket, qty: number, isOil: boolean): string {
-  if (ln.lineType === 'LABOR') return '';
-  const unitSlug = ln.inventoryItem?.measurementUnit?.slug ?? '';
-  const abbr = UNIT_ABBR[unitSlug] ?? '';
-  if (isOil) {
-    return `${formatQty(qty)}${abbr ? ' ' + abbr : ' Gal'} `;
-  }
-  if (qty === 1) return '';
-  return abbr ? `${formatQty(qty)} ${abbr} ` : `${formatQty(qty)} x `;
-}
-
-/**
- * Construye la línea auxiliar de desglose "{qty} x {precio unitario}" que se
- * imprime alineada a la derecha encima del total del ítem.
- *
- * Reglas:
- *   - Aceite por cuartos: SIEMPRE mostramos "{cuartos} x ${precio por cuarto}"
- *     (la nota "(N gal)" ya no hace falta porque el prefijo del nombre lo dice).
- *   - Ítem normal con qty > 1: "{qty} x ${precio}".
- *   - Ítem normal con qty = 1 pero descuento activo (total ≠ qty × unit):
- *     "1 x ${precio}" para que el operador/cliente vea la rebaja.
- *   - Ítem normal con qty = 1 sin descuento: null (el total es suficiente).
+ * Línea auxiliar de desglose "{qty} x {precio unitario}" que se imprime alineada
+ * a la derecha encima del total del ítem cuando aporta información (qty ≠ 1 o
+ * descuento aplicado).
  */
 function buildSubtotalText(
   ln: LineForTicket,
   qty: number,
   unitPrice: number,
   total: number,
-  isOil: boolean,
 ): string | null {
-  if (isOil) {
-    const quarters = Math.round(qty * 4);
-    if (quarters <= 0) return null;
-    const pricePerQuarter = unitPrice / 4;
-    return `${quarters} x ${formatCop(pricePerQuarter)}`;
-  }
   const expected = qty * unitPrice;
   const hasDiscount = Math.abs(expected - total) > 0.5;
   if (qty === 1 && !hasDiscount) return null;
@@ -256,24 +160,7 @@ function buildSubtotalText(
 export class TicketBuilderService {
   constructor(private readonly receipts: ReceiptsService) {}
 
-  /**
-   * Empuja los bloques de detalle de líneas (servicios / repuestos / insumos) usando
-   * el bloque `item-dotted`, que respeta la idea del usuario: nombre largo envuelve
-   * y el precio queda al final con línea punteada. Cuando la cantidad es > 1 se
-   * añade debajo la línea auxiliar "  qty x precio_unitario".
-   */
-  /**
-   * Encabezado visual de la sección "DETALLE":
-   *
-   *   --------------------------------
-   *                                    ← renglón vacío
-   *             DETALLE                ← centrado, en negrita
-   *                                    ← renglón vacío
-   *   --------------------------------   (lo emite `pushLineDetail` al inicio)
-   *
-   * Se usa antes de llamar `pushLineDetail`. Mantener juntos para garantizar
-   * que el "separator" de cierre del helper quede pegado al primer ítem.
-   */
+  /** Encabezado visual de la sección "DETALLE" en los tickets. */
   private pushDetailHeader(blocks: TicketBlock[]): void {
     blocks.push({ type: 'separator' });
     blocks.push({ type: 'feed', lines: 1 });
@@ -295,8 +182,7 @@ export class TicketBuilderService {
    * Empuja el detalle de líneas con el layout final (v3):
    *
    *   ---------------------------------
-   *   3 Gal Aceite ATF (para caja) -
-   *   Caneca x 55 Galones
+   *   3 Amortiguadores
    *                        12 x $68.500   ← subtotal (alineado derecha)
    *                            $822.000   ← total     (alineado derecha, bold)
    *   ---------------------------------
@@ -304,8 +190,7 @@ export class TicketBuilderService {
    *                            $150.000
    *   ---------------------------------
    *
-   * - Prefijo con cantidad+unidad al inicio del nombre (salvo LABOR y qty=1 no-aceite).
-   * - Subtotal "qty × unit" solo si aporta valor (aceite siempre; resto si qty≠1 o hay desc.).
+   * - Subtotal "qty × unit" solo si aporta valor (qty≠1 o hay desc.).
    * - Total siempre en línea aparte, alineado a la derecha, en negrita.
    * - Separador de guiones completos al inicio y entre cada ítem.
    */
@@ -321,13 +206,10 @@ export class TicketBuilderService {
         explicitTotal != null
           ? toNumberSafe(explicitTotal)
           : Math.max(0, qty * up - toNumberSafe(ln.discountAmount ?? 0));
-      const isOil = isOilLine(ln);
-      const prefix = buildLinePrefix(ln, qty, isOil);
       const label = resolveLineLabel(ln);
-      const displayName = `${prefix}${label}`.trim();
 
-      blocks.push({ type: 'text', text: displayName });
-      const sub = buildSubtotalText(ln, qty, up, total, isOil);
+      blocks.push({ type: 'text', text: label });
+      const sub = buildSubtotalText(ln, qty, up, total);
       if (sub) {
         blocks.push({ type: 'text', text: sub, align: 'right' });
       }
@@ -551,138 +433,6 @@ export class TicketBuilderService {
     // cubre el saldo). Solo informamos si queda saldo pendiente o si quedó en cero.
     const paidAfter = toNumberSafe(wo.totalPaidAfter ?? 0);
     const dueAfter = toNumberSafe(wo.amountDueAfter ?? 0);
-    if (dueAfter > 0) {
-      blocks.push({ type: 'item', left: 'Saldo pendiente', right: formatCop(dueAfter), bold: true });
-    } else if (paidAfter > 0) {
-      blocks.push({ type: 'text', text: 'SALDO EN CERO', align: 'center', bold: true });
-    }
-    if (payment.note && payment.note.trim().length > 0) {
-      blocks.push({ type: 'separator' });
-      blocks.push({ type: 'text', text: `Nota: ${payment.note.trim()}` });
-    }
-    blocks.push(
-      ...this.fiscalFooterBlocks(info, {
-        footerText: 'Gracias por su pago',
-      }),
-    );
-    return { includeLogo: false, blocks };
-  }
-
-  /** Ticket completo para una venta. */
-  async buildSaleTicket(sale: SaleForReceipt): Promise<TicketPayload> {
-    const info = await this.receipts.getWorkshopInfo();
-    const blocks: TicketBlock[] = [];
-    blocks.push(
-      ...this.workshopHeaderBlocks(info, {
-        includeLogo: true,
-        docKind: 'Recibo de venta',
-      }),
-    );
-    blocks.push({ type: 'line-kv', key: 'Venta', value: sale.publicCode });
-    blocks.push({
-      type: 'line-kv',
-      key: 'Fecha',
-      value: formatDateShort(sale.confirmedAt ?? sale.createdAt),
-    });
-    blocks.push({ type: 'line-kv', key: 'Estado', value: sale.status });
-    blocks.push({ type: 'separator' });
-    blocks.push({ type: 'text', text: 'CLIENTE', bold: true });
-    blocks.push({ type: 'text', text: sale.customerName ?? 'Consumidor final' });
-    if (sale.customerDocumentId) {
-      blocks.push({ type: 'text', text: `Doc: ${sale.customerDocumentId}` });
-    }
-    if (sale.customerPhone) blocks.push({ type: 'text', text: `Tel: ${sale.customerPhone}` });
-    this.pushDetailHeader(blocks);
-    this.pushLineDetail(blocks, sale.lines as LineForTicket[] | null | undefined);
-    const totals = sale.totals ?? {};
-    const subtotal = toNumberSafe(totals.linesSubtotal ?? sale.linesSubtotal ?? '0');
-    const discount = toNumberSafe(totals.totalDiscount ?? '0');
-    const tax = toNumberSafe(totals.totalTax ?? '0');
-    const grand = toNumberSafe(totals.grandTotal ?? '0');
-    const paid = toNumberSafe(sale.paymentSummary?.totalPaid ?? '0');
-    const due = toNumberSafe(sale.amountDue ?? Math.max(0, grand - paid));
-    blocks.push({ type: 'item', left: 'Subtotal', right: formatCop(subtotal) });
-    if (discount > 0) {
-      blocks.push({ type: 'item', left: 'Descuento', right: `-${formatCop(discount)}` });
-    }
-    if (tax > 0) {
-      blocks.push({ type: 'item', left: 'Impuestos', right: formatCop(tax) });
-    }
-    this.pushTotalLine(blocks, 'TOTAL', formatCop(grand));
-    blocks.push({ type: 'item', left: 'Abonado', right: formatCop(paid) });
-    if (due > 0) {
-      blocks.push({ type: 'item', left: 'Saldo', right: formatCop(due), bold: true });
-    } else {
-      blocks.push({ type: 'text', text: 'SALDO EN CERO', align: 'center', bold: true });
-    }
-    blocks.push(
-      ...this.fiscalFooterBlocks(info, {
-        footerText: 'Gracias por su preferencia',
-      }),
-    );
-    return { includeLogo: false, blocks };
-  }
-
-  async buildSalePaymentTicket(
-    sale: Pick<SaleForReceipt, 'publicCode' | 'customerName' | 'customerDocumentId' | 'lines' | 'totals'>,
-    payment: PaymentForTicket,
-    extras?: {
-      totalPaidAfter?: { toString(): string } | null;
-      amountDueAfter?: { toString(): string } | null;
-    },
-  ): Promise<TicketPayload> {
-    const info = await this.receipts.getWorkshopInfo();
-    const blocks: TicketBlock[] = [];
-    blocks.push(
-      ...this.workshopHeaderBlocks(info, {
-        includeLogo: true,
-        docKind: 'Recibo de pago — Venta',
-      }),
-    );
-    blocks.push({ type: 'line-kv', key: 'Venta', value: sale.publicCode });
-    blocks.push({
-      type: 'line-kv',
-      key: 'Fecha',
-      value: formatDateShort(payment.createdAt ?? new Date()),
-    });
-    if (payment.cashMovement?.category?.name) {
-      blocks.push({ type: 'line-kv', key: 'Medio', value: payment.cashMovement.category.name });
-    }
-    if (payment.recordedBy?.fullName || payment.recordedBy?.email) {
-      blocks.push({
-        type: 'line-kv',
-        key: 'Cajero',
-        value: payment.recordedBy.fullName?.trim() || payment.recordedBy.email!.trim(),
-      });
-    }
-    blocks.push({ type: 'separator' });
-    blocks.push({ type: 'text', text: sale.customerName ?? 'Consumidor final' });
-    if (sale.customerDocumentId) {
-      blocks.push({ type: 'text', text: `Doc: ${sale.customerDocumentId}` });
-    }
-
-    const lines = (sale.lines ?? []) as LineForTicket[];
-    if (lines.length > 0) {
-      this.pushDetailHeader(blocks);
-      this.pushLineDetail(blocks, lines);
-      const grand = toNumberSafe(sale.totals?.grandTotal ?? 0);
-      if (grand > 0) {
-        blocks.push({ type: 'item', left: 'Total venta', right: formatCop(grand) });
-      }
-    }
-    blocks.push({ type: 'separator' });
-    const amount = toNumberSafe(payment.amount);
-    this.pushTotalLine(blocks, 'VALOR TOTAL', formatCop(amount));
-    const tender = toNumberSafe(payment.tenderAmount ?? payment.cashMovement?.tenderAmount);
-    const change = toNumberSafe(payment.changeAmount ?? payment.cashMovement?.changeAmount);
-    if (tender > 0) {
-      blocks.push({ type: 'item', left: 'Entregado', right: formatCop(tender) });
-      if (change > 0) {
-        blocks.push({ type: 'item', left: 'Vuelto', right: formatCop(change) });
-      }
-    }
-    const paidAfter = toNumberSafe(extras?.totalPaidAfter ?? 0);
-    const dueAfter = toNumberSafe(extras?.amountDueAfter ?? 0);
     if (dueAfter > 0) {
       blocks.push({ type: 'item', left: 'Saldo pendiente', right: formatCop(dueAfter), bold: true });
     } else if (paidAfter > 0) {

@@ -19,7 +19,6 @@ import { useCashCoreData } from '../features/cash/hooks/useCashCoreData'
 import { useCashSessionModalDraft } from '../features/cash/hooks/useCashSessionModalDraft'
 import type { CashMovementDraftValues, CashTab, ExpenseReq, UserBrief } from '../features/cash/types'
 import { ExpenseRequestReviewModal } from '../components/ExpenseRequestReviewModal'
-import { PageHeader } from '../components/layout/PageHeader'
 import { TabRow } from '../components/layout/TabRow'
 import { usePanelTheme, useUiSettings } from '../theme/PanelThemeProvider'
 import { NotesMinCharCounter } from '../components/NotesMinCharCounter'
@@ -608,17 +607,6 @@ export function CashPage() {
 
   return (
     <div className={pageStackClass}>
-      <PageHeader
-        title="Caja"
-        description={
-          <>
-            Sesión del turno, movimientos, ingresos, egresos y solicitudes. El <strong>estado de la caja</strong> (abierta
-            o cerrada) se indica arriba del menú con el LED. Con caja <strong>cerrada</strong> solo se gestiona la apertura
-            en la pestaña <strong>Sesión</strong>; el resto de operaciones queda oculto hasta abrir sesión. Deslizá las
-            pestañas en el celular si no entran todas.
-          </>
-        }
-      />
       {cashOpenLoadStatus === 'ready' && cashOpen === false && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
           Caja cerrada: no hay ingresos, egresos, movimientos detallados, delegados ni solicitudes hasta que alguien con

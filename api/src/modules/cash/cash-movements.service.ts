@@ -11,18 +11,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CashMovementDirection, CashSessionStatus, Prisma } from '@prisma/client';
+import { CashMovementDirection, CashSessionStatus } from '@prisma/client';
 import { decimalFromMoneyApiString } from '../../common/money/cop-money';
 import { NotesPolicyService } from '../../common/notes-policy/notes-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CashAccessService } from './cash-access.service';
 import { resolveTenderAndChange } from './cash-tender.util';
-import {
-  CASH_PURCHASE_RECEIPT_EXPENSE_CATEGORY_SLUG,
-  CASH_PURCHASE_RECEIPT_REFERENCE_TYPE,
-  CASH_WORK_ORDER_REFERENCE_TYPE,
-} from './cash.constants';
+import { CASH_WORK_ORDER_REFERENCE_TYPE } from './cash.constants';
 import type { CreateCashMovementDto } from './dto/create-cash-movement.dto';
 
 @Injectable()
@@ -33,48 +29,6 @@ export class CashMovementsService {
     private readonly access: CashAccessService,
     private readonly notes: NotesPolicyService,
   ) {}
-
-  /**
-   * Egreso por recepción de compra con costo, dentro de la misma transacción Prisma que crea la recepción.
-   * No aplica la regla de delegado (el flujo ya exige `purchase_receipts:create`).
-   */
-  async recordPurchaseReceiptExpenseInTx(
-    tx: Prisma.TransactionClient,
-    actorUserId: string,
-    input: { amount: Prisma.Decimal; purchaseReceiptId: string; note: string },
-  ) {
-    const session = await tx.cashSession.findFirst({
-      where: { status: CashSessionStatus.OPEN },
-    });
-    if (!session) {
-      throw new ConflictException(
-        'No hay sesión de caja abierta: no se puede registrar una compra con costo sin caja abierta.',
-      );
-    }
-    const category = await tx.cashMovementCategory.findUnique({
-      where: { slug: CASH_PURCHASE_RECEIPT_EXPENSE_CATEGORY_SLUG },
-    });
-    if (!category || category.direction !== CashMovementDirection.EXPENSE) {
-      throw new BadRequestException('Categoría de egreso para compra de repuestos no disponible');
-    }
-    if (input.amount.lte(0)) {
-      throw new BadRequestException('El monto del egreso por compra debe ser mayor a cero');
-    }
-    return tx.cashMovement.create({
-      data: {
-        sessionId: session.id,
-        categoryId: category.id,
-        direction: CashMovementDirection.EXPENSE,
-        amount: input.amount,
-        tenderAmount: null,
-        changeAmount: null,
-        referenceType: CASH_PURCHASE_RECEIPT_REFERENCE_TYPE,
-        referenceId: input.purchaseReceiptId,
-        note: input.note,
-        createdById: actorUserId,
-      },
-    });
-  }
 
   /** Ingreso en la sesión abierta (ruta protegida con `cash_movements:create_income`). */
   async createIncome(
@@ -112,14 +66,6 @@ export class CashMovementsService {
     dto: CreateCashMovementDto,
     meta: { ip?: string; userAgent?: string },
   ) {
-    // Regla de negocio: una sola caja abierta; `findFirst` tolera datos legados inconsistentes.
-    const session = await this.prisma.cashSession.findFirst({
-      where: { status: CashSessionStatus.OPEN },
-    });
-    if (!session) {
-      throw new ConflictException('No hay sesión de caja abierta');
-    }
-
     const category = await this.prisma.cashMovementCategory.findUnique({
       where: { slug: dto.categorySlug },
     });
@@ -142,23 +88,39 @@ export class CashMovementsService {
     const { referenceType, referenceId } = await this.resolveMovementReferences(dto);
     const { tenderAmount, changeAmount } = resolveTenderAndChange(amount, dto.tenderAmount);
 
-    const movement = await this.prisma.cashMovement.create({
-      data: {
-        sessionId: session.id,
-        categoryId: category.id,
-        direction,
-        amount,
-        tenderAmount,
-        changeAmount,
-        referenceType,
-        referenceId,
-        note: noteText,
-        createdById: actorUserId,
-      },
-      include: {
-        category: true,
-        createdBy: { select: { id: true, email: true, fullName: true } },
-      },
+    // Bloqueamos la sesión OPEN vigente y creamos el movimiento bajo ese lock: un cierre de caja
+    // concurrente compite por la misma fila (close usa FOR UPDATE sobre cash_sessions) y queda
+    // serializado; así el movimiento nunca entra a una sesión ya cerrada ni se pierde del arqueo.
+    const { movement, sessionId } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "cash_sessions" WHERE status::text = ${CashSessionStatus.OPEN} ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE`;
+
+      const session = await tx.cashSession.findFirst({
+        where: { status: CashSessionStatus.OPEN },
+        select: { id: true },
+      });
+      if (!session) {
+        throw new ConflictException('No hay sesión de caja abierta');
+      }
+
+      const movement = await tx.cashMovement.create({
+        data: {
+          sessionId: session.id,
+          categoryId: category.id,
+          direction,
+          amount,
+          tenderAmount,
+          changeAmount,
+          referenceType,
+          referenceId,
+          note: noteText,
+          createdById: actorUserId,
+        },
+        include: {
+          category: true,
+          createdBy: { select: { id: true, email: true, fullName: true } },
+        },
+      });
+      return { movement, sessionId: session.id };
     });
 
     await this.audit.recordDomain({
@@ -168,7 +130,7 @@ export class CashMovementsService {
       entityId: movement.id,
       previousPayload: null,
       nextPayload: {
-        sessionId: session.id,
+        sessionId,
         categorySlug: category.slug,
         direction,
         amount: dto.amount,

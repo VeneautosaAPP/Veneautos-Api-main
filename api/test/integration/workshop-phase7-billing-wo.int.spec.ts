@@ -194,7 +194,6 @@ describe('Phase 7 · Billing OT + pagos (integración)', () => {
     expect(invoice.status).toBe(InvoiceStatus.DRAFT);
     expect(invoice.source).toBe('WORK_ORDER');
     expect(invoice.workOrderId).toBe(wo.id);
-    expect(invoice.saleId).toBeNull();
     expect(invoice.lines).toHaveLength(2);
     expect(Number(invoice.subtotal)).toBeCloseTo(2 * 2 * 5000, 2);
     expect(Number(invoice.grandTotal)).toBeCloseTo(Number(invoice.subtotal), 2);

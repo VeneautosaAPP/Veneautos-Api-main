@@ -6,11 +6,10 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { execSync, exec as execCb } from 'child_process';
+import { exec as execCb } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 
 const execAsync = promisify(execCb);
 
@@ -141,7 +140,7 @@ export class BackupService {
     const db = this.parseDatabaseUrl(url);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = `vene_autos_${type}_${timestamp}.sql.gz`;
+    const filename = `vene_autos_${type}_${timestamp}.sql`;
     const filepath = path.join(this.backupDir, filename);
 
     const env = {
@@ -155,11 +154,11 @@ export class BackupService {
       `--port=${db.port}`,
       `--username=${db.user}`,
       `--dbname=${db.database}`,
-      '--format=custom',
-      '--compress=9',
+      // Formato SQL plano: compatible con cualquier versión de psql/pg_restore,
+      // no depende de la versión del binario que lo generó.
+      '--format=plain',
       '--no-owner',
       '--no-privileges',
-      '--verbose',
       `--file="${filepath}"`,
     ].join(' ');
 
@@ -196,7 +195,7 @@ export class BackupService {
 
     return fs
       .readdirSync(this.backupDir)
-      .filter((f) => f.startsWith('vene_autos_') && f.endsWith('.sql.gz'))
+      .filter((f) => f.startsWith('vene_autos_') && (f.endsWith('.sql') || f.endsWith('.sql.gz') || f.endsWith('.dump')))
       .map((filename) => {
         const filepath = path.join(this.backupDir, filename);
         const stat = fs.statSync(filepath);
@@ -229,9 +228,10 @@ export class BackupService {
   async restoreFromUpload(
     filepath: string,
     type: BackupType,
+    originalName?: string,
   ): Promise<RestoreResult> {
     const startTime = Date.now();
-    this.logger.log(`Iniciando restore ${type} desde ${path.basename(filepath)}...`);
+    this.logger.log(`Iniciando restore ${type} desde ${originalName || path.basename(filepath)}...`);
 
     const url = this.getConnectionUrl(type);
     const db = this.parseDatabaseUrl(url);
@@ -242,57 +242,50 @@ export class BackupService {
     };
 
     try {
-      // Paso 1: Desconectar conexiones activas
-      this.logger.log('Desconectando conexiones activas...');
-      const dropConnCmd = [
-        `"${PSQL_PATH}"`,
-        `--host=${db.host}`,
-        `--port=${db.port}`,
-        `--username=${db.user}`,
-        `--dbname=postgres`,
-        `-c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${db.database}' AND pid <> pg_backend_pid();"`,
-      ].join(' ');
-
-      try {
-        await execAsync(dropConnCmd, { env, timeout: 10_000 });
-      } catch {
-        // Ignorar errores de desconexión
-      }
-
-      // Paso 2: Eliminar y recrear la BD
-      this.logger.log('Eliminando base de datos...');
+      // Paso 1: Vaciar el esquema public EN SITIO (sin DROP DATABASE).
+      // Así la API en ejecución no pierde la conexión y no se rompen
+      // requests en curso durante el restore.
+      this.logger.log('Vaciando esquema public...');
       await execAsync(
-        `"${PSQL_PATH}" --host=${db.host} --port=${db.port} --username=${db.user} --dbname=postgres -c "DROP DATABASE IF EXISTS ${db.database};"`,
-        { env, timeout: 30_000 },
+        `"${PSQL_PATH}" --host=${db.host} --port=${db.port} --username=${db.user} --dbname=${db.database} -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE;" -c "CREATE SCHEMA public AUTHORIZATION ${db.user};"`,
+        { env, timeout: 120_000 },
       );
 
-      this.logger.log('Creando nueva base de datos...');
-      await execAsync(
-        `"${PSQL_PATH}" --host=${db.host} --port=${db.port} --username=${db.user} --dbname=postgres -c "CREATE DATABASE ${db.database} OWNER ${db.user};"`,
-        { env, timeout: 30_000 },
-      );
-
-      // Paso 3: Restaurar
+      // Paso 2: Restaurar
       this.logger.log('Restaurando datos...');
-      const restoreCmd = [
-        `"${PG_RESTORE_PATH}"`,
-        `--host=${db.host}`,
-        `--port=${db.port}`,
-        `--username=${db.user}`,
-        `--dbname=${db.database}`,
-        '--no-owner',
-        '--no-privileges',
-        '--verbose',
-        '--if-exists',
-        '--clean',
-        `"${filepath}"`,
-      ].join(' ');
 
-      await execAsync(restoreCmd, {
-        env,
-        timeout: 600_000,
-        maxBuffer: 100 * 1024 * 1024,
-      });
+      // Si el archivo es SQL plano (.sql), usar psql; formato custom usa pg_restore.
+      const isPlainSql = (originalName || filepath).toLowerCase().endsWith('.sql');
+
+      if (isPlainSql) {
+        const restoreCmd = `"${PSQL_PATH}" --host=${db.host} --port=${db.port} --username=${db.user} --dbname=${db.database} -v ON_ERROR_STOP=1 -f "${filepath}"`;
+
+        await execAsync(restoreCmd, {
+          env,
+          timeout: 600_000,
+          maxBuffer: 100 * 1024 * 1024,
+        });
+      } else {
+        const restoreCmd = [
+          `"${PG_RESTORE_PATH}"`,
+          `--host=${db.host}`,
+          `--port=${db.port}`,
+          `--username=${db.user}`,
+          `--dbname=${db.database}`,
+          '--no-owner',
+          '--no-privileges',
+          '--verbose',
+          '--if-exists',
+          '--clean',
+          `"${filepath}"`,
+        ].join(' ');
+
+        await execAsync(restoreCmd, {
+          env,
+          timeout: 600_000,
+          maxBuffer: 100 * 1024 * 1024,
+        });
+      }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       this.logger.log(`Restore completado en ${duration}s`);
@@ -317,8 +310,12 @@ export class BackupService {
 
   /**
    * Valida que un archivo sea un backup válido (formato pg_dump custom o SQL).
+   * `originalName` es el nombre del archivo subido; `filepath` es la ruta temporal guardada por Multer.
    */
-  validateBackupFile(filepath: string): { valid: boolean; reason?: string } {
+  validateBackupFile(
+    filepath: string,
+    originalName?: string,
+  ): { valid: boolean; reason?: string } {
     try {
       const stat = fs.statSync(filepath);
 
@@ -332,10 +329,17 @@ export class BackupService {
         return { valid: false, reason: 'El archivo es demasiado pequeño para ser un backup válido' };
       }
 
-      // Verificar extensión
-      const ext = path.extname(filepath).toLowerCase();
-      if (!['.sql', '.gz', '.dump', '.sql.gz'].includes(ext)) {
-        return { valid: false, reason: 'Extensión de archivo no válida (use .sql.gz o .dump)' };
+      // Verificar extensión sobre el nombre ORIGINAL del archivo subido
+      // (la ruta temporal de Multer no conserva la extensión).
+      const name = originalName ?? filepath;
+      const lower = name.toLowerCase();
+      const ok =
+        lower.endsWith('.sql.gz') ||
+        lower.endsWith('.sql') ||
+        lower.endsWith('.dump') ||
+        lower.endsWith('.gz');
+      if (!ok) {
+        return { valid: false, reason: 'Extensión de archivo no válida (use .sql.gz, .sql o .dump)' };
       }
 
       return { valid: true };

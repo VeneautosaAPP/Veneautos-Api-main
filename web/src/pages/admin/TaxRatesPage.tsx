@@ -27,7 +27,7 @@ const emptyDraft: CreateDraft = {
   sortOrder: '100',
 }
 
-export function TaxRatesPage() {
+export function TaxRatesPage({ embed = false }: { embed?: boolean }) {
   const { can } = useAuth()
   const mayCreate = can('tax_rates:create')
   const mayUpdate = can('tax_rates:update')
@@ -167,18 +167,29 @@ export function TaxRatesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Administración"
-        title="Impuestos"
-        description="Catálogo de tarifas de impuestos (IVA / INC) que se aplican a servicios, repuestos y ventas. Las tarifas históricas no se borran: se desactivan para preservar auditoría fiscal."
-        actions={
-          mayCreate ? (
+      {embed ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Impuestos</h2>
+          {mayCreate ? (
             <button type="button" className="va-btn-primary" onClick={() => setCreateOpen((v) => !v)}>
               {createOpen ? 'Cerrar formulario' : 'Nueva tarifa'}
             </button>
-          ) : null
-        }
-      />
+          ) : null}
+        </div>
+      ) : (
+        <PageHeader
+          eyebrow="Administración"
+          title="Impuestos"
+          description="Catálogo de tarifas de impuestos (IVA / INC) que se aplican a servicios, repuestos y ventas. Las tarifas históricas no se borran: se desactivan para preservar auditoría fiscal."
+          actions={
+            mayCreate ? (
+              <button type="button" className="va-btn-primary" onClick={() => setCreateOpen((v) => !v)}>
+                {createOpen ? 'Cerrar formulario' : 'Nueva tarifa'}
+              </button>
+            ) : null
+          }
+        />
+      )}
 
       {msg && (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">

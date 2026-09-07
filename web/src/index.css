@@ -519,28 +519,18 @@
     @apply bg-[var(--va-surface-page)] text-slate-900;
   }
   /**
-   * Oscuro SaaS: escala `brand-*` sólida (50 = más claro, 950 = más oscuro), como en el tema global.
-   * Nunca usar rgba en --color-brand-100/200: Tailwind aplica esos tokens a `text-*` y quedaba texto casi invisible.
+   * Oscuro SaaS → "TEGUI PRO" (industrial): las escalas `slate`/`zinc`/`brand`
+   * se remapean globalmente en `html.dark` (las utilidades leen var(--color-*));
+   * aquí solo las superficies semánticas y el acento naranja de taller.
    */
   html.va-panel-theme-saas-light.dark {
-    --color-brand-50: #eff6ff;
-    --color-brand-100: #dbeafe;
-    --color-brand-200: #bfdbfe;
-    --color-brand-300: #93c5fc;
-    --color-brand-400: #60a5fa;
-    --color-brand-500: #3b82f6;
-    --color-brand-600: #2563eb;
-    --color-brand-700: #1d4ed8;
-    --color-brand-800: #1e40af;
-    --color-brand-900: #1e3a8a;
-    --color-brand-950: #172554;
-    --va-surface-page: #020617;
-    --va-surface-elevated: #0f172a;
-    /** Sidebar un escalón más claro que el lienzo (#020617) para contraste con el área principal. */
-    --va-surface-sidebar: #0f172a;
-    --va-surface-muted: #1e293b;
-    --va-accent-soft: rgba(59, 130, 246, 0.22);
-    --va-accent-soft-ring: rgba(96, 165, 250, 0.45);
+    --va-surface-page: #0f1117;
+    --va-surface-elevated: #1a1d27;
+    /** Sidebar un escalón más claro que el lienzo (#0f1117) para contraste con el área principal. */
+    --va-surface-sidebar: #1a1d27;
+    --va-surface-muted: #22262f;
+    --va-accent-soft: #3a2412;
+    --va-accent-soft-ring: rgba(255, 122, 51, 0.45);
     @apply bg-[var(--va-surface-page)] text-slate-100;
   }
 }
@@ -906,4 +896,180 @@
   html.va-panel-theme-saas-light.dark .va-modal-panel-stack {
     @apply border-slate-700 bg-slate-900 shadow-black/40;
   }
+}
+
+/**
+ * =====================================================================
+ * Tema oscuro "TEGUI PRO — Dark Industrial"
+ * Referencia: autopiezas-tegui `app/globals.css` → `[data-theme="pro"]`.
+ * Se conserva la estructura (layout, clases, capas); solo cambian colores,
+ * bordes, contornos y sombras del tema oscuro.
+ *
+ * 1) Remapeo de tokens: las utilidades Tailwind v4 compilan a var(--color-*),
+ *    así que redefinir la escala en `html.dark` recolorea Toda la app oscura
+ *    sin tocar un solo componente.
+ * 2) Detalles de firma escritos SIN `@layer`: ganan a las utilidades de
+ *    Tailwind por regla de cascada (mismo criterio que los `!important` de
+ *    autopiezas), aclarando el objetivo en cada regla.
+ * =====================================================================
+ */
+@layer base {
+  /** Acero industrial (steel) + tinta del taller; oscuro únicamente. */
+  html.dark {
+    --color-slate-50: #eef1f5;
+    --color-slate-100: #e4e7ec;
+    --color-slate-200: #c9cfd9;
+    --color-slate-300: #aab2bf;
+    --color-slate-400: #8b919d;
+    --color-slate-500: #6e7684;
+    --color-slate-600: #4a5260;
+    --color-slate-700: #3d4450;
+    --color-slate-800: #2a2e3a;
+    --color-slate-900: #1a1d27;
+    --color-slate-950: #0f1117;
+  }
+  /** Login/portal (las páginas públicas usan zinc) — misma escala para coherencia. */
+  html.dark {
+    --color-zinc-50: #eef1f5;
+    --color-zinc-100: #e4e7ec;
+    --color-zinc-200: #c9cfd9;
+    --color-zinc-300: #aab2bf;
+    --color-zinc-400: #8b919d;
+    --color-zinc-500: #6e7684;
+    --color-zinc-600: #4a5260;
+    --color-zinc-700: #3d4450;
+    --color-zinc-800: #2a2e3a;
+    --color-zinc-900: #1a1d27;
+    --color-zinc-950: #0f1117;
+  }
+  /** Acento naranja de taller (solo oscuro; el tema claro sigue azul). */
+  html.dark {
+    --color-brand-50: #fff4ec;
+    --color-brand-100: #ffe4d1;
+    --color-brand-200: #ffc49d;
+    --color-brand-300: #ffa36a;
+    --color-brand-400: #ff8a4c;
+    --color-brand-500: #ff7a33;
+    --color-brand-600: #c03d0e;
+    --color-brand-700: #a5350c;
+    --color-brand-800: #c24a18;
+    --color-brand-900: #7c2b0a;
+    --color-brand-950: #3a2412;
+  }
+}
+
+/* --- Header: "línea de ensamblaje" naranja sobre superficie oscura --- */
+html.va-panel-theme-saas-light.dark .va-app-shell-header {
+  border-top: 2px solid #ff7a33;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Sidebar: sombra profunda + enlaces de navegación estilo Pro --- */
+html.va-panel-theme-saas-light.dark .va-app-shell-sidebar {
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+}
+html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a:not([aria-current='page']) {
+  color: #8b919d !important;
+  background: transparent !important;
+}
+html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a:not([aria-current='page']):hover {
+  color: #ff7a33 !important;
+  font-weight: 600;
+  background: transparent !important;
+}
+html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a[aria-current='page'] {
+  color: #ff7a33 !important;
+}
+/* Barra de acento vertical a la izquierda del ítem (hover y activo) */
+html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a[aria-current='page']::before,
+html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a:hover::before {
+  content: '' !important;
+  position: absolute !important;
+  left: -10px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  height: 22px !important;
+  width: 4px !important;
+  border-radius: 9999px !important;
+  background: #ff7a33 !important;
+}
+/* Subnav móvil/desk (horizontal): ítem activo en naranja, sin fondo de pill forzado */
+html.dark .va-app-shell-subnav .va-app-shell-navlinks a[aria-current='page'] {
+  color: #ff7a33 !important;
+}
+
+/* --- Combobox / sugerencias: superficie oscura + opción naranja en hover --- */
+html.dark [role='listbox'] {
+  background-color: #1a1d27 !important;
+  border-color: #2a2e3a !important;
+}
+html.dark [role='listbox'] [role='option'] {
+  color: #e4e7ec !important;
+}
+html.dark [role='listbox'] [role='option']:hover,
+html.dark [role='listbox'] [role='option'][aria-selected='true'] {
+  background-color: #ff7a33 !important;
+  color: #1a1d27 !important;
+}
+html.dark [role='listbox'] [role='option']:hover span,
+html.dark [role='listbox'] [role='option'][aria-selected='true'] span {
+  color: #1a1d27 !important;
+}
+
+/* --- Segmentados / pestañas activas: accent sólido (equivalente a [aria-pressed]) --- */
+html.dark [aria-selected='true'] {
+  background-color: #ff7a33 !important;
+  color: #ffffff !important;
+}
+html.dark :is(.va-saas-tab-strip, .va-tabstrip) .va-tab-active {
+  background-color: #ff7a33 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 14px rgba(255, 122, 51, 0.35) !important;
+}
+
+/* --- Tablas: encabezado surface-alt, filas alternadas y hover naranja --- */
+html.dark .va-table-head-row {
+  background-color: #22262f !important;
+  border-color: #2a2e3a !important;
+  color: #8b919d !important;
+}
+html.dark .va-table-body-row {
+  border-color: #2a2e3a !important;
+}
+html.dark .va-table tbody tr:nth-child(even) {
+  background-color: #1c1f29 !important;
+}
+html.dark .va-table tbody tr:hover {
+  background-color: #331f10 !important;
+}
+
+/* --- Campos: superficie acero + borde sutil; focus ring naranja brillante --- */
+html.dark .va-field,
+html.dark .va-app-shell-search {
+  background-color: #1a1d27 !important;
+  border-color: #2a2e3a !important;
+  color: #e4e7ec !important;
+}
+html.dark .va-field::placeholder,
+html.dark .va-app-shell-search::placeholder {
+  color: #6e7684 !important;
+}
+html.dark .va-field:focus,
+html.dark .va-field:focus-visible,
+html.dark .va-app-shell-search:focus {
+  border-color: #ff7a33 !important;
+  background-color: #1a1d27 !important;
+  box-shadow: 0 0 0 3px rgba(255, 122, 51, 0.16) !important;
+  outline: none;
+}
+
+/* --- Botones primarios: glow naranja al hover (mantiene el naranja profundo AA) --- */
+html.dark .va-btn-primary:not(:disabled):hover,
+html.dark .va-saas-tab-success-btn:hover {
+  box-shadow: 0 4px 18px rgba(255, 122, 51, 0.4) !important;
+}
+
+/* --- Modales: borde de acero --- */
+html.dark :is(.va-modal-panel, .va-modal-panel-wide, .va-modal-panel-stack) {
+  border-color: #2a2e3a !important;
 }

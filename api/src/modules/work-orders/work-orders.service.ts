@@ -52,11 +52,7 @@ const vehicleWithCustomer = {
 };
 
 const workOrderLineInclude = {
-  inventoryItem: {
-    include: { measurementUnit: { select: { id: true, slug: true, name: true } } },
-  },
   taxRate: { select: { id: true, slug: true, name: true, kind: true, ratePercent: true } },
-  service: { select: { id: true, code: true, name: true } },
 } as const;
 
 @Injectable()
@@ -108,7 +104,7 @@ export class WorkOrdersService {
 
     if (!vehicleIdToConnect?.trim()) {
       throw new BadRequestException(
-        'La orden debe vincularse a un vehículo registrado. En garantías, la orden origen debe tener vehículo o enviá vehicleId.',
+        'La orden debe vincularse a un vehículo registrado.',
       );
     }
 
@@ -125,7 +121,6 @@ export class WorkOrdersService {
       vehicleColor: dto.vehicleColor?.trim() || null,
       vehicleNotes: dto.vehicleNotes?.trim() ?? null,
       internalNotes: dto.internalNotes?.trim() ?? null,
-      inspectionOnly: dto.inspectionOnly ?? false,
       status: WorkOrderStatus.UNASSIGNED,
       createdBy: { connect: { id: actorUserId } },
       ...(parentId ? { parentWorkOrder: { connect: { id: parentId } } } : {}),
@@ -486,9 +481,6 @@ export class WorkOrdersService {
         ...ln,
         unitPrice: null,
         totals: null,
-        inventoryItem: ln.inventoryItem
-          ? { ...ln.inventoryItem, averageCost: null }
-          : null,
       })),
       linesSubtotal: null,
       amountDue: null,
@@ -699,9 +691,6 @@ export class WorkOrdersService {
     }
     if (dto.intakeOdometerKm !== undefined) {
       data.intakeOdometerKm = dto.intakeOdometerKm === null ? null : dto.intakeOdometerKm;
-    }
-    if (dto.inspectionOnly !== undefined) {
-      data.inspectionOnly = dto.inspectionOnly;
     }
     if (dto.vehicleNotes !== undefined) {
       data.vehicleNotes = dto.vehicleNotes?.trim() ?? null;

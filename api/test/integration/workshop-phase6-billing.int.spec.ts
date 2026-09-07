@@ -1,20 +1,22 @@
 /**
- * Fase 4 · Facturación electrónica (preparación DIAN).
+ * Fase 6 · Facturación electrónica (preparación DIAN).
  *
- * Exige migraciones aplicadas + seed (usuario administrador, unidades de medida).
+ * Exige migraciones aplicadas + seed (usuario administrador).
  * Verifica:
  *  - Alta de resolución DIAN (ELECTRONIC_INVOICE) marcada default.
- *  - Creación de factura a partir de una venta confirmada → snapshot de líneas y totales.
+ *  - Creación de factura a partir de una OT entregada → snapshot de líneas y totales.
  *  - Intento de emisión con NoopDianProvider deja la factura en DRAFT + dispatch NOT_CONFIGURED.
  *  - Anular DRAFT está permitido; `VOIDED` bloquea segunda anulación.
  *  - `createCreditNote` contra una factura ISSUED (la marcamos manualmente) genera NC en DRAFT.
- *  - Un segundo `createFromSale` a la misma venta es rechazado mientras la factura viva exista.
+ *  - Un segundo `createFromWorkOrder` a la misma OT es rechazado mientras la factura viva exista.
  */
+import { randomUUID } from 'crypto';
 import {
   CreditNoteReason,
   FiscalResolutionKind,
   InvoiceStatus,
-  SaleStatus,
+  Prisma,
+  WorkOrderStatus,
 } from '@prisma/client';
 import { DianProviderFactory } from '../../src/common/dian/dian-provider.factory';
 import { CreditNotesService } from '../../src/modules/billing/credit-notes.service';
@@ -37,9 +39,10 @@ describe('Phase 6 · Billing DIAN (integración)', () => {
     resolutions: string[];
     invoices: string[];
     creditNotes: string[];
-    sales: string[];
+    workOrders: string[];
     customers: string[];
-  } = { resolutions: [], invoices: [], creditNotes: [], sales: [], customers: [] };
+    vehicles: string[];
+  } = { resolutions: [], invoices: [], creditNotes: [], workOrders: [], customers: [], vehicles: [] };
 
   const actor: () => JwtUserPayload = () => ({
     sub: actorId,
@@ -94,9 +97,12 @@ describe('Phase 6 · Billing DIAN (integración)', () => {
       await prisma.invoiceLine.deleteMany({ where: { invoiceId: inv } }).catch(() => undefined);
       await prisma.invoice.delete({ where: { id: inv } }).catch(() => undefined);
     }
-    for (const saleId of ids.sales) {
-      await prisma.saleLine.deleteMany({ where: { saleId } }).catch(() => undefined);
-      await prisma.sale.delete({ where: { id: saleId } }).catch(() => undefined);
+    for (const wo of ids.workOrders) {
+      await prisma.workOrderLine.deleteMany({ where: { workOrderId: wo } }).catch(() => undefined);
+      await prisma.workOrder.delete({ where: { id: wo } }).catch(() => undefined);
+    }
+    for (const vid of ids.vehicles) {
+      await prisma.vehicle.delete({ where: { id: vid } }).catch(() => undefined);
     }
     for (const cid of ids.customers) {
       await prisma.customer.delete({ where: { id: cid } }).catch(() => undefined);
@@ -107,37 +113,44 @@ describe('Phase 6 · Billing DIAN (integración)', () => {
     await prisma.$disconnect();
   });
 
-  async function createConfirmedSale(lineCount = 1) {
-    const tag = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  async function createDeliveredWorkOrder(lineCount = 1) {
+    const tag = randomUUID().slice(0, 8);
     const customer = await prisma.customer.create({
       data: { displayName: `Cliente fact ${tag}`, primaryPhone: '3001111111' },
     });
     ids.customers.push(customer.id);
 
-    const sale = await prisma.sale.create({
+    const plate = `FAC${tag.slice(0, 6)}`.toUpperCase().slice(0, 10);
+    const vehicle = await prisma.vehicle.create({
+      data: { customerId: customer.id, plate, plateNorm: plate.replace(/\s+/g, '').toUpperCase() },
+    });
+    ids.vehicles.push(vehicle.id);
+
+    const wo = await prisma.workOrder.create({
       data: {
-        publicCode: `VTA-TEST-${tag.toUpperCase()}`.slice(0, 30),
-        status: SaleStatus.CONFIRMED,
-        origin: 'COUNTER',
-        customerId: customer.id,
+        publicCode: `OT-FAC-${tag.toUpperCase()}`.slice(0, 30),
+        status: WorkOrderStatus.DELIVERED,
+        description: `OT facturable ${tag}`,
+        vehicleId: vehicle.id,
         customerName: customer.displayName,
-        customerDocumentId: '900123456',
-        confirmedAt: new Date(),
+        customerEmail: `ot-${tag}@test.local`,
         createdById: actorId,
+        deliveredAt: new Date(),
         lines: {
           create: Array.from({ length: lineCount }).map((_, i) => ({
-            lineType: 'PART',
+            lineType: i % 2 === 0 ? 'PART' : 'LABOR',
             sortOrder: i,
             description: `Ítem ${i + 1}`,
-            quantity: '2',
-            unitPrice: '1500',
-            discountAmount: '0',
+            quantity: new Prisma.Decimal(i % 2 === 0 ? 2 : 1),
+            unitPrice: new Prisma.Decimal(i % 2 === 0 ? 1500 : 3000),
+            discountAmount: new Prisma.Decimal(0),
+            costSnapshot: i % 2 === 0 ? new Prisma.Decimal(900) : null,
           })),
         },
       },
     });
-    ids.sales.push(sale.id);
-    return sale;
+    ids.workOrders.push(wo.id);
+    return wo;
   }
 
   it('registra resolución default activa y asigna consecutivos monotónicos', async () => {
@@ -173,26 +186,27 @@ describe('Phase 6 · Billing DIAN (integración)', () => {
     expect(after.nextNumber).toBe(3);
   });
 
-  it('crea factura desde venta confirmada: snapshot de líneas + totales consistentes', async () => {
-    const sale = await createConfirmedSale(2);
-    const invoice = await invoices.createFromSale(sale.id, actor(), {}, {});
+  it('crea factura desde OT entregada: snapshot de líneas + totales consistentes', async () => {
+    const wo = await createDeliveredWorkOrder(2);
+    const invoice = await invoices.createFromWorkOrder(wo.id, actor(), {}, {});
     ids.invoices.push(invoice.id);
 
     expect(invoice.status).toBe(InvoiceStatus.DRAFT);
-    expect(invoice.saleId).toBe(sale.id);
+    expect(invoice.workOrderId).toBe(wo.id);
     expect(invoice.lines).toHaveLength(2);
-    expect(Number(invoice.subtotal)).toBeCloseTo(2 * 2 * 1500, 2);
+    // Línea 0: 2×1500 PART; línea 1: 1×3000 LABOR → subtotal 6000.
+    expect(Number(invoice.subtotal)).toBeCloseTo(6000, 2);
     expect(Number(invoice.grandTotal)).toBeCloseTo(Number(invoice.subtotal), 2);
 
-    // Re-facturar la misma venta mientras la factura vive está prohibido.
+    // Re-facturar la misma OT mientras la factura vive está prohibido.
     await expect(
-      invoices.createFromSale(sale.id, actor(), {}, {}),
+      invoices.createFromWorkOrder(wo.id, actor(), {}, {}),
     ).rejects.toThrow(/ya tiene una factura viva/i);
   });
 
   it('emitir con DIAN apagado deja la factura en DRAFT con dispatch NOT_CONFIGURED', async () => {
-    const sale = await createConfirmedSale(1);
-    const created = await invoices.createFromSale(sale.id, actor(), {}, {});
+    const wo = await createDeliveredWorkOrder(1);
+    const created = await invoices.createFromWorkOrder(wo.id, actor(), {}, {});
     ids.invoices.push(created.id);
 
     const afterIssue = await invoices.issue(created.id, actor(), {});
@@ -202,8 +216,8 @@ describe('Phase 6 · Billing DIAN (integración)', () => {
   });
 
   it('anula factura en DRAFT; bloquea segunda anulación', async () => {
-    const sale = await createConfirmedSale(1);
-    const inv = await invoices.createFromSale(sale.id, actor(), {}, {});
+    const wo = await createDeliveredWorkOrder(1);
+    const inv = await invoices.createFromWorkOrder(wo.id, actor(), {}, {});
     ids.invoices.push(inv.id);
 
     const voided = await invoices.void(inv.id, actor(), { reason: 'Cliente canceló pedido' }, {});
@@ -216,8 +230,8 @@ describe('Phase 6 · Billing DIAN (integración)', () => {
   });
 
   it('emite NC contra una factura marcada ISSUED (simulación)', async () => {
-    const sale = await createConfirmedSale(1);
-    const inv = await invoices.createFromSale(sale.id, actor(), {}, {});
+    const wo = await createDeliveredWorkOrder(1);
+    const inv = await invoices.createFromWorkOrder(wo.id, actor(), {}, {});
     ids.invoices.push(inv.id);
 
     // Simular aceptación DIAN: promover DRAFT → ISSUED directamente en BD para el test.

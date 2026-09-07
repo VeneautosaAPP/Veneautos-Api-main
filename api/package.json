@@ -21,10 +21,9 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
     "backfill:legacy-vehicles": "ts-node --project tsconfig.scripts.json prisma/scripts/backfill-legacy-vehicles.ts",
-    "prisma:import-inventory-xlsx": "ts-node --project tsconfig.scripts.json prisma/scripts/import-inventory-from-xlsx.ts",
     "purge:work-orders": "ts-node --project tsconfig.scripts.json prisma/scripts/purge-all-work-orders.ts",
+    "prisma:backfill-ot-line-catalog": "ts-node --project tsconfig.scripts.json prisma/scripts/backfill-ot-line-catalog.ts",
     "prisma:wipe-all-data": "ts-node --project tsconfig.scripts.json prisma/scripts/wipe-all-data.ts",
-    "prisma:wipe-inventory-ot": "ts-node --project tsconfig.scripts.json prisma/scripts/wipe-inventory-and-work-orders.ts",
     "db:backup:local": "ts-node --project tsconfig.scripts.json prisma/scripts/db-backup.ts local",
     "db:backup:production": "ts-node --project tsconfig.scripts.json prisma/scripts/db-backup.ts production",
     "db:restore": "ts-node --project tsconfig.scripts.json prisma/scripts/db-restore.ts"

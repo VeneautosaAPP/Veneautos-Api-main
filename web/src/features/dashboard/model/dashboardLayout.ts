@@ -1,11 +1,6 @@
 import {
   BarChart3,
-  CircleDollarSign,
   ClipboardList,
-  Droplet,
-  Inbox,
-  NotebookTabs,
-  Package,
   ScrollText,
   Settings,
   Shield,
@@ -13,7 +8,6 @@ import {
   UsersRound,
   Wallet,
 } from 'lucide-react'
-import { canSeeQuotesUi } from '../../../auth/quoteRouteAccess'
 import { portalPath, stripPortalBase } from '../../../constants/portalPath'
 import type { DashboardModule, DashboardSection } from '../../../components/dashboard/dashboardTypes'
 import { modulePriority, sectionPriority } from '../../../components/dashboard/dashboardPriorities'
@@ -21,11 +15,11 @@ import { getStoredLastModulePath } from '../../../services/lastModuleStorage'
 
 export type CanFn = (permission: string) => boolean
 
-export function createDashboardSections(can: CanFn, cashSessionOpen: boolean | null): DashboardSection[] {
+export function createDashboardSections(can: CanFn): DashboardSection[] {
   return [
     {
       title: 'Operación diaria',
-      description: 'Acciones principales del taller para caja, órdenes e inventario.',
+      description: 'Acciones principales del taller para caja y órdenes.',
       modules: [
         {
           to: portalPath('/caja'),
@@ -42,39 +36,6 @@ export function createDashboardSections(can: CanFn, cashSessionOpen: boolean | n
           icon: ClipboardList,
           show: can('work_orders:read') || can('work_orders:read_portal'),
           enabled: true,
-        },
-        {
-          to: portalPath('/cotizaciones'),
-          title: 'Cotizaciones',
-          description: 'Presupuestos y repuestos cotizados (incluye altas sin stock hasta compra).',
-          icon: NotebookTabs,
-          show: canSeeQuotesUi(can),
-          enabled: true,
-        },
-        {
-          to: portalPath('/inventario'),
-          title: 'Repuestos',
-          description: 'Consulta de ítems, stock y costos de inventario.',
-          icon: Package,
-          show: can('inventory_items:read'),
-          enabled: true,
-        },
-        {
-          to: portalPath('/aceite'),
-          title: 'Aceite',
-          description: 'Control de canecas, consumos y costos por OT.',
-          icon: Droplet,
-          show: can('inventory_items:read'),
-          enabled: true,
-        },
-        {
-          to: portalPath('/recepcion'),
-          title: 'Recepción',
-          description: 'Registrar entradas de stock y compras del día.',
-          icon: Inbox,
-          show: can('purchase_receipts:create'),
-          enabled: cashSessionOpen === true,
-          hint: cashSessionOpen === true ? undefined : 'Requiere caja abierta',
         },
       ],
     },
@@ -96,14 +57,6 @@ export function createDashboardSections(can: CanFn, cashSessionOpen: boolean | n
           description: 'Métricas de actividad, ingresos y desempeño operativo.',
           icon: BarChart3,
           show: can('reports:read'),
-          enabled: true,
-        },
-        {
-          to: portalPath('/admin/credito-empleados'),
-          title: 'Crédito empleados',
-          description: 'Cargos internos por persona; solo se editan líneas, no el nombre del usuario.',
-          icon: CircleDollarSign,
-          show: can('employee_credits:read'),
           enabled: true,
         },
       ],
@@ -141,7 +94,7 @@ export function createDashboardSections(can: CanFn, cashSessionOpen: boolean | n
           title: 'Configuración',
           description: 'Parámetros del taller, políticas y soporte.',
           icon: Settings,
-          show: can('settings:read'),
+          show: can('settings:read') || can('tax_rates:read'),
           enabled: true,
         },
       ],

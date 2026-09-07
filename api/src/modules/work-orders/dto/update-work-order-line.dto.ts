@@ -1,6 +1,6 @@
 import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { MONEY_DECIMAL_REGEX } from '../../cash/cash.constants';
-import { QTY_DECIMAL_REGEX } from '../../inventory/inventory.constants';
+import { QTY_DECIMAL_REGEX } from '../../../common/regex/qty-decimal.regex';
 
 export class UpdateWorkOrderLineDto {
   @IsOptional()
@@ -20,21 +20,22 @@ export class UpdateWorkOrderLineDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(3)
+  @MinLength(1)
   @MaxLength(2000)
   description?: string;
-
-  /** Vincular/desvincular un servicio del catálogo (solo tiene sentido en líneas LABOR). */
-  @IsOptional()
-  @IsString()
-  @MaxLength(128)
-  serviceId?: string | null;
 
   /** Cambiar la tarifa de impuesto aplicada (null → quitar). */
   @IsOptional()
   @IsString()
   @MaxLength(128)
   taxRateId?: string | null;
+
+  /** SKU del catálogo vinculado (null → la línea deja de estar vinculada al catálogo). */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  sparePartSku?: string | null;
 
   /** Descuento de línea en COP enteros (null → quitar). */
   @IsOptional()

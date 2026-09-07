@@ -3,7 +3,7 @@
  * sólo garantiza que (a) el encabezado incluye los datos del taller activos, (b) las
  * líneas, totales y pagos se imprimen y (c) la leyenda fiscal cambia según el régimen.
  */
-import { ReceiptsService, type WorkOrderForReceipt, type SaleForReceipt } from './receipts.service';
+import { ReceiptsService, type WorkOrderForReceipt } from './receipts.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { WorkshopLogoService } from './workshop-logo.service';
 
@@ -118,14 +118,17 @@ describe('ReceiptsService', () => {
     ]);
     const service = new ReceiptsService(prisma, makeLogosStub());
 
-    const sale: SaleForReceipt = {
-      id: 's1',
-      publicCode: 'V-0007',
-      status: 'CONFIRMED',
-      origin: 'COUNTER',
+    const wo: WorkOrderForReceipt = {
+      id: 'wo2',
+      publicCode: 'OT-0002',
+      orderNumber: 2,
+      status: 'DELIVERED',
+      description: null,
       createdAt: new Date('2026-04-15T10:00:00Z'),
-      confirmedAt: new Date('2026-04-15T10:05:00Z'),
-      customerName: 'Consumidor final',
+      deliveredAt: new Date('2026-04-15T10:05:00Z'),
+      customerName: null,
+      customerPhone: null,
+      customerEmail: null,
       lines: [
         {
           lineType: 'PART',
@@ -140,9 +143,9 @@ describe('ReceiptsService', () => {
       paymentSummary: { totalPaid: '180000' },
     };
 
-    const html = await service.renderSaleReceipt(sale);
+    const html = await service.renderWorkOrderReceipt(wo);
 
-    expect(html).toContain('V-0007');
+    expect(html).toContain('OT-0002');
     expect(html).toContain('Pastillas de freno');
     expect(html).toContain('factura electrónica DIAN');
     expect(html).not.toContain('no obligada a facturar electrónicamente');
@@ -152,18 +155,21 @@ describe('ReceiptsService', () => {
     const prisma = makePrismaStub([]);
     const service = new ReceiptsService(prisma, makeLogosStub());
 
-    const sale: SaleForReceipt = {
-      id: 's2',
-      publicCode: 'V-0001',
-      status: 'CONFIRMED',
-      origin: 'COUNTER',
+    const wo: WorkOrderForReceipt = {
+      id: 'wo3',
+      publicCode: 'OT-0001',
+      orderNumber: 1,
+      status: 'UNASSIGNED',
+      description: null,
       createdAt: new Date('2026-04-15T10:00:00Z'),
+      deliveredAt: null,
       customerName: null,
+      customerPhone: null,
+      customerEmail: null,
       lines: [],
     };
 
-    const html = await service.renderSaleReceipt(sale);
+    const html = await service.renderWorkOrderReceipt(wo);
     expect(html).toContain('Taller');
-    expect(html).toContain('Consumidor final');
   });
 });

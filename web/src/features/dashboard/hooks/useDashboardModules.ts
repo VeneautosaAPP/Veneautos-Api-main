@@ -12,7 +12,7 @@ export function useDashboardModules() {
   const { open: cashSessionOpen } = useCashSummary()
 
   return useMemo(() => {
-    const raw = createDashboardSections(can, cashSessionOpen)
+    const raw = createDashboardSections(can)
     const layout = deriveDashboardLayout(raw)
     return {
       user,

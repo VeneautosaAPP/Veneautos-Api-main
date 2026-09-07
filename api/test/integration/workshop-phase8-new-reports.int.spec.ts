@@ -22,9 +22,6 @@ import {
   InvoiceSource,
   InvoiceStatus,
   Prisma,
-  SaleLineType,
-  SaleOrigin,
-  SaleStatus,
   TaxRateKind,
   WorkOrderLineType,
   WorkOrderStatus,
@@ -36,19 +33,15 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
   let prisma: PrismaService;
   let reports: ReportsService;
   let actorId: string;
-  let measurementUnitId: string;
 
   /** IDs creados por el test: borrar en orden inverso al de dependencias. */
   const ids: {
     invoices: string[];
     fiscalResolutions: string[];
-    sales: string[];
     workOrders: string[];
     customers: string[];
     vehicles: string[];
-    services: string[];
     taxRates: string[];
-    inventoryItems: string[];
     cashSessions: string[];
     cashMovements: string[];
     cashCategories: string[];
@@ -56,13 +49,10 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
   } = {
     invoices: [],
     fiscalResolutions: [],
-    sales: [],
     workOrders: [],
     customers: [],
     vehicles: [],
-    services: [],
     taxRates: [],
-    inventoryItems: [],
     cashSessions: [],
     cashMovements: [],
     cashCategories: [],
@@ -85,10 +75,6 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     });
     if (!admin) throw new Error('Seed requerido: falta admin');
     actorId = admin.userId;
-
-    const unit = await prisma.measurementUnit.findFirst({ select: { id: true } });
-    if (!unit) throw new Error('Seed requerido: falta al menos una MeasurementUnit');
-    measurementUnitId = unit.id;
   });
 
   afterAll(async () => {
@@ -109,10 +95,6 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     for (const r of ids.fiscalResolutions) {
       await prisma.fiscalResolution.delete({ where: { id: r } }).catch(() => undefined);
     }
-    for (const s of ids.sales) {
-      await prisma.saleLine.deleteMany({ where: { saleId: s } }).catch(() => undefined);
-      await prisma.sale.delete({ where: { id: s } }).catch(() => undefined);
-    }
     for (const wo of ids.workOrders) {
       await prisma.workOrderLine.deleteMany({ where: { workOrderId: wo } }).catch(() => undefined);
       await prisma.workOrder.delete({ where: { id: wo } }).catch(() => undefined);
@@ -122,13 +104,6 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     }
     for (const c of ids.customers) {
       await prisma.customer.delete({ where: { id: c } }).catch(() => undefined);
-    }
-    for (const it of ids.inventoryItems) {
-      await prisma.inventoryMovement.deleteMany({ where: { inventoryItemId: it } }).catch(() => undefined);
-      await prisma.inventoryItem.delete({ where: { id: it } }).catch(() => undefined);
-    }
-    for (const srv of ids.services) {
-      await prisma.service.delete({ where: { id: srv } }).catch(() => undefined);
     }
     for (const tr of ids.taxRates) {
       await prisma.taxRate.delete({ where: { id: tr } }).catch(() => undefined);
@@ -194,6 +169,25 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     return { customer, vehicle };
   }
 
+  /** OT mínima DELIVERED usada como referencia (workOrderId) de facturas en los tests. */
+  async function createBackingWorkOrder(tag: string) {
+    const nonce = randomUUID().slice(0, 6).toUpperCase();
+    const { vehicle, customer } = await createCustomerWithVehicle(`B${nonce}`);
+    const wo = await prisma.workOrder.create({
+      data: {
+        publicCode: `OT-BK-${tag}`.toUpperCase().slice(0, 30),
+        status: WorkOrderStatus.DELIVERED,
+        description: `OT respaldo ${tag}`,
+        vehicleId: vehicle.id,
+        customerName: customer.displayName,
+        createdById: actorId,
+        deliveredAt: new Date(),
+      },
+    });
+    ids.workOrders.push(wo.id);
+    return wo;
+  }
+
   // ---------------------------------------------------------------------------
   // 1. salesByPaymentMethod
   // ---------------------------------------------------------------------------
@@ -256,85 +250,7 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 2. saleProfitability
-  // ---------------------------------------------------------------------------
-
-  it('saleProfitability: calcula margen por venta y marca costUnknown', async () => {
-    const tag = randomUUID().slice(0, 6);
-
-    const saleOk = await prisma.sale.create({
-      data: {
-        publicCode: `VTA-F8-OK-${tag}`.slice(0, 32),
-        status: SaleStatus.CONFIRMED,
-        origin: SaleOrigin.COUNTER,
-        customerName: `Cliente F8 OK ${tag}`,
-        createdById: actorId,
-        confirmedAt: new Date(),
-        lines: {
-          create: [
-            {
-              lineType: SaleLineType.PART,
-              sortOrder: 0,
-              description: 'Pieza con costSnapshot',
-              quantity: new Prisma.Decimal(1),
-              unitPrice: new Prisma.Decimal(10000),
-              discountAmount: new Prisma.Decimal(0),
-              costSnapshot: new Prisma.Decimal(6000),
-            },
-          ],
-        },
-      },
-    });
-    ids.sales.push(saleOk.id);
-
-    const saleMiss = await prisma.sale.create({
-      data: {
-        publicCode: `VTA-F8-MS-${tag}`.slice(0, 32),
-        status: SaleStatus.CONFIRMED,
-        origin: SaleOrigin.COUNTER,
-        customerName: `Cliente F8 MISS ${tag}`,
-        createdById: actorId,
-        confirmedAt: new Date(),
-        lines: {
-          create: [
-            {
-              lineType: SaleLineType.PART,
-              sortOrder: 0,
-              description: 'Pieza sin costSnapshot',
-              quantity: new Prisma.Decimal(1),
-              unitPrice: new Prisma.Decimal(5000),
-              discountAmount: new Prisma.Decimal(0),
-              costSnapshot: null,
-            },
-          ],
-        },
-      },
-    });
-    ids.sales.push(saleMiss.id);
-
-    const r = await reports.saleProfitability({ from: today(), to: today() });
-
-    const rowOk = r.rows.find((x) => x.saleId === saleOk.id);
-    const rowMiss = r.rows.find((x) => x.saleId === saleMiss.id);
-
-    expect(rowOk).toBeDefined();
-    expect(rowOk!.costUnknown).toBe(false);
-    expect(Number.parseFloat(rowOk!.totalCost!)).toBe(6000);
-    expect(Number.parseFloat(rowOk!.totalProfit!)).toBe(4000);
-    expect(rowOk!.marginPct).toBe('40');
-
-    expect(rowMiss).toBeDefined();
-    expect(rowMiss!.costUnknown).toBe(true);
-    expect(rowMiss!.totalCost).toBeNull();
-    expect(rowMiss!.totalProfit).toBeNull();
-    expect(rowMiss!.marginPct).toBeNull();
-
-    expect(r.totals.salesConsidered).toBeGreaterThanOrEqual(2);
-    expect(r.totals.salesCounted).toBeGreaterThanOrEqual(1);
-  });
-
-  // ---------------------------------------------------------------------------
-  // 3. taxCausado
+  // 2. taxCausado
   // ---------------------------------------------------------------------------
 
   it('taxCausado: suma base gravable e impuesto por TaxRate solo de facturas ISSUED', async () => {
@@ -365,19 +281,8 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     });
     ids.fiscalResolutions.push(resolution.id);
 
-    // La factura requiere `saleId` cuando source=SALE (CHECK invoices_source_has_ref_ck).
-    const saleForInvoice = await prisma.sale.create({
-      data: {
-        publicCode: `VTA-TAX-${tag}`.slice(0, 32),
-        status: SaleStatus.CONFIRMED,
-        origin: SaleOrigin.COUNTER,
-        customerName: 'Cliente Fase 8 (taxCausado)',
-        createdById: actorId,
-        confirmedAt: new Date(),
-      },
-    });
-    ids.sales.push(saleForInvoice.id);
-
+    // La factura requiere `workOrderId` cuando source=WORK_ORDER (CHECK invoices_source_has_ref_ck).
+    const backingWo = await createBackingWorkOrder(`TAX-${tag}`);
     const docNumber = `${resolution.prefix}1`;
     const invoice = await prisma.invoice.create({
       data: {
@@ -385,8 +290,8 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
         invoiceNumber: 1,
         documentNumber: docNumber,
         status: InvoiceStatus.ISSUED,
-        source: InvoiceSource.SALE,
-        saleId: saleForInvoice.id,
+        source: InvoiceSource.WORK_ORDER,
+        workOrderId: backingWo.id,
         customerName: 'Cliente Fase 8 (taxCausado)',
         subtotal: new Prisma.Decimal(10000),
         totalDiscount: new Prisma.Decimal(0),
@@ -432,7 +337,7 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 4. dianStatus
+  // 3. dianStatus
   // ---------------------------------------------------------------------------
 
   it('dianStatus: cuenta por estado y toma último dispatch event por factura ISSUED', async () => {
@@ -452,32 +357,16 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     });
     ids.fiscalResolutions.push(resolution.id);
 
-    // Helper local: crea una Sale mínima para respaldar la factura.
-    const createBackingSale = async (suffix: string) => {
-      const s = await prisma.sale.create({
-        data: {
-          publicCode: `VTA-DIAN-${tag}-${suffix}`.slice(0, 32),
-          status: SaleStatus.CONFIRMED,
-          origin: SaleOrigin.COUNTER,
-          customerName: `Cliente DIAN ${suffix}`,
-          createdById: actorId,
-          confirmedAt: new Date(),
-        },
-      });
-      ids.sales.push(s.id);
-      return s;
-    };
-
     // Factura 1: ISSUED con dispatch ACCEPTED.
-    const saleAcc = await createBackingSale('ACC');
+    const woAcc = await createBackingWorkOrder(`DIAN-${tag}-ACC`);
     const accepted = await prisma.invoice.create({
       data: {
         fiscalResolutionId: resolution.id,
         invoiceNumber: 200,
         documentNumber: `${resolution.prefix}200`,
         status: InvoiceStatus.ISSUED,
-        source: InvoiceSource.SALE,
-        saleId: saleAcc.id,
+        source: InvoiceSource.WORK_ORDER,
+        workOrderId: woAcc.id,
         customerName: 'Cliente DIAN ACC',
         subtotal: new Prisma.Decimal(1000),
         grandTotal: new Prisma.Decimal(1000),
@@ -500,15 +389,15 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     ids.invoices.push(accepted.id);
 
     // Factura 2: ISSUED sin dispatch → cuenta en NO_DISPATCH.
-    const saleNoDisp = await createBackingSale('SIN');
+    const woNoDisp = await createBackingWorkOrder(`DIAN-${tag}-SIN`);
     const noDispatch = await prisma.invoice.create({
       data: {
         fiscalResolutionId: resolution.id,
         invoiceNumber: 201,
         documentNumber: `${resolution.prefix}201`,
         status: InvoiceStatus.ISSUED,
-        source: InvoiceSource.SALE,
-        saleId: saleNoDisp.id,
+        source: InvoiceSource.WORK_ORDER,
+        workOrderId: woNoDisp.id,
         customerName: 'Cliente DIAN SIN',
         subtotal: new Prisma.Decimal(500),
         grandTotal: new Prisma.Decimal(500),
@@ -519,15 +408,15 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
     ids.invoices.push(noDispatch.id);
 
     // Factura 3: DRAFT.
-    const saleDraft = await createBackingSale('DRAFT');
+    const woDraft = await createBackingWorkOrder(`DIAN-${tag}-DRAFT`);
     const draft = await prisma.invoice.create({
       data: {
         fiscalResolutionId: resolution.id,
         invoiceNumber: 202,
         documentNumber: `${resolution.prefix}202`,
         status: InvoiceStatus.DRAFT,
-        source: InvoiceSource.SALE,
-        saleId: saleDraft.id,
+        source: InvoiceSource.WORK_ORDER,
+        workOrderId: woDraft.id,
         customerName: 'Cliente DIAN DRAFT',
         subtotal: new Prisma.Decimal(200),
         grandTotal: new Prisma.Decimal(200),
@@ -547,60 +436,7 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 5. stockCritical
-  // ---------------------------------------------------------------------------
-
-  it('stockCritical: lista ítems activos con stock ≤ threshold; override por query manda', async () => {
-    const tag = randomUUID().slice(0, 6).toUpperCase();
-
-    const low = await prisma.inventoryItem.create({
-      data: {
-        sku: `F8-LOW-${tag}`,
-        name: `Ítem F8 bajo ${tag}`,
-        measurementUnitId,
-        quantityOnHand: new Prisma.Decimal(1),
-        averageCost: new Prisma.Decimal(15000),
-        trackStock: true,
-        isActive: true,
-      },
-    });
-    ids.inventoryItems.push(low.id);
-
-    const high = await prisma.inventoryItem.create({
-      data: {
-        sku: `F8-HIGH-${tag}`,
-        name: `Ítem F8 alto ${tag}`,
-        measurementUnitId,
-        quantityOnHand: new Prisma.Decimal(50),
-        averageCost: new Prisma.Decimal(8000),
-        trackStock: true,
-        isActive: true,
-      },
-    });
-    ids.inventoryItems.push(high.id);
-
-    // Override por query: threshold=2 → debe incluir `low` y excluir `high`.
-    const r = await reports.stockCritical({ threshold: 2 });
-    expect(r.source).toBe('query');
-    expect(r.threshold).toBe(2);
-    const lowRow = r.rows.find((x) => x.inventoryItemId === low.id);
-    const highRow = r.rows.find((x) => x.inventoryItemId === high.id);
-    expect(lowRow).toBeDefined();
-    expect(lowRow!.sku).toBe(low.sku);
-    expect(Number.parseFloat(lowRow!.quantityOnHand)).toBe(1);
-    expect(lowRow!.measurementUnitSlug).toBeDefined();
-    expect(highRow).toBeUndefined();
-
-    // Sin override: usa el setting (o el fallback 3). Igual debe incluir `low` (stock=1 ≤ 3).
-    const r2 = await reports.stockCritical({});
-    expect(r2.source).toBe('setting');
-    expect(r2.threshold).toBeGreaterThanOrEqual(1);
-    const lowRow2 = r2.rows.find((x) => x.inventoryItemId === low.id);
-    expect(lowRow2).toBeDefined();
-  });
-
-  // ---------------------------------------------------------------------------
-  // 6. profitabilityByTechnician
+  // 4. profitabilityByTechnician
   // ---------------------------------------------------------------------------
 
   it('profitabilityByTechnician: agrupa OT DELIVERED por assignedTo y separa OT sin técnico', async () => {
@@ -682,56 +518,21 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 7. profitabilityByService
+  // 5. profitabilityByService
   // ---------------------------------------------------------------------------
 
-  it('profitabilityByService: agrupa líneas LABOR (OT + Sale) por `serviceId`', async () => {
+  it('profitabilityByService: agrupa líneas LABOR de OT DELIVERED por descripción', async () => {
     const tag = randomUUID().slice(0, 6).toUpperCase();
+    const desc = `Diagnóstico F8 ${tag}`;
 
-    const service = await prisma.service.create({
-      data: {
-        code: `SRV-F8-${tag}`.slice(0, 60),
-        name: `Diagnóstico F8 ${tag}`,
-        defaultUnitPrice: new Prisma.Decimal(8000),
-        isActive: true,
-      },
-    });
-    ids.services.push(service.id);
-
-    // Sale confirmada con LABOR + serviceId.
-    const sale = await prisma.sale.create({
-      data: {
-        publicCode: `VTA-SRV-${tag}`.slice(0, 32),
-        status: SaleStatus.CONFIRMED,
-        origin: SaleOrigin.COUNTER,
-        customerName: `Cliente servicio F8 ${tag}`,
-        createdById: actorId,
-        confirmedAt: new Date(),
-        lines: {
-          create: [
-            {
-              lineType: SaleLineType.LABOR,
-              sortOrder: 0,
-              serviceId: service.id,
-              description: `Diagnóstico ${tag}`,
-              quantity: new Prisma.Decimal(2),
-              unitPrice: new Prisma.Decimal(8000),
-              discountAmount: new Prisma.Decimal(0),
-              costSnapshot: null,
-            },
-          ],
-        },
-      },
-    });
-    ids.sales.push(sale.id);
-
-    // OT DELIVERED con LABOR + serviceId.
     const { vehicle, customer } = await createCustomerWithVehicle(`S${tag.slice(0, 3)}`);
-    const wo = await prisma.workOrder.create({
+
+    // OT DELIVERED #1 con LABOR (2×8000) sin costSnapshot → utilidad = ingreso.
+    const wo1 = await prisma.workOrder.create({
       data: {
-        publicCode: `OT-SRV-${tag}`.slice(0, 30),
+        publicCode: `OT-SRV1-${tag}`.slice(0, 30),
         status: WorkOrderStatus.DELIVERED,
-        description: `OT servicio ${tag}`,
+        description: `OT servicio 1 ${tag}`,
         vehicleId: vehicle.id,
         customerName: customer.displayName,
         createdById: actorId,
@@ -742,8 +543,35 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
             {
               lineType: WorkOrderLineType.LABOR,
               sortOrder: 0,
-              serviceId: service.id,
-              description: `Diagnóstico OT ${tag}`,
+              description: desc,
+              quantity: new Prisma.Decimal(2),
+              unitPrice: new Prisma.Decimal(8000),
+              discountAmount: new Prisma.Decimal(0),
+              costSnapshot: null,
+            },
+          ],
+        },
+      },
+    });
+    ids.workOrders.push(wo1.id);
+
+    // OT DELIVERED #2 con LABOR (1×8000) misma descripción → debe sumar al mismo bucket.
+    const wo2 = await prisma.workOrder.create({
+      data: {
+        publicCode: `OT-SRV2-${tag}`.slice(0, 30),
+        status: WorkOrderStatus.DELIVERED,
+        description: `OT servicio 2 ${tag}`,
+        vehicleId: vehicle.id,
+        customerName: customer.displayName,
+        createdById: actorId,
+        assignedToId: actorId,
+        deliveredAt: new Date(),
+        lines: {
+          create: [
+            {
+              lineType: WorkOrderLineType.LABOR,
+              sortOrder: 0,
+              description: desc,
               quantity: new Prisma.Decimal(1),
               unitPrice: new Prisma.Decimal(8000),
               discountAmount: new Prisma.Decimal(0),
@@ -753,14 +581,13 @@ describe('Fase 8 · Reportes de negocio (integración)', () => {
         },
       },
     });
-    ids.workOrders.push(wo.id);
+    ids.workOrders.push(wo2.id);
 
     const r = await reports.profitabilityByService({ from: today(), to: today() });
 
-    const bucket = r.rows.find((x) => x.serviceId === service.id);
+    const bucket = r.rows.find((x) => x.serviceKey === desc.toLocaleLowerCase('es'));
     expect(bucket).toBeDefined();
-    expect(bucket!.code).toBe(service.code);
-    expect(bucket!.name).toBe(service.name);
+    expect(bucket!.name).toBe(desc);
     expect(bucket!.lineCount).toBeGreaterThanOrEqual(2);
     expect(Number.parseFloat(bucket!.revenueTotal)).toBeGreaterThanOrEqual(24000); // 2*8000 + 1*8000
     // LABOR sin costSnapshot → utilidad = ingreso (según `computeBillingTotals`).

@@ -16,7 +16,6 @@ import {
   CashSessionStatus,
   FiscalResolutionKind,
   Prisma,
-  SaleStatus,
   WorkOrderStatus,
 } from '@prisma/client';
 import { DianProviderFactory } from '../../src/common/dian/dian-provider.factory';
@@ -42,7 +41,6 @@ describe('Phase 8 · Reportes y cierre contable (integración)', () => {
     resolutions: string[];
     invoices: string[];
     workOrders: string[];
-    sales: string[];
     customers: string[];
     vehicles: string[];
     cashSessions: string[];
@@ -51,7 +49,6 @@ describe('Phase 8 · Reportes y cierre contable (integración)', () => {
     resolutions: [],
     invoices: [],
     workOrders: [],
-    sales: [],
     customers: [],
     vehicles: [],
     cashSessions: [],
@@ -103,10 +100,6 @@ describe('Phase 8 · Reportes y cierre contable (integración)', () => {
       await prisma.invoiceDispatchEvent.deleteMany({ where: { invoiceId: inv } }).catch(() => undefined);
       await prisma.invoiceLine.deleteMany({ where: { invoiceId: inv } }).catch(() => undefined);
       await prisma.invoice.delete({ where: { id: inv } }).catch(() => undefined);
-    }
-    for (const s of ids.sales) {
-      await prisma.saleLine.deleteMany({ where: { saleId: s } }).catch(() => undefined);
-      await prisma.sale.delete({ where: { id: s } }).catch(() => undefined);
     }
     for (const wo of ids.workOrders) {
       await prisma.workOrderLine.deleteMany({ where: { workOrderId: wo } }).catch(() => undefined);
@@ -188,40 +181,13 @@ describe('Phase 8 · Reportes y cierre contable (integración)', () => {
     return wo;
   }
 
-  it('revenueUnified: Factura > Venta > OT (deduplicación)', async () => {
+  it('revenueUnified: Factura > OT (deduplicación)', async () => {
     await ensureResolution();
 
     // Caso 1: OT DELIVERED sola → cuenta como workOrder.
     const woAlone = await createDeliveredWorkOrder({ unitPrice: 1000 });
 
-    // Caso 2: OT DELIVERED + Sale CONFIRMED → cuenta como sale (OT queda cubierta).
-    const woWithSale = await createDeliveredWorkOrder({ unitPrice: 2000 });
-    const sale = await prisma.sale.create({
-      data: {
-        publicCode: `VTA-REP-${randomUUID().slice(0, 6)}`,
-        status: SaleStatus.CONFIRMED,
-        origin: 'WORK_ORDER',
-        originWorkOrderId: woWithSale.id,
-        customerName: woWithSale.customerName,
-        createdById: actorId,
-        confirmedAt: new Date(),
-        lines: {
-          create: [
-            {
-              lineType: 'LABOR',
-              sortOrder: 0,
-              description: 'Mano de obra',
-              quantity: new Prisma.Decimal(1),
-              unitPrice: new Prisma.Decimal(2000),
-              discountAmount: new Prisma.Decimal(0),
-            },
-          ],
-        },
-      },
-    });
-    ids.sales.push(sale.id);
-
-    // Caso 3: OT DELIVERED + Invoice (directa) → cuenta como factura (OT queda cubierta).
+    // Caso 2: OT DELIVERED + Invoice (directa) → cuenta como factura (OT queda cubierta).
     const woWithInvoice = await createDeliveredWorkOrder({ unitPrice: 3000 });
     const inv = await invoices.createFromWorkOrder(woWithInvoice.id, actor(), {}, {});
     ids.invoices.push(inv.id);
@@ -229,14 +195,13 @@ describe('Phase 8 · Reportes y cierre contable (integración)', () => {
     const today = new Date().toISOString().slice(0, 10);
     const result = await reports.revenueUnified({ from: today, to: today, granularity: 'day' });
 
-    // Al menos debe incluir nuestros 3 eventos (no bloqueamos por datos pre-existentes del seed).
+    // Al menos debe incluir nuestros 2 eventos (no bloqueamos por datos pre-existentes del seed).
     expect(result.counts.invoices).toBeGreaterThanOrEqual(1);
-    expect(result.counts.sales).toBeGreaterThanOrEqual(1);
     expect(result.counts.workOrders).toBeGreaterThanOrEqual(1);
 
-    // Nuestras 3 contribuciones suman 1000 + 2000 + 3000 = 6000 en total unificado.
+    // Nuestras 2 contribuciones suman 1000 + 3000 = 4000 en total unificado.
     const total = Number.parseFloat(result.totals.grandTotal);
-    expect(total).toBeGreaterThanOrEqual(6000);
+    expect(total).toBeGreaterThanOrEqual(4000);
 
     // Chequeo explícito: la OT con factura NO debe aparecer como workOrder en el reporte;
     // esto lo vemos indirectamente asegurando que su grandTotal no se duplicó.

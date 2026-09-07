@@ -4,7 +4,6 @@ import {
   InvoiceDispatchStatus,
   InvoiceStatus,
   Prisma,
-  SaleStatus,
   WorkOrderStatus,
 } from '@prisma/client';
 import * as XLSX from 'xlsx';
@@ -17,8 +16,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   CASH_EXPENSE_REQUEST_REFERENCE_TYPE,
   CASH_INVOICE_REFERENCE_TYPE,
-  CASH_PURCHASE_RECEIPT_REFERENCE_TYPE,
-  CASH_SALE_REFERENCE_TYPE,
   CASH_WORK_ORDER_REFERENCE_TYPE,
 } from '../cash/cash.constants';
 import type { CashJournalQueryDto } from './dto/cash-journal.query.dto';
@@ -33,9 +30,7 @@ import type {
   RevenueUnifiedGranularity,
   RevenueUnifiedQueryDto,
 } from './dto/revenue-unified.query.dto';
-import type { SaleProfitabilityQueryDto } from './dto/sale-profitability.query.dto';
 import type { SalesByPaymentMethodQueryDto } from './dto/sales-by-payment-method.query.dto';
-import type { StockCriticalQueryDto } from './dto/stock-critical.query.dto';
 import type { TaxCausadoQueryDto } from './dto/tax-causado.query.dto';
 import type { WorkOrderProfitabilityQueryDto } from './dto/work-order-profitability.query.dto';
 
@@ -159,11 +154,11 @@ function referenceTypeLabel(refType: string | null): string {
       return 'Solicitud de egreso';
     case CASH_WORK_ORDER_REFERENCE_TYPE:
       return 'Orden de trabajo';
-    case CASH_SALE_REFERENCE_TYPE:
+    case 'Sale':
       return 'Venta';
     case CASH_INVOICE_REFERENCE_TYPE:
       return 'Factura';
-    case CASH_PURCHASE_RECEIPT_REFERENCE_TYPE:
+    case 'PurchaseReceipt':
       return 'Recepción de compra';
     default:
       return refType;
@@ -208,7 +203,7 @@ function paymentMethodLabel(slug: string | null, categoryName: string | null): s
 /** Referencias a comprobantes de venta (operaciones que pueden cobrarse en caja). */
 const SALE_LIKE_REFERENCE_TYPES = [
   CASH_WORK_ORDER_REFERENCE_TYPE,
-  CASH_SALE_REFERENCE_TYPE,
+  'Sale',
   CASH_INVOICE_REFERENCE_TYPE,
 ] as const;
 
@@ -383,45 +378,18 @@ export class ReportsService {
         issuedAt: true,
         createdAt: true,
         grandTotal: true,
-        saleId: true,
         workOrderId: true,
         documentNumber: true,
       },
     });
 
-    const consumedSaleIds = new Set<string>();
     const consumedWorkOrderIds = new Set<string>();
     for (const inv of invoices) {
-      if (inv.saleId) consumedSaleIds.add(inv.saleId);
       if (inv.workOrderId) consumedWorkOrderIds.add(inv.workOrderId);
     }
 
     /**
-     * Ventas confirmadas en el rango. Si ya hay factura para la venta, la venta
-     * queda cubierta por el paso de facturas y no se cuenta aquí.
-     */
-    const sales = await this.prisma.sale.findMany({
-      where: {
-        status: SaleStatus.CONFIRMED,
-        confirmedAt: { gte: from, lte: to, not: null },
-      },
-      select: {
-        id: true,
-        confirmedAt: true,
-        createdAt: true,
-        publicCode: true,
-        originWorkOrderId: true,
-        lines: { select: lineTotalsSelect },
-      },
-    });
-
-    const usedSales = sales.filter((s) => !consumedSaleIds.has(s.id));
-    for (const s of usedSales) {
-      if (s.originWorkOrderId) consumedWorkOrderIds.add(s.originWorkOrderId);
-    }
-
-    /**
-     * OTs entregadas en el rango y no cubiertas ya por venta o factura.
+     * OTs entregadas en el rango y no cubiertas ya por factura.
      */
     const workOrders = await this.prisma.workOrder.findMany({
       where: {
@@ -440,7 +408,6 @@ export class ReportsService {
 
     type Bucket = {
       invoices: Prisma.Decimal;
-      sales: Prisma.Decimal;
       workOrders: Prisma.Decimal;
       count: number;
     };
@@ -450,7 +417,6 @@ export class ReportsService {
       if (!b) {
         b = {
           invoices: new Prisma.Decimal(0),
-          sales: new Prisma.Decimal(0),
           workOrders: new Prisma.Decimal(0),
           count: 0,
         };
@@ -460,7 +426,6 @@ export class ReportsService {
     };
 
     let invoicesTotal = new Prisma.Decimal(0);
-    let salesTotal = new Prisma.Decimal(0);
     let workOrdersTotal = new Prisma.Decimal(0);
 
     for (const inv of invoices) {
@@ -470,16 +435,6 @@ export class ReportsService {
       b.invoices = b.invoices.plus(inv.grandTotal);
       b.count += 1;
       invoicesTotal = invoicesTotal.plus(inv.grandTotal);
-    }
-
-    for (const s of usedSales) {
-      const totals = computeBillingTotals(lineRowsToLinesForTotals(s.lines as typeof s.lines));
-      const date = s.confirmedAt ?? s.createdAt;
-      const key = periodKey(date, g);
-      const b = touch(key);
-      b.sales = b.sales.plus(totals.grandTotal);
-      b.count += 1;
-      salesTotal = salesTotal.plus(totals.grandTotal);
     }
 
     for (const w of usedWorkOrders) {
@@ -495,38 +450,35 @@ export class ReportsService {
     const keys = [...buckets.keys()].sort();
     const series = keys.map((k) => {
       const b = buckets.get(k)!;
-      const total = b.invoices.plus(b.sales).plus(b.workOrders);
+      const total = b.invoices.plus(b.workOrders);
       return {
         periodKey: k,
         periodLabel: periodLabel(k, g),
         invoicesTotal: decStr(b.invoices),
-        salesTotal: decStr(b.sales),
         workOrdersTotal: decStr(b.workOrders),
         grandTotal: decStr(total),
         documentCount: b.count,
       };
     });
 
-    const grand = invoicesTotal.plus(salesTotal).plus(workOrdersTotal);
+    const grand = invoicesTotal.plus(workOrdersTotal);
 
     return {
       from: query.from,
       to: query.to,
       granularity: g,
       disclaimer:
-        'Documento canónico por evento: Factura > Venta > OT. Se deduplica Factura→Sale/WO y Sale→WO para no inflar cifras. Facturas VOIDED y ventas CANCELLED se excluyen.',
+        'Documento canónico por evento: Factura > OT. Se deduplica Factura→WO para no inflar cifras. Facturas VOIDED se excluyen.',
       series,
       counts: {
         invoices: invoices.length,
-        sales: usedSales.length,
         workOrders: usedWorkOrders.length,
       },
       totals: {
         invoicesTotal: decStr(invoicesTotal),
-        salesTotal: decStr(salesTotal),
         workOrdersTotal: decStr(workOrdersTotal),
         grandTotal: decStr(grand),
-        documentCount: invoices.length + usedSales.length + usedWorkOrders.length,
+        documentCount: invoices.length + usedWorkOrders.length,
       },
     };
   }
@@ -776,8 +728,8 @@ export class ReportsService {
   // ==========================================================================
 
   /**
-   * Ventas por medio de pago. Toma los `CashMovement.INCOME` en rango vinculados a
-   * venta/OT/factura y los agrupa por `CashMovementCategory.slug`. El mapa
+   * Pagos por medio de pago. Toma los `CashMovement.INCOME` en rango vinculados a
+   * OT o factura y los agrupa por `CashMovementCategory.slug`. El mapa
    * `PAYMENT_METHOD_LABELS` da la etiqueta humana por slug (efectivo, transferencia, etc.).
    *
    * Solo se cuenta el monto real del cobro (`amount`), NO el `tenderAmount`, para no
@@ -836,101 +788,12 @@ export class ReportsService {
       from: query.from,
       to: query.to,
       disclaimer:
-        'Solo movimientos de ingreso vinculados a venta, OT o factura. Slugs desconocidos se agrupan como «Otro medio». Montos en pesos (COP), redondeados al entero hacia arriba.',
+        'Solo movimientos de ingreso vinculados a OT o factura. Slugs desconocidos se agrupan como «Otro medio». Montos en pesos (COP), redondeados al entero hacia arriba.',
       rows,
       totals: {
         count: movements.length,
         amount: decStr(total),
         methods: rows.length,
-      },
-    };
-  }
-
-  /**
-   * Rentabilidad por venta confirmada. Mismo esquema que `workOrderProfitability`: usa
-   * `costSnapshot` de cada `SaleLine`, y las ventas con líneas PART sin costSnapshot se
-   * marcan `costUnknown=true` y se excluyen del total agregado.
-   */
-  async saleProfitability(query: SaleProfitabilityQueryDto) {
-    const { from, to } = parseReportRangeOrThrow(query.from, query.to);
-
-    const rows = await this.prisma.sale.findMany({
-      where: {
-        status: SaleStatus.CONFIRMED,
-        confirmedAt: { gte: from, lte: to, not: null },
-      },
-      orderBy: { confirmedAt: 'asc' },
-      select: {
-        id: true,
-        publicCode: true,
-        saleNumber: true,
-        customerName: true,
-        confirmedAt: true,
-        createdBy: { select: { id: true, fullName: true, email: true } },
-        lines: { select: lineTotalsSelect },
-      },
-    });
-
-    let revenueTotal = new Prisma.Decimal(0);
-    let costTotal = new Prisma.Decimal(0);
-    let profitTotal = new Prisma.Decimal(0);
-    let countedRows = 0;
-
-    const items = rows.map((sale) => {
-      const totals = computeBillingTotals(lineRowsToLinesForTotals(sale.lines as typeof sale.lines));
-      const costUnknown = totals.totalCost === null;
-      const revenueAfterTax = totals.grandTotal;
-      const cost = totals.totalCost;
-      const profit = totals.totalProfit;
-
-      if (!costUnknown && cost !== null && profit !== null) {
-        revenueTotal = revenueTotal.plus(revenueAfterTax);
-        costTotal = costTotal.plus(cost);
-        profitTotal = profitTotal.plus(profit);
-        countedRows += 1;
-      }
-
-      const marginPct =
-        !costUnknown && profit !== null && revenueAfterTax.gt(0)
-          ? profit.mul(100).div(revenueAfterTax).toDecimalPlaces(2).toString()
-          : null;
-
-      return {
-        saleId: sale.id,
-        publicCode: sale.publicCode,
-        saleNumber: sale.saleNumber,
-        customerName: sale.customerName,
-        confirmedAt: sale.confirmedAt?.toISOString() ?? null,
-        createdBy: sale.createdBy
-          ? { id: sale.createdBy.id, fullName: sale.createdBy.fullName, email: sale.createdBy.email }
-          : null,
-        lineCount: totals.lineCount,
-        grandTotal: totals.grandTotal.toString(),
-        totalCost: cost ? cost.toString() : null,
-        totalProfit: profit ? profit.toString() : null,
-        marginPct,
-        costUnknown,
-      };
-    });
-
-    const marginPctAvg =
-      countedRows > 0 && revenueTotal.gt(0)
-        ? profitTotal.mul(100).div(revenueTotal).toDecimalPlaces(2).toString()
-        : null;
-
-    return {
-      from: query.from,
-      to: query.to,
-      disclaimer:
-        'Ingreso = grandTotal de la venta (subtotal − descuento + impuesto). Costo = suma de snapshots de costo por línea PART. Ventas con líneas PART sin costSnapshot quedan marcadas `costUnknown` y no suman al total.',
-      rows: items,
-      totals: {
-        salesConsidered: rows.length,
-        salesCounted: countedRows,
-        revenueTotal: decStr(revenueTotal),
-        costTotal: decStr(costTotal),
-        profitTotal: decStr(profitTotal),
-        marginPctAvg,
       },
     };
   }
@@ -1100,74 +963,6 @@ export class ReportsService {
   }
 
   /**
-   * Stock crítico. Snapshot actual (sin rango): devuelve ítems activos con `trackStock=true`
-   * cuyo `quantityOnHand ≤ threshold`. Threshold viene de `inventory.stock_critical_threshold`
-   * (setting global, default 3) salvo que el caller lo sobreescriba con `?threshold=N`.
-   */
-  async stockCritical(query: StockCriticalQueryDto) {
-    const threshold = await this.resolveStockCriticalThreshold(query.threshold);
-    const thresholdDecimal = new Prisma.Decimal(threshold);
-
-    const rows = await this.prisma.inventoryItem.findMany({
-      where: {
-        isActive: true,
-        trackStock: true,
-        quantityOnHand: { lte: thresholdDecimal },
-      },
-      orderBy: [{ quantityOnHand: 'asc' }, { name: 'asc' }],
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        supplier: true,
-        category: true,
-        itemKind: true,
-        quantityOnHand: true,
-        averageCost: true,
-        measurementUnit: { select: { slug: true, name: true } },
-      },
-    });
-
-    return {
-      source: typeof query.threshold === 'number' ? 'query' : 'setting',
-      threshold,
-      disclaimer:
-        'Snapshot actual. Solo ítems activos con control de stock. El umbral viene del setting `inventory.stock_critical_threshold`; se puede sobreescribir con `?threshold=N` para simular otro escenario.',
-      rows: rows.map((r) => ({
-        inventoryItemId: r.id,
-        sku: r.sku,
-        name: r.name,
-        supplier: r.supplier,
-        category: r.category,
-        itemKind: r.itemKind,
-        quantityOnHand: r.quantityOnHand.toString(),
-        averageCost: r.averageCost ? r.averageCost.toString() : null,
-        measurementUnitSlug: r.measurementUnit?.slug ?? null,
-        measurementUnitName: r.measurementUnit?.name ?? null,
-      })),
-      totals: { count: rows.length },
-    };
-  }
-
-  private async resolveStockCriticalThreshold(override?: number): Promise<number> {
-    if (typeof override === 'number' && Number.isFinite(override) && override >= 0) {
-      return Math.floor(override);
-    }
-    const row = await this.prisma.workshopSetting.findUnique({
-      where: { key: 'inventory.stock_critical_threshold' },
-    });
-    const raw = row?.value;
-    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
-      return Math.floor(raw);
-    }
-    if (typeof raw === 'string') {
-      const parsed = Number.parseInt(raw, 10);
-      if (Number.isFinite(parsed) && parsed >= 0) return parsed;
-    }
-    return 3; // fallback defensivo: alineado con el default del seed
-  }
-
-  /**
    * Utilidad por técnico: agrupa la utilidad de OT entregadas (`DELIVERED` en rango) por
    * `assignedToId`. OT sin técnico asignado quedan en el bucket `null` con etiqueta
    * «Sin técnico». OT con `costUnknown=true` (líneas PART sin snapshot) no contribuyen
@@ -1264,66 +1059,39 @@ export class ReportsService {
   }
 
   /**
-   * Utilidad por servicio del catálogo: agrupa líneas LABOR con `serviceId` provenientes
-   * de OT entregadas y ventas confirmadas del rango, sumando ingreso (`lineTotal`),
-   * costo (`costSnapshot`) y utilidad por servicio. Líneas LABOR sin `serviceId` van al
-   * bucket especial etiquetado «Sin servicio del catálogo».
+   * Utilidad por mano de obra: agrupa líneas LABOR de OT entregadas del rango por su
+   * texto (`description`), sumando ingreso (`lineTotal`), costo (`costSnapshot`) y utilidad.
+   * Sin catálogo de servicios: las líneas de mano de obra son texto libre.
    *
    * Nota: las líneas LABOR normalmente no tienen `costSnapshot` (mano de obra no
    * consume inventario), por lo que la utilidad de servicio suele igualar al ingreso.
-   * Se incluye la columna de costo por completitud (eventual `costSnapshot` manual).
    */
   async profitabilityByService(query: ProfitabilityByServiceQueryDto) {
     const { from, to } = parseReportRangeOrThrow(query.from, query.to);
 
-    const [woLines, saleLines] = await Promise.all([
-      this.prisma.workOrderLine.findMany({
-        where: {
-          lineType: 'LABOR',
-          workOrder: {
-            status: WorkOrderStatus.DELIVERED,
-            deliveredAt: { gte: from, lte: to, not: null },
-          },
+    const woLines = await this.prisma.workOrderLine.findMany({
+      where: {
+        lineType: 'LABOR',
+        workOrder: {
+          status: WorkOrderStatus.DELIVERED,
+          deliveredAt: { gte: from, lte: to, not: null },
         },
-        select: {
-          id: true,
-          serviceId: true,
-          quantity: true,
-          unitPrice: true,
-          discountAmount: true,
-          costSnapshot: true,
-          taxRateId: true,
-          taxRatePercentSnapshot: true,
-          taxRate: { select: { kind: true } },
-          service: { select: { id: true, code: true, name: true } },
-        },
-      }),
-      this.prisma.saleLine.findMany({
-        where: {
-          lineType: 'LABOR',
-          sale: {
-            status: SaleStatus.CONFIRMED,
-            confirmedAt: { gte: from, lte: to, not: null },
-          },
-        },
-        select: {
-          id: true,
-          serviceId: true,
-          quantity: true,
-          unitPrice: true,
-          discountAmount: true,
-          costSnapshot: true,
-          taxRateId: true,
-          taxRatePercentSnapshot: true,
-          taxRate: { select: { kind: true } },
-          service: { select: { id: true, code: true, name: true } },
-        },
-      }),
-    ]);
+      },
+      select: {
+        id: true,
+        description: true,
+        quantity: true,
+        unitPrice: true,
+        discountAmount: true,
+        costSnapshot: true,
+        taxRateId: true,
+        taxRatePercentSnapshot: true,
+        taxRate: { select: { kind: true } },
+      },
+    });
 
     type Bucket = {
-      serviceId: string | null;
-      code: string | null;
+      serviceKey: string;
       name: string;
       revenue: Prisma.Decimal;
       cost: Prisma.Decimal;
@@ -1335,7 +1103,7 @@ export class ReportsService {
     const accumulate = (
       line: {
         id: string;
-        serviceId: string | null;
+        description: string | null;
         quantity: Prisma.Decimal;
         unitPrice: Prisma.Decimal | null;
         discountAmount: Prisma.Decimal | null;
@@ -1343,7 +1111,6 @@ export class ReportsService {
         taxRateId: string | null;
         taxRatePercentSnapshot: Prisma.Decimal | null;
         taxRate: { kind: 'VAT' | 'INC' } | null;
-        service: { id: string; code: string; name: string } | null;
       },
     ) => {
       const asLineForTotals: LineForTotals = {
@@ -1358,11 +1125,11 @@ export class ReportsService {
         taxRate: line.taxRate,
       };
       const totals = computeBillingTotals([asLineForTotals]);
-      const key = line.serviceId ?? '__no_service__';
+      const name = (line.description ?? '').trim() || 'Sin descripción';
+      const key = name.toLocaleLowerCase('es');
       const bucket = byService.get(key) ?? {
-        serviceId: line.serviceId ?? null,
-        code: line.service?.code ?? null,
-        name: line.service?.name ?? 'Sin servicio del catálogo',
+        serviceKey: key,
+        name,
         revenue: new Prisma.Decimal(0),
         cost: new Prisma.Decimal(0),
         profit: new Prisma.Decimal(0),
@@ -1377,7 +1144,6 @@ export class ReportsService {
     };
 
     for (const l of woLines) accumulate(l);
-    for (const l of saleLines) accumulate(l);
 
     const rows = Array.from(byService.values())
       .sort((a, b) => (a.revenue.gt(b.revenue) ? -1 : a.revenue.lt(b.revenue) ? 1 : 0))
@@ -1387,8 +1153,7 @@ export class ReportsService {
             ? b.profit.mul(100).div(b.revenue).toDecimalPlaces(2).toString()
             : null;
         return {
-          serviceId: b.serviceId,
-          code: b.code,
+          serviceKey: b.serviceKey,
           name: b.name,
           lineCount: b.lineCount,
           revenueTotal: decStr(b.revenue),
@@ -1402,11 +1167,11 @@ export class ReportsService {
       from: query.from,
       to: query.to,
       disclaimer:
-        'Líneas LABOR de OT DELIVERED y Ventas CONFIRMED en el rango, agrupadas por `serviceId`. Mano de obra sin costo suele rendir utilidad = ingreso; las que tienen `costSnapshot` manual lo reflejan.',
+        'Líneas LABOR de OT DELIVERED en el rango, agrupadas por descripción (texto libre). Mano de obra sin costo suele rendir utilidad = ingreso; las que tienen `costSnapshot` manual lo reflejan.',
       rows,
       totals: {
         serviceCount: rows.length,
-        lineCount: woLines.length + saleLines.length,
+        lineCount: woLines.length,
       },
     };
   }

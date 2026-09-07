@@ -26,14 +26,17 @@ export class SettingsService {
     const before = await this.getMap();
     const keys = Object.keys(values);
 
-    for (const key of keys) {
-      assertKnownSettingValue(key, values[key]);
-      await this.prisma.workshopSetting.upsert({
-        where: { key },
-        create: { key, value: values[key] as Prisma.InputJsonValue, updatedById: actorUserId },
-        update: { value: values[key] as Prisma.InputJsonValue, updatedById: actorUserId },
-      });
-    }
+    // Un solo lote atómico: si falla una validación o una escritura, no queda medio-cambiado.
+    await this.prisma.$transaction(async (tx) => {
+      for (const key of keys) {
+        assertKnownSettingValue(key, values[key]);
+        await tx.workshopSetting.upsert({
+          where: { key },
+          create: { key, value: values[key] as Prisma.InputJsonValue, updatedById: actorUserId },
+          update: { value: values[key] as Prisma.InputJsonValue, updatedById: actorUserId },
+        });
+      }
+    });
 
     const after = await this.getMap();
 

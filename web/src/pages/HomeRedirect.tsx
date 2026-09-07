@@ -11,11 +11,9 @@ export function HomeRedirect() {
   if (can('customers:read')) return <Navigate to={portalPath('/clientes')} replace />
   if (can('reports:read')) return <Navigate to={portalPath('/informes')} replace />
   if (can('cash_sessions:read')) return <Navigate to={portalPath('/caja')} replace />
-  if (can('inventory_items:read')) return <Navigate to={portalPath('/inventario')} replace />
-  if (can('purchase_receipts:create')) return <Navigate to={portalPath('/recepcion')} replace />
   if (can('users:read')) return <Navigate to={portalPath('/admin/usuarios')} replace />
   if (can('roles:read')) return <Navigate to={portalPath('/admin/roles')} replace />
-  if (can('settings:read')) return <Navigate to={portalPath('/admin/configuracion')} replace />
+  if (can('settings:read') || can('tax_rates:read')) return <Navigate to={portalPath('/admin/configuracion')} replace />
   if (can('audit:read')) return <Navigate to={portalPath('/admin/auditoria')} replace />
   return (
     <div

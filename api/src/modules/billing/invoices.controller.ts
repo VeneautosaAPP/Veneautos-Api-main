@@ -13,7 +13,6 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';
 import { CreateCreditNoteDto } from './dto/create-credit-note.dto';
 import { CreateDebitNoteDto } from './dto/create-debit-note.dto';
-import { CreateInvoiceFromSaleDto } from './dto/create-invoice-from-sale.dto';
 import { CreateInvoiceFromWorkOrderDto } from './dto/create-invoice-from-work-order.dto';
 import { ListInvoicesQueryDto } from './dto/list-invoices.query.dto';
 import { RecordInvoicePaymentDto } from './dto/record-invoice-payment.dto';
@@ -42,20 +41,6 @@ export class InvoicesController {
   @RequirePermissions('invoices:read')
   findOne(@Param('id') id: string) {
     return this.invoices.findOne(id);
-  }
-
-  @Post('from-sale/:saleId')
-  @RequirePermissions('invoices:create')
-  createFromSale(
-    @Param('saleId') saleId: string,
-    @Body() dto: CreateInvoiceFromSaleDto,
-    @CurrentUser() actor: JwtUserPayload,
-    @Req() req: Request,
-  ) {
-    return this.invoices.createFromSale(saleId, actor, dto, {
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string | undefined,
-    });
   }
 
   @Post('from-work-order/:workOrderId')

@@ -6,5 +6,5 @@
     "experimentalDecorators": false,
     "emitDecoratorMetadata": false
   },
-  "include": ["prisma/**/*.ts", "src/modules/inventory/inventory.constants.ts", "src/modules/backup/**/*.ts"]
+  "include": ["prisma/**/*.ts", "src/modules/backup/**/*.ts"]
 }

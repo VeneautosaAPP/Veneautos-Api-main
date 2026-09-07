@@ -34,10 +34,6 @@ model User {
   workOrdersCreated           WorkOrder[]           @relation("WorkOrderCreatedBy")
   workOrdersAssigned          WorkOrder[]           @relation("WorkOrderAssignedTo")
   workOrderPaymentsRecorded   WorkOrderPayment[]     @relation("WorkOrderPaymentRecordedBy")
-  inventoryMovementsCreated   InventoryMovement[]    @relation("InventoryMovementCreatedBy")
-  purchaseReceiptsReceived    PurchaseReceipt[]     @relation("PurchaseReceiptReceivedBy")
-  salesCreated                Sale[]                @relation("SaleCreatedBy")
-  salePaymentsRecorded        SalePayment[]         @relation("SalePaymentRecordedBy")
   fiscalResolutionsCreated    FiscalResolution[]    @relation("FiscalResolutionCreatedBy")
   invoicesCreated             Invoice[]             @relation("InvoiceCreatedBy")
   invoiceDispatchRequested    InvoiceDispatchEvent[] @relation("InvoiceDispatchRequestedBy")
@@ -48,40 +44,12 @@ model User {
   debitNotesIssued            DebitNote[]           @relation("DebitNoteIssuedBy")
   debitNotesVoided            DebitNote[]           @relation("DebitNoteVoidedBy")
   invoicePaymentsRecorded     InvoicePayment[]      @relation("InvoicePaymentRecordedBy")
-  /// Configuración de nómina (comisión sobre mano de obra) — solo aplica a técnicos.
-  payrollConfig               TechnicianPayrollConfig? @relation("TechnicianPayrollConfigUser")
-  payrollRunsAsTechnician     PayrollRun[]             @relation("PayrollRunTechnician")
-  payrollAdjustmentsCreated   PayrollAdjustment[]      @relation("PayrollAdjustmentCreatedBy")
-  workshopPayablesCreated     WorkshopPayable[]       @relation("WorkshopPayableCreatedBy")
-  workshopPayablePaymentsCreated WorkshopPayablePayment[] @relation("WorkshopPayablePaymentCreatedBy")
-  quotesCreated                Quote[]                    @relation("QuoteCreatedBy")
-  /// Líneas de crédito / deuda interna donde este usuario es el deudor (solo ítems editables en UI).
-  employeeCreditLinesAsDebtor EmployeeCreditLine[] @relation("EmployeeCreditDebtor")
-  employeeCreditLinesCreated  EmployeeCreditLine[] @relation("EmployeeCreditCreatedBy")
   /// Cliente del taller enlazado para el rol portal (ver solo OT de vehículos de ese cliente).
   portalCustomerId String?   @map("portal_customer_id")
   portalCustomer   Customer? @relation("UserPortalCustomer", fields: [portalCustomerId], references: [id], onDelete: SetNull)
 
   @@index([portalCustomerId])
   @@map("users")
-}
-
-/// Cargo interno contra un empleado (consumo en tienda, préstamo, etc.). El total por persona se deriva de la suma de líneas activas (`voided_at` nulo).
-model EmployeeCreditLine {
-  id           String    @id @default(cuid())
-  debtorUserId String    @map("debtor_user_id")
-  description  String    @db.VarChar(500)
-  amount       Decimal   @db.Decimal(18, 2)
-  voidedAt     DateTime? @map("voided_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  createdById  String    @map("created_by_id")
-
-  debtorUser User @relation("EmployeeCreditDebtor", fields: [debtorUserId], references: [id], onDelete: Restrict)
-  createdBy  User @relation("EmployeeCreditCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-
-  @@index([debtorUserId, voidedAt])
-  @@map("employee_credit_lines")
 }
 
 /// Cliente del taller (persona o empresa de contacto).
@@ -98,7 +66,6 @@ model Customer {
 
   vehicles    Vehicle[]
   portalUsers User[] @relation("UserPortalCustomer")
-  sales       Sale[]
   invoices    Invoice[]
 
   @@map("customers")
@@ -124,7 +91,6 @@ model Vehicle {
 
   customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   workOrders WorkOrder[]
-  quotes     Quote[]
 
   @@index([customerId])
   @@map("vehicles")
@@ -263,7 +229,7 @@ model WorkOrder {
   publicCode    String          @unique @map("public_code") @db.VarChar(32)
   status        WorkOrderStatus @default(UNASSIGNED)
   description   String
-  /// Vehículo registrado (historial unificado); opcional durante migración desde texto.
+  /// Vehículo registrado (obligatorio; historial unificado por `vehicles.id`).
   vehicleId     String?         @map("vehicle_id")
   customerName  String?         @map("customer_name")
   customerPhone String?         @map("customer_phone")
@@ -307,11 +273,7 @@ model WorkOrder {
   warrantyFollowUps WorkOrder[] @relation("WorkOrderWarrantyParent")
   payments   WorkOrderPayment[]
   lines      WorkOrderLine[]
-  /// Venta emitida a partir de esta OT (1:1 opcional).
-  sale       Sale?
   invoices   Invoice[]
-  /// Entradas de nómina que incluyeron la MO de esta OT (histórico).
-  payrollEntries PayrollRunEntry[]
 
   @@index([status, createdAt])
   @@index([vehicleId])
@@ -321,79 +283,12 @@ model WorkOrder {
   @@map("work_orders")
 }
 
-/// Cotización / presupuesto (sin consumo de inventario hasta convertirse en OT u orden de compra).
-enum QuoteStatus {
-  DRAFT
-  SENT
-  ACCEPTED
-  REJECTED
-  CANCELLED
-}
-
-enum QuoteLineType {
-  PART
-  LABOR
-}
-
-/// Contadores atómicos del taller (p. ej. siguiente SKU para repuestos «fantasma» en cotización).
+/// Contadores atómicos legados del módulo de cotizaciones (sin uso actual; se conserva la tabla vacía).
 model WorkshopCounter {
   key   String @id @db.VarChar(64)
   value Int    @default(0)
 
   @@map("workshop_counters")
-}
-
-model Quote {
-  id             String      @id @default(cuid())
-  quoteNumber    Int         @unique @default(autoincrement()) @map("quote_number")
-  publicCode     String      @unique @map("public_code") @db.VarChar(32)
-  status         QuoteStatus @default(DRAFT)
-  title          String      @db.VarChar(200)
-  description    String?     @db.Text
-  validUntil     DateTime?   @map("valid_until")
-  vehicleId      String?     @map("vehicle_id")
-  customerName   String?     @map("customer_name") @db.VarChar(200)
-  customerPhone  String?     @map("customer_phone") @db.VarChar(40)
-  customerEmail  String?     @map("customer_email") @db.VarChar(120)
-  vehiclePlate   String?     @map("vehicle_plate") @db.VarChar(80)
-  vehicleBrand   String?     @map("vehicle_brand") @db.VarChar(80)
-  vehicleModel   String?     @map("vehicle_model") @db.VarChar(80)
-  internalNotes  String?     @map("internal_notes") @db.Text
-  createdById    String      @map("created_by_id")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-
-  vehicle   Vehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  createdBy User        @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  lines     QuoteLine[]
-
-  @@index([status, createdAt])
-  @@index([vehicleId])
-  @@map("quotes")
-}
-
-model QuoteLine {
-  id                       String        @id @default(cuid())
-  quoteId                  String        @map("quote_id")
-  lineType                 QuoteLineType @map("line_type")
-  sortOrder                Int           @default(0) @map("sort_order")
-  inventoryItemId          String?       @map("inventory_item_id")
-  serviceId                String?       @map("service_id")
-  taxRateId                String?       @map("tax_rate_id")
-  description              String?       @db.VarChar(2000)
-  quantity                 Decimal       @db.Decimal(18, 4)
-  unitPrice                Decimal?      @map("unit_price") @db.Decimal(18, 2)
-  discountAmount           Decimal?      @map("discount_amount") @db.Decimal(18, 2)
-  taxRatePercentSnapshot   Decimal?      @map("tax_rate_percent_snapshot") @db.Decimal(5, 2)
-
-  quote         Quote          @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  service       Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
-
-  @@index([quoteId, sortOrder])
-  @@index([inventoryItemId])
-  @@map("quote_lines")
 }
 
 /// Cobro registrado en caja vinculado a una OT (1:1 con el movimiento de ingreso).
@@ -415,116 +310,23 @@ model WorkOrderPayment {
   @@map("work_order_payments")
 }
 
-/// Unidad de medida (catálogo ampliable por migración o seed).
-model MeasurementUnit {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  name      String
-  sortOrder Int      @default(0) @map("sort_order")
+// ============================================================================
+// Módulos eliminados en la simplificación (Fase 10): cotizaciones, ventas,
+// inventario/recepciones, servicios, nómina, finanzas taller y crédito empleados.
+// Las tablas fueron DROPeadas en la migración; se conservan aquí únicamente los
+// TIPOS de enum legados (p. ej. `SaleStatus`, `InventoryMovementType`) para no
+// destruir auditoría fiscal ni valores históricos en cash/reportes.
+// ============================================================================
 
-  items InventoryItem[]
-
-  @@map("measurement_units")
-}
-
-/// Ítem de inventario (repuesto/material con stock).
-model InventoryItem {
-  id                 String   @id @default(cuid())
-  sku                String   @unique @db.VarChar(80)
-  /// Proveedor comercial (puede repetirse entre ítems; distinto de categoría).
-  supplier           String   @default("") @db.VarChar(200) @map("supplier")
-  /// Rubro / tipo de producto (aceites, eléctrico, etc.).
-  category           String   @default("") @db.VarChar(200) @map("category")
-  /// Clasificación fiscal/operativa: repuesto, insumo interno o producto de mostrador.
-  itemKind           InventoryItemKind @default(PART) @map("item_kind")
-  name               String   @db.VarChar(200)
-  /// Referencia corta del fabricante o número de parte (p. ej. "# 00", "K-2015").
-  /// Campo opcional que se muestra en tabla/recibo separado del nombre cuando está presente.
-  reference          String   @default("") @db.VarChar(120) @map("reference")
-  measurementUnitId  String   @map("measurement_unit_id")
-  quantityOnHand     Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(18, 4)
-  averageCost        Decimal? @map("average_cost") @db.Decimal(18, 2)
-  trackStock         Boolean  @default(true) @map("track_stock")
-  isActive           Boolean  @default(true) @map("is_active")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  measurementUnit      MeasurementUnit       @relation(fields: [measurementUnitId], references: [id], onDelete: Restrict)
-  movements            InventoryMovement[]
-  workOrderLines        WorkOrderLine[]
-  purchaseReceiptLines PurchaseReceiptLine[]
-  saleLines            SaleLine[]
-  invoiceLines         InvoiceLine[]
-  quoteLines           QuoteLine[]
-
-  @@index([measurementUnitId])
-  /// Fase 8 · Informe «Stock crítico»: filtra `isActive=true` + `trackStock=true` y ordena por `quantityOnHand`.
-  @@index([isActive, trackStock])
-  @@map("inventory_items")
-}
-
-/// Recepción de compra (entrada de mercadería al taller).
-model PurchaseReceipt {
-  id             String                       @id @default(cuid())
-  note           String?                      @db.Text
-  supplierRef    String?                      @map("supplier_ref") @db.VarChar(200)
-  receivedById   String                       @map("received_by_id")
-  /// Efectivo desde caja (egreso en sesión abierta) vs pago bancario (sin movimiento de caja física).
-  paymentSource  PurchaseReceiptPaymentSource @default(BANK_TRANSFER) @map("payment_source")
-  createdAt      DateTime                     @default(now()) @map("created_at")
-
-  receivedBy User                 @relation("PurchaseReceiptReceivedBy", fields: [receivedById], references: [id])
-  lines      PurchaseReceiptLine[]
-
-  @@map("purchase_receipts")
-}
-
-model PurchaseReceiptLine {
-  id                String   @id @default(cuid())
-  purchaseReceiptId String   @map("purchase_receipt_id")
-  inventoryItemId   String   @map("inventory_item_id")
-  quantity          Decimal  @db.Decimal(18, 4)
-  unitCost          Decimal? @map("unit_cost") @db.Decimal(18, 2)
-  /// Monto total pagado en la línea (ej. factura de la caneca). Informes: tal cual. Costo medio usa este total.
-  lineTotalCost     Decimal? @map("line_total_cost") @db.Decimal(18, 2)
-
-  purchaseReceipt PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
-  inventoryItem   InventoryItem   @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-
-  @@index([purchaseReceiptId])
-  @@index([inventoryItemId])
-  @@map("purchase_receipt_lines")
-}
-
-/// Movimiento de inventario (trazabilidad; cantidad con signo).
-model InventoryMovement {
-  id                String                 @id @default(cuid())
-  inventoryItemId   String                 @map("inventory_item_id")
-  quantityChange    Decimal                @map("quantity_change") @db.Decimal(18, 4)
-  movementType      InventoryMovementType  @map("movement_type")
-  referenceType     String?                @map("reference_type") @db.VarChar(80)
-  referenceId       String?                @map("reference_id") @db.VarChar(40)
-  note                String?                @db.Text
-  createdById       String                 @map("created_by_id")
-  createdAt           DateTime               @default(now()) @map("created_at")
-
-  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  createdBy     User          @relation("InventoryMovementCreatedBy", fields: [createdById], references: [id])
-
-  @@index([inventoryItemId, createdAt])
-  @@map("inventory_movements")
-}
-
-/// Línea de orden (repuesto con stock o mano de obra).
+/// Línea de orden (repuesto o mano de obra en texto libre; `description` obligatoria desde la simplificación).
 model WorkOrderLine {
   id              String            @id @default(cuid())
   workOrderId     String            @map("work_order_id")
   lineType        WorkOrderLineType @map("line_type")
   sortOrder       Int               @default(0) @map("sort_order")
-  inventoryItemId String?           @map("inventory_item_id")
-  /// Servicio del catálogo cuando la línea LABOR nace de un servicio predefinido.
-  /// Opcional: si es null, se mantiene el flujo histórico de mano de obra libre.
-  serviceId       String?           @map("service_id")
+  /// SKU del repuesto elegido del catálogo (snapshot; null = línea PART en texto libre).
+  /// Copia estática: el catálogo puede editarse/borrarse sin afectar líneas ya emitidas.
+  sparePartSku    String?           @map("spare_part_sku") @db.VarChar(80)
   /// Tarifa de impuesto aplicada a esta línea (IVA/INC). Null = sin impuesto / línea legada.
   taxRateId       String?           @map("tax_rate_id")
   description     String?           @db.VarChar(2000)
@@ -541,44 +343,45 @@ model WorkOrderLine {
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
   workOrder       WorkOrder        @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
-  inventoryItem   InventoryItem?   @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  service         Service?         @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   taxRate         TaxRate?         @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
 
   @@index([workOrderId, sortOrder])
-  @@index([serviceId])
   @@index([taxRateId])
   @@map("work_order_lines")
 }
 
-/// Catálogo de servicios del taller (mano de obra predefinida: diagnóstico, alineación, cambio de aceite…).
-/// Los servicios NO son inventario: no tienen stock ni costo promedio; pueden tener IVA distinto.
-model Service {
-  id               String    @id @default(cuid())
-  /// Código de negocio / SKU del servicio (ej. SRV-DIAG, SRV-CAMBIO-ACEITE). Único.
-  code             String    @unique @db.VarChar(60)
-  name             String    @db.VarChar(200)
-  description      String?   @db.Text
-  /// Precio sugerido en COP (entero); si es null, el cajero/administración lo pone en la OT.
-  defaultUnitPrice Decimal?  @map("default_unit_price") @db.Decimal(18, 2)
-  /// Tarifa de impuesto sugerida al agregar el servicio a una OT o venta.
-  defaultTaxRateId String?   @map("default_tax_rate_id")
-  isActive         Boolean   @default(true) @map("is_active")
-  sortOrder        Int       @default(0) @map("sort_order")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+/// Diccionario de autocompletado para descripciones de línea de OT (texto libre).
+/// Se alimenta al crear/editar líneas (`upsert` por label); `lastUsedAt` ordena las sugerencias.
+model OtLineCatalog {
+  id         String    @id @default(cuid())
+  label      String    @unique @db.VarChar(2000)
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  defaultTaxRate   TaxRate?        @relation("ServiceDefaultTaxRate", fields: [defaultTaxRateId], references: [id], onDelete: SetNull)
-  workOrderLines   WorkOrderLine[]
-  saleLines        SaleLine[]
-  invoiceLines     InvoiceLine[]
-  quoteLines       QuoteLine[]
-
-  @@index([isActive, sortOrder])
-  @@map("services")
+  @@index([lastUsedAt])
+  @@map("ot_line_catalog")
 }
 
-/// Tarifa de impuesto indirecto (IVA o INC). Catálogo compartido por servicios, ventas y facturas.
+/// Catálogo maestro de repuestos (SKU + nombre + precio sugerido). Mecánica igual a «Autopiezas
+/// Tegui»: el SKU es el código de barras/referencia; `price` 0 = repuesto de precio variable
+/// (se carga a mano en cada OT). Stock ilimitado por diseño: no se valida ni descuenta existencias.
+model SparePart {
+  id        String   @id @default(cuid())
+  /// Referencia/código de barras, único y normalizado en MAYÚSCULAS (solo alfanumérico).
+  sku       String   @unique @db.VarChar(80)
+  /// Descripción corta del repuesto (autocompleta la descripción de la línea PART).
+  name      String   @map("nombre") @db.VarChar(500)
+  /// Precio de venta sugerido en COP. `0` = precio variable (se define en cada OT).
+  price     Decimal  @default(0) @map("precio_venta") @db.Decimal(18, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@map("repuestos")
+}
+
+/// Tarifa de impuesto indirecto (IVA o INC). Catálogo compartido por OTs y facturas.
 /// Preferir `isActive=false` antes que borrar para mantener auditoría fiscal.
 model TaxRate {
   id          String      @id @default(cuid())
@@ -595,11 +398,8 @@ model TaxRate {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  servicesAsDefault Service[]       @relation("ServiceDefaultTaxRate")
   workOrderLines    WorkOrderLine[]
-  saleLines         SaleLine[]
   invoiceLines      InvoiceLine[]
-  quoteLines        QuoteLine[]
 
   @@index([isActive, sortOrder])
   @@map("tax_rates")
@@ -623,7 +423,6 @@ model CashSession {
   openedBy  User           @relation("CashSessionOpenedBy", fields: [openedById], references: [id])
   closedBy  User?          @relation("CashSessionClosedBy", fields: [closedById], references: [id])
   movements             CashMovement[]
-  reserveContributions CashSessionReserveContribution[]
 
   @@index([status])
   @@map("cash_sessions")
@@ -667,11 +466,7 @@ model CashMovement {
   /// Si el movimiento nació de una solicitud aprobada, enlaza 1:1 con esa solicitud.
   approvedExpenseRequest CashExpenseRequest?  @relation("MovementFromApprovedExpenseRequest")
   workOrderPayment       WorkOrderPayment?
-  salePayment            SalePayment?
   invoicePayment         InvoicePayment?
-  /// Si el movimiento es un pago de nómina, enlaza 1:1 con la corrida.
-  payrollRun             PayrollRun?          @relation("PayrollRunCashMovement")
-  workshopPayablePayment WorkshopPayablePayment?
 
   @@index([sessionId, createdAt])
   @@map("cash_movements")
@@ -808,100 +603,8 @@ model WorkshopSetting {
   @@map("workshop_settings")
 }
 
-/// Venta de mostrador o comprobante emitido desde una OT (Fase 3).
-///
-/// Reglas clave:
-/// - `origin = COUNTER`: venta directa. Al confirmar, las líneas PART descuentan inventario
-///   vía `InventoryMovement` tipo `SALE_CONSUMPTION`.
-/// - `origin = WORK_ORDER`: requiere `originWorkOrderId` apuntando a una OT ya entregada.
-///   **No** reconsume inventario (la OT ya generó `WORK_ORDER_CONSUMPTION`); solo sirve
-///   para emitir el comprobante y manejar el cobro si el taller lo registra aquí.
-/// - Una OT solo puede tener una venta derivada (unique sobre `originWorkOrderId`).
-/// - Los snapshots de cliente se guardan para preservar el comprobante aunque el maestro cambie.
-model Sale {
-  id                 String     @id @default(cuid())
-  saleNumber         Int        @unique @default(autoincrement()) @map("sale_number")
-  /// Código humano para el comprobante (ej. VTA-0001). Se asigna al crear según `saleNumber`.
-  publicCode         String     @unique @map("public_code") @db.VarChar(32)
-  status             SaleStatus @default(DRAFT)
-  origin             SaleOrigin @default(COUNTER)
-  originWorkOrderId  String?    @unique @map("origin_work_order_id")
-  customerId         String?    @map("customer_id")
-  /// Snapshots fiscales tomados al confirmar (mantienen el comprobante estable aunque el cliente cambie).
-  customerName       String?    @map("customer_name") @db.VarChar(200)
-  customerDocumentId String?    @map("customer_document_id") @db.VarChar(40)
-  customerPhone      String?    @map("customer_phone") @db.VarChar(40)
-  customerEmail      String?    @map("customer_email") @db.VarChar(120)
-  internalNotes      String?    @map("internal_notes") @db.Text
-  confirmedAt        DateTime?  @map("confirmed_at")
-  cancelledAt        DateTime?  @map("cancelled_at")
-  cancelledReason    String?    @map("cancelled_reason") @db.Text
-  createdById        String     @map("created_by_id")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
-
-  originWorkOrder WorkOrder?   @relation(fields: [originWorkOrderId], references: [id], onDelete: Restrict)
-  customer        Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  createdBy       User         @relation("SaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  lines           SaleLine[]
-  payments        SalePayment[]
-  invoices        Invoice[]
-
-  @@index([status, createdAt])
-  @@index([customerId])
-  @@index([createdById])
-  @@map("sales")
-}
-
-/// Línea de venta. Estructura paralela a `WorkOrderLine` para reutilizar el motor de totales.
-model SaleLine {
-  id                     String        @id @default(cuid())
-  saleId                 String        @map("sale_id")
-  lineType               SaleLineType  @map("line_type")
-  sortOrder              Int           @default(0) @map("sort_order")
-  inventoryItemId        String?       @map("inventory_item_id")
-  serviceId              String?       @map("service_id")
-  taxRateId              String?       @map("tax_rate_id")
-  description            String?       @db.VarChar(2000)
-  quantity               Decimal       @db.Decimal(18, 4)
-  unitPrice              Decimal?      @map("unit_price") @db.Decimal(18, 2)
-  discountAmount         Decimal?      @map("discount_amount") @db.Decimal(18, 2)
-  costSnapshot           Decimal?      @map("cost_snapshot") @db.Decimal(18, 2)
-  /// Porcentaje del impuesto congelado al guardar (null = sin impuesto). Paridad con WorkOrderLine.
-  taxRatePercentSnapshot Decimal?      @map("tax_rate_percent_snapshot") @db.Decimal(5, 2)
-  createdAt              DateTime      @default(now()) @map("created_at")
-  updatedAt              DateTime      @updatedAt @map("updated_at")
-
-  sale          Sale           @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  service       Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
-
-  @@index([saleId, sortOrder])
-  @@index([inventoryItemId])
-  @@index([serviceId])
-  @@index([taxRateId])
-  @@map("sale_lines")
-}
-
-/// Cobro registrado en caja vinculado a una venta (1:1 con el movimiento de ingreso).
-model SalePayment {
-  id             String          @id @default(cuid())
-  saleId         String          @map("sale_id")
-  amount         Decimal         @db.Decimal(18, 2)
-  kind           SalePaymentKind @default(PARTIAL)
-  cashMovementId String          @unique @map("cash_movement_id")
-  note           String?
-  recordedById   String          @map("recorded_by_id")
-  createdAt      DateTime        @default(now()) @map("created_at")
-
-  sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  cashMovement CashMovement @relation(fields: [cashMovementId], references: [id], onDelete: Restrict)
-  recordedBy   User         @relation("SalePaymentRecordedBy", fields: [recordedById], references: [id])
-
-  @@index([saleId, createdAt])
-  @@map("sale_payments")
-}
+/// Venta de mostrador y comprobante de OT (módulo eliminado en la simplificación; la tabla `sales` se DROPeó).
+/// Se conserva el tipo de enum `SaleStatus` como legacy para valores históricos en caja/reportes.
 
 // ============================================================================
 // Fase 4 · Factura electrónica DIAN (preparación; inactiva hasta configurar proveedor).
@@ -1030,7 +733,6 @@ model Invoice {
   documentNumber       String          @unique @map("document_number") @db.VarChar(48)
   status               InvoiceStatus   @default(DRAFT)
   source               InvoiceSource
-  saleId               String?         @map("sale_id")
   workOrderId          String?         @map("work_order_id")
 
   customerId           String?         @map("customer_id")
@@ -1060,7 +762,6 @@ model Invoice {
   updatedAt            DateTime        @updatedAt @map("updated_at")
 
   fiscalResolution FiscalResolution        @relation(fields: [fiscalResolutionId], references: [id], onDelete: Restrict)
-  sale             Sale?                   @relation(fields: [saleId], references: [id], onDelete: Restrict)
   workOrder        WorkOrder?              @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
   customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
   createdBy        User                    @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -1083,11 +784,9 @@ model InvoiceLine {
   invoiceId              String            @map("invoice_id")
   lineType               InvoiceLineType   @map("line_type")
   sortOrder              Int               @default(0) @map("sort_order")
-  /// Línea operativa de origen (SaleLine o WorkOrderLine); sirve para conciliar.
+  /// Línea operativa de origen (WorkOrderLine); sirve para conciliar.
   sourceSaleLineId       String?           @map("source_sale_line_id")
   sourceWorkOrderLineId  String?           @map("source_work_order_line_id")
-  inventoryItemId        String?           @map("inventory_item_id")
-  serviceId              String?           @map("service_id")
   taxRateId              String?           @map("tax_rate_id")
   description            String?           @db.VarChar(2000)
   quantity               Decimal           @db.Decimal(18, 4)
@@ -1100,14 +799,10 @@ model InvoiceLine {
   createdAt              DateTime          @default(now()) @map("created_at")
 
   invoice          Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  inventoryItem    InventoryItem?       @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
-  service          Service?             @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   taxRate          TaxRate?             @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
   creditNoteLines  CreditNoteLine[]
 
   @@index([invoiceId, sortOrder])
-  @@index([inventoryItemId])
-  @@index([serviceId])
   @@map("invoice_lines")
 }
 
@@ -1297,7 +992,7 @@ model InvoicePayment {
   @@map("invoice_payments")
 }
 
-/// Estado de una corrida semanal de nómina técnica.
+/// Estado de una corrida semanal de nómina técnica (tipo de enum legacy; módulo eliminado en la simplificación).
 enum PayrollStatus {
   /// Borrador: se puede recalcular y editar ajustes.
   DRAFT
@@ -1307,7 +1002,7 @@ enum PayrollStatus {
   VOIDED
 }
 
-/// Tipo de ajuste aplicado a una corrida semanal.
+/// Tipo de ajuste aplicado a una corrida semanal (tipo de enum legacy; módulo eliminado en la simplificación).
 enum PayrollAdjustmentKind {
   /// Suma (bonificación, hora extra, reintegro, etc.).
   BONUS
@@ -1319,134 +1014,10 @@ enum PayrollAdjustmentKind {
   OTHER
 }
 
-/// Configuración de nómina por técnico (User con rol técnico).
-/// Sólo existe fila para técnicos "enrolados" en nómina; el dueño edita el %.
-model TechnicianPayrollConfig {
-  id                  String   @id @default(cuid())
-  userId              String   @unique @map("user_id")
-  user                User     @relation("TechnicianPayrollConfigUser", fields: [userId], references: [id], onDelete: Cascade)
-  /// Porcentaje (0–100) de la base de mano de obra que se le paga. Default 50%.
-  laborCommissionPct  Decimal  @default(50.00) @map("labor_commission_pct") @db.Decimal(5, 2)
-  /// Si está inactivo, no se calcula nómina para él (pero se conservan corridas pasadas).
-  isActive            Boolean  @default(true) @map("is_active")
-  notes               String?  @db.Text
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
-
-  @@map("technician_payroll_configs")
-}
-
-/// Una corrida semanal de nómina para un técnico (lunes → sábado, día de pago sábado).
-/// Se crea automáticamente al calcular la semana si hay OT entregadas con MO > 0.
-model PayrollRun {
-  id                   String         @id @default(cuid())
-  technicianId         String         @map("technician_id")
-  technician           User           @relation("PayrollRunTechnician", fields: [technicianId], references: [id], onDelete: Restrict)
-  /// Lunes 00:00:00 UTC de la semana.
-  weekStart            DateTime       @map("week_start")
-  /// Sábado 23:59:59.999 UTC de la semana (rango cerrado [start, end]).
-  weekEnd              DateTime       @map("week_end")
-  status               PayrollStatus  @default(DRAFT)
-  /// % aplicado sobre la base de MO al calcular (snapshot: si cambia el % del técnico, corridas pagadas no se tocan).
-  commissionPctApplied Decimal        @map("commission_pct_applied") @db.Decimal(5, 2)
-  /// Σ subtotales de líneas LABOR (sin IVA, con descuento) de OTs entregadas de esa semana.
-  baseAmount           Decimal        @map("base_amount") @db.Decimal(18, 2)
-  /// baseAmount × commissionPctApplied / 100.
-  commissionAmount     Decimal        @map("commission_amount") @db.Decimal(18, 2)
-  /// Σ ajustes (BONUS positivos; ADVANCE / DEDUCTION negativos; OTHER según signo del monto).
-  adjustmentsTotal     Decimal        @default(0) @map("adjustments_total") @db.Decimal(18, 2)
-  /// commissionAmount + adjustmentsTotal.
-  totalToPay           Decimal        @map("total_to_pay") @db.Decimal(18, 2)
-  paidAt               DateTime?      @map("paid_at")
-  /// Movimiento de caja EXPENSE que materializa el pago (categoria "nomina_tecnicos").
-  cashMovementId       String?        @unique @map("cash_movement_id")
-  cashMovement         CashMovement?  @relation("PayrollRunCashMovement", fields: [cashMovementId], references: [id], onDelete: SetNull)
-  notes                String?        @db.Text
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
-
-  entries     PayrollRunEntry[]
-  adjustments PayrollAdjustment[]
-
-  /// Una sola corrida por técnico y semana (se recalcula sobre la misma fila en DRAFT).
-  @@unique([technicianId, weekStart])
-  @@index([weekStart, weekEnd])
-  @@index([status])
-  @@map("payroll_runs")
-}
-
-/// Detalle: cada OT que aportó MO a la corrida semanal.
-model PayrollRunEntry {
-  id             String     @id @default(cuid())
-  payrollRunId   String     @map("payroll_run_id")
-  run            PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  workOrderId    String     @map("work_order_id")
-  workOrder      WorkOrder  @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
-  /// Subtotal neto (qty × unitPrice − discount) de la línea LABOR al momento del cálculo.
-  laborSubtotal  Decimal    @map("labor_subtotal") @db.Decimal(18, 2)
-  /// Comisión pagada por esta OT = laborSubtotal × pctAplicado / 100.
-  commission     Decimal    @db.Decimal(18, 2)
-  /// deliveredAt de la OT (snapshot) para auditoría y ordenamiento.
-  deliveredAt    DateTime   @map("delivered_at")
-  createdAt      DateTime   @default(now()) @map("created_at")
-
-  /// Una OT sólo puede aparecer una vez por corrida.
-  @@unique([payrollRunId, workOrderId])
-  @@index([workOrderId])
-  @@map("payroll_run_entries")
-}
-
-/// Ajuste manual sobre una corrida semanal (antes del pago o para dejar histórico).
-model PayrollAdjustment {
-  id           String                @id @default(cuid())
-  payrollRunId String                @map("payroll_run_id")
-  run          PayrollRun            @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  kind         PayrollAdjustmentKind
-  /// Signo que efectivamente suma al totalToPay (BONUS/OTHER+ suman, ADVANCE/DEDUCTION restan).
-  amount       Decimal               @db.Decimal(18, 2)
-  note         String?               @db.Text
-  createdById  String                @map("created_by_id")
-  createdBy    User                  @relation("PayrollAdjustmentCreatedBy", fields: [createdById], references: [id])
-  createdAt    DateTime              @default(now()) @map("created_at")
-
-  @@index([payrollRunId])
-  @@map("payroll_adjustments")
-}
-
-// --- Finanzas taller: reservas teóricas (cierre caja) y deudas internas ---
-
-/// Línea configurable de “reserva” (% sobre efectivo contado al cerrar caja).
-model WorkshopReserveLine {
-  id        String   @id @default(cuid())
-  name      String   @db.VarChar(120)
-  percent   Decimal  @db.Decimal(5, 2)
-  sortOrder Int      @default(0) @map("sort_order")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  contributions CashSessionReserveContribution[]
-
-  @@map("workshop_reserve_lines")
-}
-
-/// Aporte diario teórico al cerrar sesión: base = `closingCounted` del arqueo.
-model CashSessionReserveContribution {
-  id                 String   @id @default(cuid())
-  cashSessionId      String   @map("cash_session_id")
-  reserveLineId      String   @map("reserve_line_id")
-  baseCashCounted    Decimal  @map("base_cash_counted") @db.Decimal(18, 2)
-  percentApplied     Decimal  @map("percent_applied") @db.Decimal(5, 2)
-  contributionAmount Decimal  @map("contribution_amount") @db.Decimal(18, 2)
-  createdAt          DateTime @default(now()) @map("created_at")
-
-  cashSession CashSession         @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
-  reserveLine WorkshopReserveLine @relation(fields: [reserveLineId], references: [id], onDelete: Restrict)
-
-  @@unique([cashSessionId, reserveLineId])
-  @@index([reserveLineId, createdAt])
-  @@map("cash_session_reserve_contributions")
-}
+// --- Finanzas taller (módulo eliminado en la simplificación) -----------------
+// Se conservan los tipos de enum `WorkshopPayableStatus` y `WorkshopPayablePaymentMethod`
+// como legacy; las tablas `workshop_reserve_lines`, `cash_session_reserve_contributions`,
+// `workshop_payables` y `workshop_payable_payments` fueron DROPeadas.
 
 enum WorkshopPayableStatus {
   OPEN
@@ -1457,42 +1028,5 @@ enum WorkshopPayablePaymentMethod {
   CASH
   TRANSFER
   OTHER
-}
-
-/// Deuda del taller (manual); saldo se reduce con pagos registrados.
-model WorkshopPayable {
-  id            String                @id @default(cuid())
-  creditorName  String                @map("creditor_name") @db.VarChar(200)
-  description   String?               @db.Text
-  initialAmount Decimal               @map("initial_amount") @db.Decimal(18, 2)
-  balanceAmount Decimal               @map("balance_amount") @db.Decimal(18, 2)
-  status        WorkshopPayableStatus @default(OPEN)
-  createdById   String                @map("created_by_id")
-  createdAt     DateTime              @default(now()) @map("created_at")
-  updatedAt     DateTime              @updatedAt @map("updated_at")
-
-  createdBy User                     @relation("WorkshopPayableCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  payments  WorkshopPayablePayment[]
-
-  @@index([status, createdAt])
-  @@map("workshop_payables")
-}
-
-model WorkshopPayablePayment {
-  id               String                       @id @default(cuid())
-  payableId        String                       @map("payable_id")
-  amount           Decimal                      @db.Decimal(18, 2)
-  method           WorkshopPayablePaymentMethod
-  cashMovementId   String?                      @unique @map("cash_movement_id")
-  note             String?                      @db.Text
-  createdById      String                       @map("created_by_id")
-  createdAt        DateTime                     @default(now()) @map("created_at")
-
-  payable        WorkshopPayable @relation(fields: [payableId], references: [id], onDelete: Cascade)
-  cashMovement   CashMovement?   @relation(fields: [cashMovementId], references: [id], onDelete: SetNull)
-  createdBy      User            @relation("WorkshopPayablePaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-
-  @@index([payableId, createdAt])
-  @@map("workshop_payable_payments")
 }
 

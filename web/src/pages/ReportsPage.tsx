@@ -318,12 +318,10 @@ type ReportsTab =
   | 'resumen'
   | 'ingresos_unificados'
   | 'rentabilidad_ot'
-  | 'rentabilidad_venta'
   | 'libro_diario'
   | 'medios_pago'
   | 'impuestos'
   | 'dian_status'
-  | 'stock_critico'
   | 'utilidad_tecnico'
   | 'utilidad_servicio'
 
@@ -332,12 +330,10 @@ const TABS: Array<{ id: ReportsTab; label: string }> = [
   { id: 'ingresos_unificados', label: 'Ingresos unificados' },
   { id: 'medios_pago', label: 'Medios de pago' },
   { id: 'rentabilidad_ot', label: 'Rentabilidad por OT' },
-  { id: 'rentabilidad_venta', label: 'Rentabilidad por venta' },
   { id: 'utilidad_tecnico', label: 'Utilidad por técnico' },
   { id: 'utilidad_servicio', label: 'Utilidad por servicio' },
   { id: 'impuestos', label: 'IVA/INC causado' },
   { id: 'dian_status', label: 'Estado DIAN' },
-  { id: 'stock_critico', label: 'Stock crítico' },
   { id: 'libro_diario', label: 'Libro diario (caja)' },
 ]
 
@@ -486,12 +482,10 @@ export function ReportsPage() {
 
       {activeTab === 'ingresos_unificados' && <RevenueUnifiedPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'rentabilidad_ot' && <WorkOrderProfitabilityPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
-      {activeTab === 'rentabilidad_venta' && <SaleProfitabilityPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'libro_diario' && <CashJournalPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'medios_pago' && <SalesByPaymentMethodPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'impuestos' && <TaxCausadoPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'dian_status' && <DianStatusPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
-      {activeTab === 'stock_critico' && <StockCriticalPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'utilidad_tecnico' && <ProfitabilityByTechnicianPanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
       {activeTab === 'utilidad_servicio' && <ProfitabilityByServicePanel statsCardClass={statsCardClass} actionBtnClass={actionBtnClass} />}
 
@@ -1263,138 +1257,6 @@ function SalesByPaymentMethodPanel({ statsCardClass, actionBtnClass }: { statsCa
   )
 }
 
-type SaleProfitabilityResponse = {
-  from: string
-  to: string
-  disclaimer: string
-  rows: Array<{
-    saleId: string
-    publicCode: string
-    saleNumber: number
-    customerName: string | null
-    confirmedAt: string | null
-    createdBy: { id: string; fullName: string | null; email: string } | null
-    lineCount: number
-    grandTotal: string
-    totalCost: string | null
-    totalProfit: string | null
-    marginPct: string | null
-    costUnknown: boolean
-  }>
-  totals: {
-    salesConsidered: number
-    salesCounted: number
-    revenueTotal: string
-    costTotal: string
-    profitTotal: string
-    marginPctAvg: string | null
-  }
-}
-
-function SaleProfitabilityPanel({ statsCardClass, actionBtnClass }: { statsCardClass: string; actionBtnClass: string }) {
-  const [from, setFrom] = useState(startOfMonthYmdUtc())
-  const [to, setTo] = useState(todayYmdUtc())
-  const [data, setData] = useState<SaleProfitabilityResponse | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const load = useCallback(async () => {
-    setErr(null)
-    setLoading(true)
-    try {
-      const qs = new URLSearchParams({ from, to })
-      const res = await api<SaleProfitabilityResponse>(`/reports/sale-profitability?${qs}`)
-      setData(res)
-    } catch (e) {
-      setData(null)
-      setErr(e instanceof Error ? e.message : 'Error al cargar rentabilidad')
-    } finally {
-      setLoading(false)
-    }
-  }, [from, to])
-
-  useEffect(() => { void load() }, [load])
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <label className="block text-sm">
-          <span className="va-label">Desde (UTC)</span>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="va-field mt-1 min-w-[11rem]" />
-        </label>
-        <label className="block text-sm">
-          <span className="va-label">Hasta (UTC)</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="va-field mt-1 min-w-[11rem]" />
-        </label>
-        <button type="button" onClick={() => void load()} disabled={loading} className={actionBtnClass}>
-          {loading ? 'Cargando…' : 'Actualizar'}
-        </button>
-      </div>
-
-      {err && <p className="va-alert-error">{err}</p>}
-
-      {data && (
-        <>
-          <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{data.disclaimer}</p>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className={statsCardClass}>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Ingreso (ventas confirmadas)</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{moneyCOP(data.totals.revenueTotal)}</p>
-            </div>
-            <div className={statsCardClass}>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Costo (repuestos)</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-red-700 dark:text-red-300">{moneyCOP(data.totals.costTotal)}</p>
-            </div>
-            <div className={statsCardClass}>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Utilidad</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-brand-800 dark:text-brand-100">{moneyCOP(data.totals.profitTotal)}</p>
-            </div>
-            <div className={statsCardClass}>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Margen promedio</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-50">{data.totals.marginPctAvg ? `${data.totals.marginPctAvg}%` : '—'}</p>
-              <p className="text-xs text-slate-500">{data.totals.salesCounted} de {data.totals.salesConsidered} ventas</p>
-            </div>
-          </div>
-
-          {data.rows.length > 0 && (
-            <div className="va-table-scroll">
-              <table className="va-table min-w-[48rem]">
-                <thead>
-                  <tr className="va-table-head-row">
-                    <th className="va-table-th">Venta</th>
-                    <th className="va-table-th">Cliente</th>
-                    <th className="va-table-th">Confirmada</th>
-                    <th className="va-table-th">Ingreso</th>
-                    <th className="va-table-th">Costo</th>
-                    <th className="va-table-th">Utilidad</th>
-                    <th className="va-table-th">Margen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((r) => (
-                    <tr key={r.saleId} className="va-table-body-row">
-                      <td className="va-table-td font-mono text-xs">{r.publicCode}</td>
-                      <td className="va-table-td">{r.customerName ?? '—'}</td>
-                      <td className="va-table-td text-xs">{r.confirmedAt ? r.confirmedAt.slice(0, 10) : '—'}</td>
-                      <td className="va-table-td tabular-nums">{moneyCOP(r.grandTotal)}</td>
-                      <td className="va-table-td tabular-nums">
-                        {r.costUnknown ? <span className="text-amber-600 dark:text-amber-400" title="Línea PART sin costSnapshot; margen no confiable">sin snapshot</span> : moneyCOP(r.totalCost ?? '0')}
-                      </td>
-                      <td className="va-table-td tabular-nums">{r.totalProfit ? moneyCOP(r.totalProfit) : '—'}</td>
-                      <td className="va-table-td tabular-nums">{r.marginPct ? `${r.marginPct}%` : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
 type TaxCausadoResponse = {
   from: string
   to: string
@@ -1635,126 +1497,6 @@ function DianStatusPanel({ statsCardClass, actionBtnClass }: { statsCardClass: s
   )
 }
 
-type StockCriticalResponse = {
-  source: 'query' | 'setting'
-  threshold: number
-  disclaimer: string
-  rows: Array<{
-    inventoryItemId: string
-    sku: string
-    name: string
-    supplier: string
-    category: string
-    itemKind: string
-    quantityOnHand: string
-    averageCost: string | null
-    measurementUnitSlug: string | null
-    measurementUnitName: string | null
-  }>
-  totals: { count: number }
-}
-
-function StockCriticalPanel({ statsCardClass, actionBtnClass }: { statsCardClass: string; actionBtnClass: string }) {
-  const [thresholdOverride, setThresholdOverride] = useState('')
-  const [data, setData] = useState<StockCriticalResponse | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const load = useCallback(async () => {
-    setErr(null)
-    setLoading(true)
-    try {
-      const qs = new URLSearchParams()
-      const t = thresholdOverride.trim()
-      if (t && /^\d+$/.test(t)) qs.set('threshold', t)
-      const query = qs.toString()
-      const res = await api<StockCriticalResponse>(`/reports/stock-critical${query ? `?${query}` : ''}`)
-      setData(res)
-    } catch (e) {
-      setData(null)
-      setErr(e instanceof Error ? e.message : 'Error al cargar stock crítico')
-    } finally {
-      setLoading(false)
-    }
-  }, [thresholdOverride])
-
-  useEffect(() => { void load() }, [load])
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <label className="block text-sm">
-          <span className="va-label">Umbral (vacío = setting global)</span>
-          <input
-            type="number"
-            min={0}
-            value={thresholdOverride}
-            onChange={(e) => setThresholdOverride(e.target.value)}
-            placeholder="3"
-            className="va-field mt-1 min-w-[8rem]"
-          />
-        </label>
-        <button type="button" onClick={() => void load()} disabled={loading} className={actionBtnClass}>
-          {loading ? 'Cargando…' : 'Actualizar'}
-        </button>
-      </div>
-
-      {err && <p className="va-alert-error">{err}</p>}
-
-      {data && (
-        <>
-          <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{data.disclaimer}</p>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className={statsCardClass}>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Umbral activo</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-50">{data.threshold}</p>
-              <p className="text-xs text-slate-500">{data.source === 'query' ? 'Override manual' : 'Setting global'}</p>
-            </div>
-            <div className={statsCardClass}>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Ítems en alerta</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums text-red-700 dark:text-red-300">{data.totals.count}</p>
-            </div>
-          </div>
-
-          {data.rows.length > 0 ? (
-            <div className="va-table-scroll">
-              <table className="va-table min-w-[52rem]">
-                <thead>
-                  <tr className="va-table-head-row">
-                    <th className="va-table-th">SKU</th>
-                    <th className="va-table-th">Nombre</th>
-                    <th className="va-table-th">Proveedor</th>
-                    <th className="va-table-th">Rubro</th>
-                    <th className="va-table-th">En mano</th>
-                    <th className="va-table-th">Unidad</th>
-                    <th className="va-table-th">Costo medio</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((r) => (
-                    <tr key={r.inventoryItemId} className="va-table-body-row">
-                      <td className="va-table-td font-mono text-xs">{r.sku}</td>
-                      <td className="va-table-td">{r.name}</td>
-                      <td className="va-table-td text-xs">{r.supplier || '—'}</td>
-                      <td className="va-table-td text-xs">{r.category || '—'}</td>
-                      <td className="va-table-td tabular-nums font-semibold text-red-700 dark:text-red-300">{Number.parseFloat(r.quantityOnHand).toLocaleString('es-CO')}</td>
-                      <td className="va-table-td text-xs">{r.measurementUnitName ?? r.measurementUnitSlug ?? '—'}</td>
-                      <td className="va-table-td tabular-nums">{r.averageCost ? moneyCOP(r.averageCost) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-300">Ningún ítem activo con stock ≤ {data.threshold}.</p>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
 type ProfitabilityByTechnicianResponse = {
   from: string
   to: string
@@ -1881,14 +1623,12 @@ type ProfitabilityByServiceResponse = {
   to: string
   disclaimer: string
   rows: Array<{
-    serviceId: string | null
-    code: string | null
+    serviceKey: string
     name: string
     lineCount: number
-    revenueTotal: string
-    costTotal: string
-    profitTotal: string
-    marginPct: string | null
+    revenue: string
+    cost: string
+    profit: string
   }>
   totals: { serviceCount: number; lineCount: number }
 }
@@ -1960,28 +1700,23 @@ function ProfitabilityByServicePanel({ statsCardClass, actionBtnClass }: { stats
                     <th className="va-table-th">Ingreso</th>
                     <th className="va-table-th">Costo</th>
                     <th className="va-table-th">Utilidad</th>
-                    <th className="va-table-th">Margen</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.rows.map((r) => (
-                    <tr key={r.serviceId ?? 'no_service'} className="va-table-body-row">
-                      <td className="va-table-td">
-                        <div>{r.name}</div>
-                        {r.code && <div className="font-mono text-xs text-slate-500">{r.code}</div>}
-                      </td>
+                    <tr key={r.serviceKey} className="va-table-body-row">
+                      <td className="va-table-td">{r.name}</td>
                       <td className="va-table-td tabular-nums">{r.lineCount}</td>
-                      <td className="va-table-td tabular-nums">{moneyCOP(r.revenueTotal)}</td>
-                      <td className="va-table-td tabular-nums">{moneyCOP(r.costTotal)}</td>
-                      <td className="va-table-td tabular-nums font-semibold">{moneyCOP(r.profitTotal)}</td>
-                      <td className="va-table-td tabular-nums">{r.marginPct ? `${r.marginPct}%` : '—'}</td>
+                      <td className="va-table-td tabular-nums">{moneyCOP(r.revenue)}</td>
+                      <td className="va-table-td tabular-nums">{moneyCOP(r.cost)}</td>
+                      <td className="va-table-td tabular-nums font-semibold">{moneyCOP(r.profit)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-300">Sin líneas LABOR en OT entregadas ni ventas confirmadas del rango.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Sin líneas LABOR en OT del rango.</p>
           )}
         </>
       )}

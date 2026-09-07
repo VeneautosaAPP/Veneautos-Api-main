@@ -52,7 +52,6 @@ const WoSelectCheckbox = memo(function WoSelectCheckbox({
 export const WorkOrdersList = memo(function WorkOrdersList({
   rows,
   listView,
-  canViewWoFinancials: _canViewWoFinancials,
   selectedIds,
   toggleSelect,
   selectAll,

@@ -68,14 +68,6 @@ export function WorkOrdersPage() {
     clearListFiltersAction()
   }, [clearListFiltersAction])
 
-  const headerDescription = useMemo(
-    () =>
-      can('work_orders:read_portal') && !can('work_orders:read')
-        ? 'Consultá el estado de las órdenes asociadas a tu cuenta.'
-        : 'Elegí una orden para ver detalle, líneas y totales.',
-    [can],
-  )
-
   const canCreateWorkOrder = useMemo(() => can('work_orders:create'), [can])
 
   const handleModalPanelClick = useCallback((ev: MouseEvent) => {
@@ -131,7 +123,6 @@ export function WorkOrdersPage() {
         onListViewChange={m.setListView}
         onSetStatus={m.setStatus}
         canCreateWorkOrder={canCreateWorkOrder}
-        headerDescription={headerDescription}
         onOpenNewOrder={m.openNewOrderModal}
         showPagination={m.rows !== null}
         page={m.page}
@@ -310,17 +301,6 @@ export function WorkOrdersPage() {
                   onChange={(e) => m.setIntakeKmCreate(e.target.value.replace(/\D/g, ''))}
                   className="va-field mt-1"
                 />
-              </label>
-              <label className="flex cursor-pointer items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={m.inspectionOnlyCreate}
-                  onChange={(e) => m.setInspectionOnlyCreate(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600"
-                />
-                <span className="text-slate-700 dark:text-slate-200">
-                  Solo revisión / diagnóstico (el cobro va como línea de mano de obra)
-                </span>
               </label>
               <div className="flex gap-2 pt-2">
                 <button type="submit" className="va-btn-primary">
