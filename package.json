@@ -2,6 +2,9 @@
   "name": "vene-autos",
   "private": true,
   "description": "Raíz del repo: Prisma y Nest viven en la carpeta api/. No ejecutes npx prisma aquí sin --schema.",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "db:up": "cd api && docker compose up -d",
     "db:migrate": "cd api && npx prisma migrate deploy",
