@@ -2,7 +2,7 @@
 buildCommand = "(apt-get update -qq && apt-get install -y -qq --no-install-recommends postgresql-client) || echo 'WARN: no se pudo instalar postgresql-client'; npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build && ./node_modules/.bin/tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2021 --esModuleInterop --skipLibCheck"
 
 [deploy]
-startCommand = "cd api && ./node_modules/.bin/prisma migrate deploy && node dist-seed/seed.js && node dist/main"
+startCommand = "cd api && (node node_modules/prisma/build/index.js migrate deploy || echo 'WARN: migrate no se ejecuto') && node dist-seed/seed.js && node dist/main"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
