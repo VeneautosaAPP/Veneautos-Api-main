@@ -39,9 +39,43 @@
 }
 
 @layer base {
+  :root {
+    /* Tokens clásico Tegui (autopiezas-tegui) */
+    --background: #f5f7fa;
+    --foreground: #102235;
+    --surface: #ffffff;
+    --muted: #667789;
+    --border: #dce4ec;
+    --brand: #e95721;
+    --brand-dark: #bb3c10;
+    --navy: #102235;
+    --navy-soft: #163149;
+    /*
+     * Tipo display para titulares (DM Sans, como autopiezas Pro).
+     * El tema commercial reemplaza esta variable por Playfair en su propio scope.
+     */
+    --va-font-display: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    /*
+     * Escala de marca naranja Tegui para el tema claro. La web comercial conserva
+     * su rojo vía `.va-landing-commercial-brand`, que redefine brand-* más cerca del DOM.
+     */
+    --color-brand-50: #fff3ee;
+    --color-brand-100: #ffe2d4;
+    --color-brand-200: #ffc5ab;
+    --color-brand-300: #ffa378;
+    --color-brand-400: #fb7f47;
+    --color-brand-500: #e95721;
+    --color-brand-600: #d0440f;
+    --color-brand-700: #bb3c10;
+    --color-brand-800: #983113;
+    --color-brand-900: #7c2a0f;
+    --color-brand-950: #431505;
+  }
   html {
-    /* Claro: más contraste cuerpo/fondo y texto base; oscuro sin cambios */
-    @apply antialiased text-slate-900 bg-slate-100 dark:bg-slate-950 dark:text-slate-100;
+    /* Clásico claro Tegui (#f5f7fa / navy) por defecto; `html.dark` lo remapea a Pro. */
+    @apply antialiased;
+    background: var(--background);
+    color: var(--foreground);
   }
   body {
     @apply m-0 min-h-dvh;
@@ -53,12 +87,12 @@
  */
 @layer components {
   .va-card {
-    @apply rounded-2xl border border-slate-300 bg-white p-4 text-slate-900 shadow-md ring-1 ring-slate-200 sm:p-6
-      dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:shadow-sm dark:ring-0;
+    @apply rounded-[0.75rem] border border-[#edf1f4] bg-white p-4 text-slate-900 shadow-[0_5px_15px_rgba(22,51,78,0.05)] sm:p-6
+      dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)];
   }
   .va-card-flush {
-    @apply overflow-hidden rounded-2xl border border-slate-300 bg-white text-slate-900 shadow-md ring-1 ring-slate-200
-      dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:shadow-sm dark:ring-0;
+    @apply overflow-hidden rounded-[0.75rem] border border-[#edf1f4] bg-white text-slate-900 shadow-[0_5px_15px_rgba(22,51,78,0.05)]
+      dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)];
   }
   .va-card-muted {
     @apply rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-800
@@ -162,9 +196,12 @@
     @apply border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100 sm:px-6;
   }
   .va-field {
-    @apply mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
-      placeholder:text-slate-500 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700
-      dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:ring-brand-400;
+    @apply mt-1 w-full rounded-[0.625rem] border border-[#b6c6d6] bg-[#f4f7fa] px-3 py-2 text-sm text-[#263e56]
+      shadow-[inset_0_1px_2px_rgba(16,34,53,0.06)] transition
+      placeholder:text-[#94a3b8] hover:border-[#9fb2c6]
+      focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-[3px] focus:ring-brand-500/20
+      dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-500
+      dark:focus:border-brand-400 dark:focus:bg-slate-800 dark:focus:ring-brand-400;
   }
   .va-label {
     @apply text-sm font-medium text-slate-700 dark:text-slate-200;
@@ -423,25 +460,26 @@
 @layer base {
   html.va-panel-theme-saas-light {
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    /* Alineado a --color-brand-* global (azul taller); celestes para estados suaves */
-    --color-brand-50: #eff6ff;
-    --color-brand-100: #dbeafe;
-    --color-brand-200: #bfdbfe;
-    --color-brand-300: #93c5fc;
-    --color-brand-400: #60a5fa;
-    --color-brand-600: #2d4fc7;
-    --color-brand-700: #243d9e;
-    --color-brand-800: #1e3a8a;
-    --color-brand-900: #141f4a;
-    --color-brand-950: #0c1436;
+    /* Tokens clásico Tegui: naranja + navy; el oscuro los remapea al Pro industrial. */
+    --color-brand-50: #fff3ee;
+    --color-brand-100: #ffe2d4;
+    --color-brand-200: #ffc5ab;
+    --color-brand-300: #ffa378;
+    --color-brand-400: #fb7f47;
+    --color-brand-500: #e95721;
+    --color-brand-600: #d0440f;
+    --color-brand-700: #bb3c10;
+    --color-brand-800: #983113;
+    --color-brand-900: #7c2a0f;
+    --color-brand-950: #431505;
     /* Semánticos (páginas y shell pueden usar var(--va-*) en futuras fases) */
-    --va-surface-page: #f8f9fc;
+    --va-surface-page: #f5f7fa;
     --va-surface-elevated: #ffffff;
-    /** Sidebar “ghost”: casi blanco, separable del lienzo principal sin gris frío (#f3f5f9). */
-    --va-surface-sidebar: #fafbfc;
-    --va-surface-muted: #f1f5f9;
-    --va-accent-soft: #dbeafe;
-    --va-accent-soft-ring: #bfdbfe;
+    /** Sidebar: blanca, separable del lienzo sin gris frío (#f3f5f9). */
+    --va-surface-sidebar: #ffffff;
+    --va-surface-muted: #f8fafc;
+    --va-accent-soft: #ffe2d4;
+    --va-accent-soft-ring: #ffa378;
   }
   /**
    * Oscuro SaaS → "TEGUI PRO" (industrial): las escalas `slate`/`zinc`/`brand`
@@ -893,13 +931,166 @@ html.dark .va-app-shell-search:focus {
   outline: none;
 }
 
-/* --- Botones primarios en oscuro: hover sólido (sin glow translúcido) --- */
+/* --- Botones primarios en oscuro: naranja profundo + glow (autopiezas `[data-theme="pro"]`) --- */
 html.dark .va-btn-primary:not(:disabled):hover,
 html.dark .va-saas-tab-success-btn:hover {
-  background-color: #1d3fb0 !important;
+  background-color: #d94a12 !important;
+  box-shadow: 0 4px 18px rgba(255, 122, 51, 0.5) !important;
+  filter: none !important;
 }
 
 /* --- Modales: borde de acero --- */
 html.dark :is(.va-modal-panel, .va-modal-panel-wide, .va-modal-panel-stack) {
   border-color: #2a2e3a !important;
+}
+
+/* ==========================================================================
+   TEGUI — autopiezas-tegui «a cabalidad» (port completo)
+   Referencia: autopiezas-tegui `app/globals.css` (clásico + `[data-theme="pro"]`).
+   Reglas FUERA de @layer: ganan a las utilidades por cascada (mismo criterio
+   que los `!important` del tema Pro original). Solo estética: colores, fuentes,
+   bordes, esquinas, sombras y densidad; no mueve estructura ni posiciones.
+   ========================================================================== */
+
+/* --- Tokens Pro industriales + acento para `outline` de foco --- */
+html.dark {
+  --brand: #ff7a33;
+  --pro-bg: #0f1117;
+  --pro-surface: #1a1d27;
+  --pro-surface-alt: #22262f;
+  --pro-ink: #e4e7ec;
+  --pro-ink-muted: #8b919d;
+  --pro-accent: #ff7a33;
+  --pro-border: #2a2e3a;
+}
+html.dark {
+  background: var(--pro-bg);
+  color: var(--pro-ink);
+}
+
+/* --- Titulares: DM Sans display (autopiezas: `--font-display`, pesos 700/800) --- */
+.va-page-title,
+.va-section-title,
+h1 { font-family: var(--va-font-display); }
+
+.va-page-title {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+html.va-panel-theme-saas-light .va-page-title {
+  font-size: 1.5rem;
+  line-height: 1.75rem;
+  letter-spacing: -0.035em;
+}
+@media (min-width: 1024px) {
+  html.va-panel-theme-saas-light .va-page-title {
+    font-size: 1.75rem;
+    line-height: 2rem;
+  }
+}
+.va-section-title,
+html.va-panel-theme-saas-light .va-section-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+/* h2/h3 dentro de shell, tarjetas y modales: display para títulos de sección. */
+html.va-panel-theme-saas-light
+  :is(.va-app-shell-main, .va-modal-panel, .va-modal-panel-wide, .va-modal-panel-stack, .va-card, .va-saas-page-hero)
+  :where(h1, h2, h3) {
+  font-family: var(--va-font-display);
+  letter-spacing: -0.02em;
+}
+
+/* --- Feedback interactivo (firma Tegui) --- */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease, transform 0.12s ease, opacity 0.16s ease;
+}
+button:not(:disabled),
+a:not(.no-feedback) { cursor: pointer; }
+button:not(:disabled):hover { filter: brightness(0.97); }
+button:not(:disabled):active { transform: scale(0.965); }
+a:focus-visible,
+button:focus-visible:not([class*='focus-visible:ring']) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  button,
+  a { transition: none; }
+  button:not(:disabled):active { transform: none; }
+}
+
+/* --- MAYÚSCULA mientras se escribe (campos operativos; excepciones de autopiezas) --- */
+input:not([type='email']):not([type='url']):not([type='date']):not([type='search']),
+textarea,
+select { text-transform: uppercase; }
+input::placeholder,
+textarea::placeholder { text-transform: none; }
+
+/* --- Móvil: inputs a 16px (anti auto-zoom iOS) --- */
+@media (max-width: 639px) {
+  .va-field,
+  :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+}
+
+/* --- Densidad operation-density: tablas --- */
+.va-table { font-size: 0.75rem; }
+.va-table-head-row th { font-size: 0.625rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.va-table-head-row th.va-table-th { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.va-table-head-row { background-color: #ffffff; color: #53687c; }
+.va-table-body-row td.va-table-td { padding-top: 0.4375rem; padding-bottom: 0.4375rem; }
+.va-table-th,
+.va-table-td { padding-left: 0.625rem; padding-right: 0.625rem; }
+.va-table tbody tr { border-color: #f0f3f6; transition: background-color 0.12s ease; }
+.va-table tbody tr:hover { background-color: #f7fafc; }
+html.dark .va-table tbody tr:hover { background-color: #331f10 !important; }
+
+/* --- Densidad operation-density: paneles, tarjetas y modales (radios Tegui) --- */
+.va-card,
+.va-card-flush { border-radius: 0.75rem; }
+html.va-panel-theme-saas-light
+  :is(.va-saas-page-hero, .va-saas-page-section, .va-saas-stack-section, .va-saas-panel-tile, .va-saas-soft-panel, .va-saas-link-card, .va-saas-module-card) {
+  border-radius: 0.75rem;
+}
+@media (min-width: 640px) {
+  .va-modal-panel,
+  .va-modal-panel-wide,
+  .va-modal-panel-stack { border-radius: 0.75rem; }
+}
+
+/* --- Sombras suaves (clásico) / profundas (Pro) --- */
+html.va-panel-theme-saas-light .va-app-shell {
+  background-color: var(--va-surface-page);
+}
+html.va-panel-theme-saas-light
+  :is(.va-saas-page-hero, .va-saas-page-section, .va-saas-stack-section, .va-saas-panel-tile, .va-saas-soft-panel, .va-saas-link-card) {
+  box-shadow: 0 5px 15px rgba(22, 51, 78, 0.05);
+}
+html.dark .va-card,
+html.dark .va-card-flush,
+html.dark :is(.va-saas-page-hero, .va-saas-page-section, .va-saas-stack-section, .va-saas-panel-tile, .va-saas-soft-panel, .va-saas-link-card) {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Strip de cabecera de bloque: surface-alt en Pro (autopiezas `.data-panel-toolbar`) --- */
+html.va-panel-theme-saas-light.dark .va-saas-section-head {
+  background-color: var(--pro-surface-alt) !important;
+}
+
+/* --- Login / portal público: gradiente industrial + glow naranja, marca roja intacta --- */
+html.dark .va-landing-commercial-brand,
+html.dark .flex.min-h-dvh:not(.va-app-shell) {
+  background: linear-gradient(160deg, #0f1117 0%, #1a1d27 50%, #0f1117 100%) !important;
+  color: #e4e7ec !important;
+}
+html.dark .va-landing-commercial-brand :is(.rounded-2xl, [class*='rounded-2xl']) {
+  border-color: #2a2e3a !important;
+  background-color: #1a1d27 !important;
+  box-shadow: 0 4px 32px rgba(255, 122, 51, 0.08), 0 0 0 1px #2a2e3a !important;
 }
