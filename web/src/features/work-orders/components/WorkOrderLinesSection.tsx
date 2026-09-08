@@ -1,6 +1,15 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 import { Check, Pencil, Trash2, X } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import { queryKeys } from '../../../lib/queryKeys'
 import { useAlert, useConfirm } from '../../../components/confirm/ConfirmProvider'
@@ -16,9 +25,12 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 type TaxRateCatalogRow = { id: string; name: string; kind: string }
 
-/** Minúsculas sin tildes: que «aceite» encuentre «ACEITE» y «aceité» por igual. */
+/**
+ * Minúsculas sin tildes: que «aceite» encuentre «ACEITE» y «aceité» por igual.
+ * El rango es el de marcas diacríticas combinantes (U+0300–U+036F).
+ */
 function foldAccents(value: string): string {
-  return value.normalize('NFD').replace(/[̀-ͯ]/g, '')
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
 
 export type WorkOrderLinesSectionProps = {
@@ -65,6 +77,7 @@ export function WorkOrderLinesSection({
 }: WorkOrderLinesSectionProps) {
   const confirm = useConfirm()
   const blockingAlert = useAlert()
+  const queryClient = useQueryClient()
   const { postLine, patchLine, deleteLine } = useWorkOrderDetailMutations(id)
   const refreshLinesOnWorkOrder = onLinesChanged
   const load = onReload
@@ -101,20 +114,30 @@ export function WorkOrderLinesSection({
    * navegador hasta Railway). Ahora el catálogo se descarga una sola vez y el filtrado se hace en
    * local, así que escribir y ver sugerencias es inmediato y sin consumo de red.
    *
-   * Si el catálogo supera `CATALOG_PAGE_LIMIT`, `catalogIsComplete` es false y el buscador vuelve
-   * solo a la búsqueda en servidor (mismo comportamiento de antes).
+   * La caché vive 3 horas: el catálogo cambia poco y así abrir una OT no vuelve a descargarlo.
+   * Al crear un repuesto se actualiza en el momento (ver `rememberCreatedPart`), así que nunca
+   * se busca sobre datos viejo.
+   *
+   * Si el catálogo supera el tope del endpoint, o todavía está vacío, `useLocalSearch` es false y
+   * el buscador vuelve a la búsqueda en servidor (comportamiento anterior).
    */
   const catalogQuery = useQuery({
     queryKey: queryKeys.spareParts.catalog(),
     queryFn: ({ signal }) => api<{ items: SparePart[]; total: number }>('/spare-parts/catalog', { signal }),
-    staleTime: 10 * 60_000,
-    gcTime: 30 * 60_000,
+    staleTime: 3 * 60 * 60_000,
+    gcTime: 6 * 60 * 60_000,
   })
   const catalogIsComplete = catalogQuery.data
     ? catalogQuery.data.items.length >= catalogQuery.data.total
     : false
+  /**
+   * `0 >= 0` también cumple `catalogIsComplete`: con el catálogo vacío el filtro local no
+   * encontraría nada y la búsqueda en servidor estaba desactivada, así que un repuesto recién
+   * creado era "invisible" hasta que expirara la caché. Por eso exigimos que haya ítems.
+   */
+  const useLocalSearch = catalogIsComplete && (catalogQuery.data?.items.length ?? 0) > 0
 
-  /** Búsqueda en servidor: sólo si el catálogo no entró completo en memoria. */
+  /** Búsqueda en servidor: sólo cuando el catálogo en memoria no alcanza (vacío o incompleto). */
   const partSearchQuery = useQuery({
     queryKey: queryKeys.spareParts.search(debouncedPartTerm),
     queryFn: ({ signal }) =>
@@ -122,14 +145,14 @@ export function WorkOrderLinesSection({
         `/spare-parts?q=${encodeURIComponent(debouncedPartTerm)}&limit=12`,
         { signal },
       ),
-    enabled: !catalogIsComplete && debouncedPartTerm.length >= 2,
+    enabled: !useLocalSearch && debouncedPartTerm.length >= 2,
     staleTime: 60_000,
   })
 
   const partSuggestions = useMemo(() => {
     const term = debouncedPartTerm.trim().toLowerCase()
     if (term.length < 2) return []
-    if (catalogIsComplete && catalogQuery.data) {
+    if (useLocalSearch && catalogQuery.data) {
       const needle = foldAccents(term)
       return catalogQuery.data.items
         .filter(
@@ -140,7 +163,7 @@ export function WorkOrderLinesSection({
         .slice(0, 12)
     }
     return partSearchQuery.data?.items ?? []
-  }, [catalogIsComplete, catalogQuery.data, debouncedPartTerm, partSearchQuery.data])
+  }, [useLocalSearch, catalogQuery.data, debouncedPartTerm, partSearchQuery.data])
 
   const partTermLower = debouncedPartTerm.trim().toLowerCase()
   const partTermSkuNorm = debouncedPartTerm.trim().toUpperCase()
@@ -152,6 +175,28 @@ export function WorkOrderLinesSection({
     [partSuggestions, partTermLower, partTermSkuNorm],
   )
   const canCreateSparePart = can('repuestos:create')
+
+  /**
+   * Tras dar de alta un repuesto, el catálogo en memoria quedaría desactualizado (y con la caché
+   * de 3 horas el buscador no lo encontraría). Acá:
+   *  1) se inserta en la caché para que aparezca al instante, y
+   *  2) se invalida para que el próximo refresque traiga el catálogo completo del servidor.
+   */
+  const rememberCreatedPart = useCallback(
+    (part: SparePart) => {
+      queryClient.setQueryData<{ items: SparePart[]; total: number }>(
+        queryKeys.spareParts.catalog(),
+        (prev) => {
+          if (!prev) return prev
+          if (prev.items.some((p) => p.id === part.id || p.sku === part.sku)) return prev
+          const items = [...prev.items, part].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+          return { items, total: Math.max(prev.total, items.length) }
+        },
+      )
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spareParts.root })
+    },
+    [queryClient],
+  )
 
   async function addPartLine(opts: {
     description: string
@@ -260,6 +305,7 @@ export function WorkOrderLinesSection({
         method: 'POST',
         body: JSON.stringify({ name: term }),
       })
+      rememberCreatedPart(created)
       const result = await addPartLine({
         description: created.name,
         sku: created.sku,

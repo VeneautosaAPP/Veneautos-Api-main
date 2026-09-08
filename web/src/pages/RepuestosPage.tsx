@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, downloadFile } from '../api/client'
 import type { SparePart } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { PageHeader } from '../components/layout/PageHeader'
 import { useConfirm } from '../components/confirm/ConfirmProvider'
+import { queryKeys } from '../lib/queryKeys'
 import {
   formatCopFromString,
   formatMoneyInputDisplayFromNormalized,
@@ -25,6 +27,7 @@ function normalizeSkuInput(v: string): string {
 
 export function RepuestosPage() {
   const { can } = useAuth()
+  const queryClient = useQueryClient()
   const mayCreate = can('repuestos:create')
   const mayUpdate = can('repuestos:update')
   const mayDelete = can('repuestos:delete')
@@ -200,6 +203,12 @@ export function RepuestosPage() {
       const r = await api<{ items: SparePart[]; total: number }>(`/spare-parts?${params.toString()}`)
       setRows(r.items)
       setTotal(r.total)
+      /**
+       * Esta pantalla mantiene su propio estado, pero la OT usa una copia del catálogo en memoria
+       * (caché de 3 h). Al crear/editar/borrar/importar hay que avisarle, si no el buscador de la
+       * OT seguiría mostrando el catálogo viejo.
+       */
+      void queryClient.invalidateQueries({ queryKey: queryKeys.spareParts.root })
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Error al cargar repuestos')
     }
