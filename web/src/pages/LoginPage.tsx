@@ -8,7 +8,7 @@ function loginFailureMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 401) return 'Correo o contraseña incorrectos.'
     if (err.status === 0)
-      return 'No pudimos contactar al servidor. Comprobá tu conexión e intentá de nuevo.'
+      return err.message || 'No pudimos contactar al servidor. Comprobá tu conexión e intentá de nuevo.'
     if (err.status === 502 || err.status === 503 || err.status === 504)
       return 'El servidor no respondió a tiempo. Intentá de nuevo en unos momentos.'
     if (/npm run|PostgreSQL en Docker|localhost/i.test(err.message))

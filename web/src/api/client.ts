@@ -57,17 +57,19 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     })
   } catch (err) {
     const isAbort = err instanceof DOMException && err.name === 'AbortError'
+    const target = `${API_PREFIX}${path}`
+    const detail = err instanceof Error ? err.message : String(err ?? 'error desconocido')
     if (isLoginAttempt) {
       throw new ApiError(
         isAbort
-          ? 'La solicitud tardó demasiado. Comprobá tu conexión e intentá de nuevo.'
-          : 'No pudimos contactar al servidor. Comprobá tu conexión e intentá de nuevo.',
+          ? `La solicitud tardó demasiado. URL: ${target}`
+          : `No pudimos contactar al servidor. URL: ${target} — Detalle: ${detail}`,
         0,
         null,
       )
     }
     throw new ApiError(
-      'No se pudo contactar al servidor. En desarrollo, desde la raíz del repo: npm run db:up (PostgreSQL en Docker), npm run api:dev, y esperá a ver en consola la línea que empieza con «Vene Autos API —». Recargá esta página.',
+      `No se pudo contactar al servidor. URL: ${target} — Detalle: ${detail} — En desarrollo, desde la raíz del repo: npm run db:up (PostgreSQL en Docker), npm run api:dev, y esperá a ver en consola la línea que empieza con «Vene Autos API —». Recargá esta página.`,
       0,
       null,
     )
