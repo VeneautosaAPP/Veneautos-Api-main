@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install --prefix api --include=dev --no-audit --no-fund --ignore-scripts --fetch-retries=5 --fetch-timeout=60000 && npm install --prefix web --include=dev --no-audit --no-fund --ignore-scripts",
-  "buildCommand": "cd api && npx prisma generate && cd ../web && npm run build",
-  "outputDirectory": "web/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
