@@ -18,7 +18,7 @@ type UserRow = {
 export function UsersPage() {
   const panelTheme = usePanelTheme()
   const isSaas = panelUsesModernShell(panelTheme)
-  const { can } = useAuth()
+  const { user, can } = useAuth()
   const confirm = useConfirm()
   const [rows, setRows] = useState<UserRow[] | null>(null)
   const [roles, setRoles] = useState<RoleBrief[]>([])
@@ -113,6 +113,33 @@ export function UsersPage() {
     setPrimaryRoleId(pick)
     setRoleIds(pick ? new Set([pick]) : new Set())
     setMultiRoleMode(false)
+  }
+
+  async function toggleActive(u: UserRow) {
+    if (u.id === user?.id) {
+      setMsg('No podés desactivar tu propia cuenta.')
+      return
+    }
+    const deactivating = u.isActive
+    const ok = await confirm({
+      title: deactivating ? 'Desactivar usuario' : 'Reactivar usuario',
+      message: deactivating
+        ? `¿Desactivar a ${u.fullName}?\n\nNo podrá ingresar al sistema, sus sesiones activas se cierran de inmediato, no será elegible para asignarle OTs y dejará de aparecer en las listas de trabajo.\n\nSu historial (OTs creadas, facturas, caja) se conserva intacto.`
+        : `¿Reactivar a ${u.fullName}?\n\nVolverá a poder ingresar y aparecerá como elegible para asignarle OTs.`,
+      confirmLabel: deactivating ? 'Desactivar' : 'Reactivar',
+      variant: deactivating ? 'danger' : 'default',
+    })
+    if (!ok) return
+    try {
+      await api(`/users/${u.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !u.isActive }),
+      })
+      setMsg(deactivating ? 'Usuario desactivado' : 'Usuario reactivado')
+      await load()
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Error')
+    }
   }
 
   function sameRoleSet(a: string[], b: string[]) {
@@ -226,15 +253,30 @@ export function UsersPage() {
                     </td>
                     <td className="va-table-td">{u.isActive ? 'Sí' : 'No'}</td>
                     <td className="va-table-td">
-                      {can('users:update') && (
-                        <button
-                          type="button"
-                          onClick={() => openEdit(u)}
-                          className="text-xs font-medium text-brand-700 hover:underline"
-                        >
-                          Editar
-                        </button>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {can('users:update') && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(u)}
+                            className="text-xs font-medium text-brand-700 hover:underline"
+                          >
+                            Editar
+                          </button>
+                        )}
+                        {can('users:deactivate') && (
+                          <button
+                            type="button"
+                            onClick={() => void toggleActive(u)}
+                            className={
+                              u.isActive
+                                ? 'text-xs font-medium text-red-600 hover:underline dark:text-red-400'
+                                : 'text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400'
+                            }
+                          >
+                            {u.isActive ? 'Desactivar' : 'Reactivar'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -380,14 +422,20 @@ export function UsersPage() {
               </div>
 
               {modal === 'edit' && can('users:deactivate') && (
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
-                    className="rounded border-slate-300 dark:border-slate-500"
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-500"
                   />
-                  <span>Usuario activo</span>
+                  <span>
+                    <span className="font-medium">Usuario activo</span>
+                    <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
+                      Desactivado: no podrá ingresar, sus sesiones se cierran y no será elegible para asignarle OTs; su
+                      historial se conserva.
+                    </span>
+                  </span>
                 </label>
               )}
               <div className="flex gap-2 pt-2">
