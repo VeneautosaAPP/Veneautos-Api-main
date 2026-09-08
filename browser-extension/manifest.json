@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Vene WhatsApp",
+  "version": "0.1.0",
+  "description": "Envía el comprobante de VeneAutos por WhatsApp Web (texto + PDF) de forma automática desde el panel.",
+  "permissions": ["debugger", "downloads"],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "http://localhost:5173/*",
+    "http://127.0.0.1:5173/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*",
+        "https://*.vercel.app/*"
+      ],
+      "js": ["src/content-app.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -53,6 +53,8 @@ import type {
   WorkOrderStatus,
 } from '../api/types'
 import { WorkOrderLinesSection } from '../features/work-orders/components/WorkOrderLinesSection'
+import { WhatsAppSendModal } from '../features/work-orders/components/WhatsAppSendModal'
+import { normalizeWhatsAppPhone } from '../lib/whatsappPhone'
 import { linesSubtotalFromLines } from '../features/work-orders/services/workOrderLinesPresentation'
 
 type CashCat = { slug: string; name: string; direction: string }
@@ -176,6 +178,7 @@ export function WorkOrderDetailPage() {
   const [wo, setWo] = useState<WorkOrderDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [waSendOpen, setWaSendOpen] = useState(false)
 
 
   // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
@@ -1081,6 +1084,9 @@ export function WorkOrderDetailPage() {
   }
 
   const st = STATUS[wo.status]
+  const woWaPhone = normalizeWhatsAppPhone(
+    wo.customerPhone ?? wo.vehicle?.customer?.primaryPhone ?? null,
+  )
   /**
    * Orden de la tabla: `sortOrder` **descendente**, es decir **lo último agregado arriba**
    * (el servidor los devuelve ascendente y el `sortOrder` mayor es el más nuevo).
@@ -1260,6 +1266,16 @@ ${formatCopFromString(wo.amountDue ?? '0')}
               >
                 Imprimir comprobante
               </button>
+              {woWaPhone ? (
+                <button
+                  type="button"
+                  onClick={() => setWaSendOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                  title="Enviar el comprobante de esta orden por WhatsApp"
+                >
+                  Enviar por WhatsApp
+                </button>
+              ) : null}
               {canPatchWo ? (
                 <button
                   type="button"
@@ -2044,6 +2060,9 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           onRecorded={() => void load()}
           onClose={() => setConsentModal(null)}
         />
+      ) : null}
+      {waSendOpen ? (
+        <WhatsAppSendModal open onClose={() => setWaSendOpen(false)} wo={wo} />
       ) : null}
     </div>
   )

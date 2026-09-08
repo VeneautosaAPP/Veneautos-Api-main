@@ -168,6 +168,27 @@ export async function downloadFile(path: string, fallbackFilename: string): Prom
 }
 
 /**
+ * Trae el HTML de un recurso autenticado (p. ej. comprobante imprimible). El JWT viaja por
+ * header `Authorization`, nunca por URL.
+ */
+export async function fetchAuthenticatedHtml(path: string): Promise<string> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const res = await fetch(`${API_PREFIX}${path}`, { headers, cache: 'no-store' })
+  if (!res.ok) {
+    const body = await parseBody(res)
+    const rawMsg =
+      typeof body === 'object' && body !== null && 'message' in body
+        ? (body as { message: unknown }).message
+        : res.statusText
+    const msg = Array.isArray(rawMsg) ? rawMsg.map(String).join(' ') : String(rawMsg ?? res.statusText)
+    throw new ApiError(msg || 'No se pudo obtener el recurso', res.status, body)
+  }
+  return res.text()
+}
+
+/**
  * Abre un recurso HTML autenticado (p. ej. comprobante imprimible de Fase 7.5) en una pestaña
  * nueva. El JWT no viaja por URL: se hace `fetch` con Authorization y luego se abre el HTML
  * usando un Blob URL. El usuario decide imprimir desde la barra del recibo.
@@ -180,20 +201,7 @@ export async function openAuthenticatedHtml(
   path: string,
   fallbackTitle = 'Comprobante',
 ): Promise<void> {
-  const headers = new Headers()
-  const token = getToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-  const res = await fetch(`${API_PREFIX}${path}`, { headers, cache: 'no-store' })
-  if (!res.ok) {
-    const body = await parseBody(res)
-    const rawMsg =
-      typeof body === 'object' && body !== null && 'message' in body
-        ? (body as { message: unknown }).message
-        : res.statusText
-    const msg = Array.isArray(rawMsg) ? rawMsg.map(String).join(' ') : String(rawMsg ?? res.statusText)
-    throw new ApiError(msg || 'No se pudo obtener el comprobante', res.status, body)
-  }
-  const html = await res.text()
+  const html = await fetchAuthenticatedHtml(path)
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const win = window.open(url, '_blank')
