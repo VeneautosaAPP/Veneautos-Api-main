@@ -838,16 +838,26 @@ html.va-panel-theme-saas-light.dark .va-app-shell-sidebar {
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
 }
 html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a:not([aria-current='page']) {
-  color: #8b919d !important;
+  color: #ffffff !important;
   background: transparent !important;
 }
 html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a:not([aria-current='page']):hover {
-  color: #ff7a33 !important;
+  color: #ffffff !important;
   font-weight: 600;
   background: transparent !important;
 }
 html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a[aria-current='page'] {
-  color: #ff7a33 !important;
+  color: #ffffff !important;
+  background: transparent !important;
+  --tw-ring-color: transparent !important;
+  box-shadow: none !important;
+}
+/* Sin contenedor/pill selector naranja: queda solo la barra de acento lateral */
+html.va-panel-theme-saas-light.dark .va-app-shell-nav-pill {
+  background: transparent !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  border: 0 solid transparent !important;
 }
 /* Barra de acento vertical a la izquierda del ítem (hover y activo) */
 html.va-panel-theme-saas-light.dark .va-app-shell-sidebar nav a[aria-current='page']::before,
