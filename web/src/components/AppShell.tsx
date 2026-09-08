@@ -235,13 +235,13 @@ function AppShellInner() {
   const links = useMemo((): NavLinkItem[] => {
     const all: NavLinkItem[] = [
       { to: portalPath('/'), label: 'Inicio', Icon: LayoutDashboard, show: true },
-      { to: portalPath('/caja'), label: 'Caja', Icon: Wallet, show: can('cash_sessions:read') },
       {
         to: portalPath('/ordenes'),
         label: 'Órdenes',
         Icon: ClipboardList,
         show: can('work_orders:read') || can('work_orders:read_portal'),
       },
+      { to: portalPath('/caja'), label: 'Caja', Icon: Wallet, show: can('cash_sessions:read') },
       { to: portalPath('/clientes'), label: 'Clientes', Icon: Users, show: can('customers:read') },
       { to: portalPath('/repuestos'), label: 'Repuestos', Icon: Package, show: can('repuestos:read') },
       { to: portalPath('/admin/usuarios'), label: 'Usuarios', Icon: UsersRound, show: can('users:read') },

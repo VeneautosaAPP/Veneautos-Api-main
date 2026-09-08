@@ -26,7 +26,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   if (ready && user) {
-    return <Navigate to={portalPath('/')} replace />
+    return <Navigate to={portalPath('/ordenes')} replace />
   }
 
   if (ready && sessionError === 'network' && getToken()) {
