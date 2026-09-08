@@ -2,7 +2,7 @@
 buildCommand = "npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build && npx tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2021 --esModuleInterop --skipLibCheck"
 
 [deploy]
-startCommand = "cd api && echo PSQL=$(command -v psql); ((./node_modules/.bin/prisma migrate deploy) || (npx --no-install prisma migrate deploy) || echo 'WARN: migrate no se ejecuto') && node dist-seed/seed.js && node dist/main"
+startCommand = "cd api && (./node_modules/.bin/prisma migrate deploy || echo 'WARN: migrate deploy'); (./node_modules/.bin/prisma db push --skip-generate || echo 'WARN: db push'); for d in prisma/migrations/*/; do ./node_modules/.bin/prisma migrate resolve --applied \"$(basename $d)\" >/dev/null 2>&1 || true; done; node dist-seed/seed.js && node dist/main"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
