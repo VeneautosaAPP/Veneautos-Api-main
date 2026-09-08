@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.railpack.com",
+  // Cliente de PostgreSQL (psql, pg_dump, pg_restore) en la imagen final.
+  // Sin esto, el backup/restore del panel falla con "psql: not found": los apt
+  // instalados a mano dentro del buildCommand NO llegan al contenedor (Railpack
+  // descarta esa capa). `deploy.aptPackages` sí los deja en la imagen de runtime.
+  "deploy": {
+    "aptPackages": ["postgresql-client"]
+  }
+}
