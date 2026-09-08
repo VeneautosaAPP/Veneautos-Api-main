@@ -6,8 +6,9 @@ export type SettingFieldPresentation = {
 
 const META: Record<string, SettingFieldPresentation> = {
   'auth.session_idle_timeout_minutes': {
-    label: 'Tiempo máximo de inactividad (minutos)',
-    description: 'Tras este tiempo sin actividad se cierra la sesión. Rango 1–1440 (minutos).',
+    label: 'Cierre por inactividad (minutos)',
+    description:
+      'Tras este tiempo sin actividad se cierra la sesión. 0 = sin límite: la sesión no se cierra por inactividad (solo al cerrar la sesión el usuario o si un administrador la revoca). Rango 0–1440.',
   },
   'users.create_requires_dueno_role': {
     label: 'Solo el rol dueño puede crear usuarios',

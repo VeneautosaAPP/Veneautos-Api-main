@@ -6,8 +6,8 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const IDLE_SETTING_KEY = 'auth.session_idle_timeout_minutes';
-const DEFAULT_IDLE_MINUTES = 10;
-const MIN_IDLE = 1;
+/** 0 = sin límite: la sesión no se cierra por inactividad (solo por logout/revocación). */
+const DEFAULT_IDLE_MINUTES = 0;
 const MAX_IDLE = 24 * 60;
 
 /** Vigencia en memoria del ajuste de inactividad: se lee en cada petición autenticada. */
@@ -51,7 +51,7 @@ export class AuthSessionService {
         n = parsed;
       }
     }
-    const value = Math.min(MAX_IDLE, Math.max(MIN_IDLE, n));
+    const value = Math.min(MAX_IDLE, Math.max(0, n));
     this.idleSettingCache = { at: now, value };
     return value;
   }
@@ -91,8 +91,8 @@ export class AuthSessionService {
     const cached = this.sessionCheck.get(sessionId);
 
     if (cached && now - cached.at < SESSION_CHECK_TTL_MS) {
-      const idleMs = (await this.getSessionIdleTimeoutMinutes()) * 60_000;
-      if (now - cached.lastActivityAt > idleMs) {
+      const idleMinutes = await this.getSessionIdleTimeoutMinutes();
+      if (idleMinutes > 0 && now - cached.lastActivityAt > idleMinutes * 60_000) {
         await this.revokeSession(sessionId, userId);
         throw new UnauthorizedException('Sesión cerrada por inactividad. Inicie sesión de nuevo.');
       }
@@ -110,8 +110,7 @@ export class AuthSessionService {
     this.sessionCheck.set(sessionId, { at: now, lastActivityAt });
 
     const idleMinutes = await this.getSessionIdleTimeoutMinutes();
-    const limitMs = idleMinutes * 60_000;
-    if (now - lastActivityAt > limitMs) {
+    if (idleMinutes > 0 && now - lastActivityAt > idleMinutes * 60_000) {
       await this.revokeSession(sessionId, userId);
       throw new UnauthorizedException('Sesión cerrada por inactividad. Inicie sesión de nuevo.');
     }

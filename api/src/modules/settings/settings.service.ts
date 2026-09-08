@@ -80,9 +80,9 @@ function assertKnownSettingValue(key: string, value: unknown): void {
         : typeof value === 'string'
           ? parseInt(value, 10)
           : NaN;
-    if (!Number.isFinite(n) || n < 1 || n > 24 * 60) {
+    if (!Number.isFinite(n) || n < 0 || n > 24 * 60) {
       throw new BadRequestException(
-        'auth.session_idle_timeout_minutes debe ser un número entero entre 1 y 1440 (minutos).',
+        'auth.session_idle_timeout_minutes debe ser un número entero entre 0 y 1440 (minutos). 0 = sin límite (la sesión no se cierra por inactividad).',
       );
     }
   }
