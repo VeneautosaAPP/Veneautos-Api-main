@@ -285,7 +285,7 @@ export function WorkOrderLinesSection({
       unitPrice: Number(sp.price) > 0 ? normalizeMoneyDecimalStringForApi(String(sp.price)) : undefined,
     })
     if (result === false) return
-    if (result === 'added') setMsg(`Repuesto ${sp.sku} agregado`)
+    // Sin aviso: la línea nueva ya aparece en la tabla.
     resetPartAdd()
   }
 
@@ -313,9 +313,7 @@ export function WorkOrderLinesSection({
           Number(created.price) > 0 ? normalizeMoneyDecimalStringForApi(String(created.price)) : undefined,
       })
       if (result === false) return
-      if (result === 'added') {
-        setMsg(`«${term}» agregado al catálogo con SKU ${created.sku} y a la orden`)
-      }
+      // Sin aviso: el repuesto ya queda en el catálogo y la línea aparece en la tabla.
       resetPartAdd()
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
@@ -344,7 +342,7 @@ export function WorkOrderLinesSection({
       })
       setLaborDesc('')
       laborDescInputRef.current?.focus()
-      setMsg('Trabajo agregado (cantidad 1; editá precio/IVA en la línea)')
+      // Sin aviso: la línea nueva ya aparece en la tabla.
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al agregar trabajo')
@@ -392,7 +390,7 @@ export function WorkOrderLinesSection({
       })
     }
     setEditLine((el) => (el?.id === lineId ? null : el))
-    setMsg('Línea eliminada')
+    // Sin aviso: la fila ya desaparece de la tabla.
   }
 
   function startEdit(ln: WorkOrderLine) {
