@@ -1,5 +1,5 @@
 [build]
-buildCommand = "(apt-get update -qq && apt-get install -y -qq --no-install-recommends postgresql-client) || echo 'WARN: no se pudo instalar postgresql-client'; command -v psql pg_dump pg_restore || true; npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build && npx tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2021 --esModuleInterop --skipLibCheck"
+buildCommand = "npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build && npx tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2021 --esModuleInterop --skipLibCheck"
 
 [deploy]
 startCommand = "cd api && npx prisma migrate deploy && node dist-seed/seed.js && node dist/main"
