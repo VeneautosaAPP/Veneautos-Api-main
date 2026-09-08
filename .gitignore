@@ -9,6 +9,7 @@ web/.env.local
 # API (Nest + Prisma)
 api/node_modules/
 api/dist/
+api/dist-seed/
 api/.env
 api/.env.local
 api/coverage/

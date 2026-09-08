@@ -1,8 +1,8 @@
 [build]
-buildCommand = "npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build"
+buildCommand = "npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build && npx tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2021 --esModuleInterop --skipLibCheck"
 
 [deploy]
-startCommand = "cd api && npx prisma migrate deploy && node dist/main"
+startCommand = "cd api && npx prisma migrate deploy && node dist-seed/seed.js && node dist/main"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
