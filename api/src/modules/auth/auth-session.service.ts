@@ -14,6 +14,14 @@ const MAX_IDLE = 24 * 60;
 const IDLE_SETTING_TTL_MS = 60_000;
 /** Mínimo entre escrituras de `last_activity_at` por sesión (evita un UPDATE por request). */
 const TOUCH_MIN_INTERVAL_MS = 30_000;
+/**
+ * Vigencia de la comprobación de sesión en memoria.
+ *
+ * `assertSessionValid` corre en cada petición autenticada. Con esta caché corta se evita una
+ * consulta por request; al revocar (logout, o alta de sesión nueva) se invalida de inmediato, así
+ * que el acceso se corta al instante salvo en el margen de estos segundos.
+ */
+const SESSION_CHECK_TTL_MS = 10_000;
 
 @Injectable()
 export class AuthSessionService {
@@ -21,6 +29,8 @@ export class AuthSessionService {
 
   private idleSettingCache: { at: number; value: number } | null = null;
   private readonly lastTouchAt = new Map<string, number>();
+  /** `sessionId` -> última comprobación + `lastActivityAt` conocido. */
+  private readonly sessionCheck = new Map<string, { at: number; lastActivityAt: number }>();
 
   async getSessionIdleTimeoutMinutes(): Promise<number> {
     const now = Date.now();
@@ -53,6 +63,9 @@ export class AuthSessionService {
     userId: string,
     meta: { ip?: string | null; userAgent?: string | null },
   ): Promise<string> {
+    // Al abrir sesión se revocan las anteriores del usuario: la caché de comprobación ya no sirve.
+    this.sessionCheck.clear();
+    this.lastTouchAt.clear();
     const now = new Date();
     await this.prisma.userAuthSession.updateMany({
       where: { userId, revokedAt: null },
@@ -74,6 +87,18 @@ export class AuthSessionService {
    * Comprueba que la sesión exista, no esté revocada, pertenezca al usuario y no haya superado el tiempo sin actividad.
    */
   async assertSessionValid(sessionId: string, userId: string): Promise<void> {
+    const now = Date.now();
+    const cached = this.sessionCheck.get(sessionId);
+
+    if (cached && now - cached.at < SESSION_CHECK_TTL_MS) {
+      const idleMs = (await this.getSessionIdleTimeoutMinutes()) * 60_000;
+      if (now - cached.lastActivityAt > idleMs) {
+        await this.revokeSession(sessionId, userId);
+        throw new UnauthorizedException('Sesión cerrada por inactividad. Inicie sesión de nuevo.');
+      }
+      return;
+    }
+
     const session = await this.prisma.userAuthSession.findFirst({
       where: { id: sessionId, userId, revokedAt: null },
     });
@@ -81,13 +106,13 @@ export class AuthSessionService {
       throw new UnauthorizedException('Sesión inválida o cerrada. Inicie sesión de nuevo.');
     }
 
+    const lastActivityAt = session.lastActivityAt.getTime();
+    this.sessionCheck.set(sessionId, { at: now, lastActivityAt });
+
     const idleMinutes = await this.getSessionIdleTimeoutMinutes();
     const limitMs = idleMinutes * 60_000;
-    if (Date.now() - session.lastActivityAt.getTime() > limitMs) {
-      await this.prisma.userAuthSession.updateMany({
-        where: { id: sessionId, userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
+    if (now - lastActivityAt > limitMs) {
+      await this.revokeSession(sessionId, userId);
       throw new UnauthorizedException('Sesión cerrada por inactividad. Inicie sesión de nuevo.');
     }
   }
@@ -101,6 +126,8 @@ export class AuthSessionService {
   async touchSession(sessionId: string, userId: string): Promise<void> {
     const now = Date.now();
     const last = this.lastTouchAt.get(sessionId) ?? 0;
+    const known = this.sessionCheck.get(sessionId);
+    if (known) known.lastActivityAt = now;
     if (now - last < TOUCH_MIN_INTERVAL_MS) return;
     this.lastTouchAt.set(sessionId, now);
 
@@ -112,6 +139,7 @@ export class AuthSessionService {
 
   async revokeSession(sessionId: string, userId: string): Promise<void> {
     this.lastTouchAt.delete(sessionId);
+    this.sessionCheck.delete(sessionId);
     await this.prisma.userAuthSession.updateMany({
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },
@@ -119,6 +147,8 @@ export class AuthSessionService {
   }
 
   async revokeAllForUser(userId: string): Promise<void> {
+    this.sessionCheck.clear();
+    this.lastTouchAt.clear();
     await this.prisma.userAuthSession.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },

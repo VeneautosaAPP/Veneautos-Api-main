@@ -79,17 +79,20 @@ export class SparePartsService {
         }
       : undefined;
 
-    const value = await this.prisma
-      .$transaction([
-        this.prisma.sparePart.findMany({
-          where,
-          orderBy: [{ name: 'asc' }, { sku: 'asc' }],
-          take: safeLimit,
-          skip: safeOffset,
-        }),
-        this.prisma.sparePart.count({ where }),
-      ])
-      .then(([items, total]) => ({ items, total }));
+    /**
+     * `findMany` + `count` en paralelo en vez de `$transaction([...])`: la transacción agregaba
+     * BEGIN/COMMIT (dos viajes extra a la base) sin aportar atomicidad a una simple lectura.
+     */
+    const [items, total] = await Promise.all([
+      this.prisma.sparePart.findMany({
+        where,
+        orderBy: [{ name: 'asc' }, { sku: 'asc' }],
+        take: safeLimit,
+        skip: safeOffset,
+      }),
+      this.prisma.sparePart.count({ where }),
+    ]);
+    const value: ListResult = { items, total };
 
     if (this.listCache.size >= LIST_CACHE_MAX_ENTRIES) {
       const oldest = this.listCache.keys().next().value;
