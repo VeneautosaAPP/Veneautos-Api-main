@@ -498,10 +498,15 @@ export function WorkOrderLinesSection({
       } catch {
         await load()
       }
+      /**
+       * Sin aviso de "línea actualizada": al editar varias líneas seguidas ese mensaje sólo
+       * ensucia la pantalla (el cambio ya se ve en la tabla). Sí mantenemos el aviso cuando la
+       * línea queda sin valor unitario, porque eso impide cobrar la orden.
+       */
       setMsg(
         canViewWoFinancials && !up
           ? 'Línea guardada sin valor unitario: la orden no se podrá cobrar hasta que lo cargues.'
-          : 'Línea actualizada',
+          : null,
       )
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
