@@ -14,7 +14,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, openAuthenticatedHtml } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { portalPath } from '../constants/portalPath'
-import { useAlert, useConfirm } from '../components/confirm/ConfirmProvider'
+import { useAlert, useConfirm, usePrompt } from '../components/confirm/ConfirmProvider'
 import { ClientConsentSignModal } from '../components/work-order/ClientConsentSignModal'
 import { ClientConsentSignedModal } from '../components/work-order/ClientConsentSignedModal'
 import { TransitLicenseOcrPanel } from '../components/work-order/TransitLicenseOcrPanel'
@@ -159,6 +159,7 @@ export function WorkOrderDetailPage() {
     patchWorkOrderPlain,
     reopenDelivered,
     recordPayment: recordPaymentMutation,
+    deletePayment: deletePaymentMutation,
   } = useWorkOrderDetailMutations(id)
   const { user, can } = useAuth()
   const navigate = useNavigate()
@@ -170,6 +171,7 @@ export function WorkOrderDetailPage() {
   const canRef = useRef(can)
   canRef.current = can
   const confirm = useConfirm()
+  const prompt = usePrompt()
   const blockingAlert = useAlert()
   const [wo, setWo] = useState<WorkOrderDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -395,6 +397,8 @@ export function WorkOrderDetailPage() {
     can('work_order_lines:create')
   const canDeleteLine =
     wo && !closed && !cashierOnly && can('work_orders:update') && can('work_order_lines:delete')
+  const canDeleteAbono =
+    wo && !closed && !cashierOnly && can('work_orders:delete_payment')
   const canUpdateLine =
     wo && !closed && !cashierOnly && can('work_orders:update') && can('work_order_lines:update')
   const canViewWoFinancials = useMemo(
@@ -426,8 +430,7 @@ export function WorkOrderDetailPage() {
   /** Saldo pendiente (numérico) para el resumen financiero del banner superior. */
   const woAmountDueNum = wo?.amountDue != null ? Number(wo.amountDue) : 0
 
-  /** Cobros en OT: solo con sesión de caja abierta (todos los roles; capa global). */
-  const showCobrosCajaFull = !hideWorkOrderCashUi && cashOpen === true
+  /** Cobros en OT: la lista siempre es visible para consultar/eliminar; el aviso gana con caja cerrada. */
   const showCobrosCajaBlocked = !hideWorkOrderCashUi && cashOpen !== true
 
   const canPatchWo = wo && can('work_orders:update') && !cashierOnly
@@ -510,11 +513,13 @@ export function WorkOrderDetailPage() {
   const detailRootClass = isSaas ? 'space-y-7' : 'space-y-8'
   /**
    * Cabecera fija al hacer scroll: se pega debajo de la barra superior del panel
-   * (`--va-app-header-h`) y por debajo de ella en `z-index` para no taparla.
+   * (`--va-app-header-h`, 0 en escritorio SaaS donde el header está oculto) más el
+   * padding vertical de `main` (py-4 / sm:py-6 / xl:py-7). Así el punto de anclaje
+   * coincide con su posición en reposo: el banner no se desplaza al scrollear.
    */
   const stickyHeaderClass = isSaas
-    ? 'sticky top-[var(--va-app-header-h,0px)] z-20 shadow-sm'
-    : 'sticky top-[var(--va-app-header-h,0px)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900'
+    ? `sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 shadow-sm`
+    : `sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900`
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
@@ -1014,6 +1019,49 @@ export function WorkOrderDetailPage() {
     }
   }
 
+  /**
+   * Eliminar un abono (pago parcial) de una OT abierta: pide motivo, borra la fila de cobro y su
+   * ingreso de caja en el API, y refresca la tabla + resumen. Solo abonos de OT no cerradas.
+   */
+  async function deleteAbono(p: WorkOrderPaymentRow) {
+    if (!id || paymentBusy || !p || p.kind === 'FULL_SETTLEMENT' || !canDeleteAbono) return
+    const reason = await prompt({
+      title: 'Eliminar abono',
+      message: (
+        <div className="space-y-3 text-left">
+          <p className="font-medium text-slate-800 dark:text-slate-100">
+            ¿Eliminar el abono de ${formatCopFromString(p.amount)} de esta orden?
+          </p>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Se borrará también el ingreso de caja vinculado y el saldo pendiente de la orden volverá a
+            subir. Esta acción queda registrada en auditoría.
+          </p>
+        </div>
+      ),
+      placeholder: `Motivo: escribí al menos ${notesMinGeneral} caracteres…`,
+      multiline: true,
+      minLength: notesMinGeneral,
+      maxLength: 2000,
+      variant: 'danger',
+      confirmLabel: 'Eliminar abono',
+    })
+    if (!reason) return
+    setPaymentBusy(true)
+    setPayFormError(null)
+    try {
+      await deletePaymentMutation.mutateAsync({ paymentId: p.id, reason: reason.trim() })
+      setMsg('Abono eliminado')
+      await load()
+      await refreshCashOpen()
+    } catch (err) {
+      const m = err instanceof Error ? err.message : 'Error al eliminar el abono'
+      if (!(await showBlockingConflictModal(err))) {
+        setMsg(m)
+      }
+    } finally {
+      setPaymentBusy(false)
+    }
+  }
 
   if (err || !id) {
     return (
@@ -1659,8 +1707,10 @@ ${formatCopFromString(wo.amountDue ?? '0')}
               </button>
             </div>
             <div ref={cashModalBodyRef} className="min-h-0 flex-1 overflow-y-auto">
-              {showCobrosCajaBlocked && (
-                <div className="space-y-3 px-4 py-5 sm:px-6">
+              {!hideWorkOrderCashUi && (
+                <div>
+                  {showCobrosCajaBlocked && (
+                    <div className="space-y-3 border-b border-slate-100 bg-slate-50 px-4 py-4 sm:px-6 dark:border-slate-800 dark:bg-slate-900/60">
             {cashOpen === null ? (
               <p className="text-sm text-slate-600 dark:text-slate-300">Consultando estado de caja…</p>
             ) : cashOpenLoadStatus === 'error' ? (
@@ -1687,8 +1737,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
             ) : (
               <>
                 <p className="text-sm font-medium text-amber-950 dark:text-amber-100">
-                  Caja cerrada. No se muestran cobros ni se puede registrar ingreso hasta que haya sesión abierta (política
-                  del taller, sin excepciones).
+                  Caja cerrada: no se pueden registrar nuevos cobros hasta abrir sesión (política del taller). Los
+                  abonos existentes siguen visibles y sí se pueden eliminar.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -1707,10 +1757,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 </div>
               </>
             )}
-              </div>
-              )}
-              {showCobrosCajaFull && (
-                <div>
+                    </div>
+                  )}
                   {payFormError && (
           <p
             className="va-alert-error-strip"
@@ -1762,20 +1810,33 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                   <td className="va-table-td text-slate-600 dark:text-slate-300">{p.cashMovement.category.name}</td>
                   <td className="va-table-td text-slate-600 dark:text-slate-300">{p.recordedBy.fullName}</td>
                   <td className="va-table-td text-right">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const res = await printTicketFromApi(
-                          `/work-orders/${id}/payments/${p.id}/receipt-ticket.json`,
-                          { copies: 1, openDrawer: false },
-                        )
-                        setMsg(res.ok ? 'Ticket reimpreso' : `No se pudo imprimir: ${res.hint}`)
-                      }}
-                      className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-                      title="Reimprimir ticket térmico"
-                    >
-                      Reimprimir
-                    </button>
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await printTicketFromApi(
+                            `/work-orders/${id}/payments/${p.id}/receipt-ticket.json`,
+                            { copies: 1, openDrawer: false },
+                          )
+                          setMsg(res.ok ? 'Ticket reimpreso' : `No se pudo imprimir: ${res.hint}`)
+                        }}
+                        className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                        title="Reimprimir ticket térmico"
+                      >
+                        Reimprimir
+                      </button>
+                      {p.kind !== 'FULL_SETTLEMENT' && canDeleteAbono && (
+                        <button
+                          type="button"
+                          onClick={() => void deleteAbono(p)}
+                          disabled={paymentBusy}
+                          className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900 dark:bg-slate-800 dark:text-rose-300 dark:hover:bg-rose-950"
+                          title="Eliminar abono (borra también el ingreso de caja vinculado)"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1931,8 +1992,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
               </div>
             </div>
           </form>
-              )}
-              </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

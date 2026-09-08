@@ -28,6 +28,7 @@ import {
 } from '../receipts/receipts.service';
 import { TicketBuilderService } from '../receipts/ticket-builder.service';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
+import { DeleteWorkOrderPaymentDto } from './dto/delete-work-order-payment.dto';
 import { ListWorkOrdersQueryDto } from './dto/list-work-orders.query.dto';
 import { LookupPublicWorkOrderDto } from './dto/lookup-public-work-order.dto';
 import { RecordWorkOrderPaymentDto } from './dto/record-work-order-payment.dto';
@@ -136,6 +137,23 @@ export class WorkOrdersController {
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
     });
+  }
+
+  @Delete(':id/payments/:paymentId')
+  @RequirePermissions('work_orders:delete_payment')
+  async removePayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Body() dto: DeleteWorkOrderPaymentDto,
+    @CurrentUser() actor: JwtUserPayload,
+    @Req() req: Request,
+  ) {
+    await this.workOrderPayments.remove(id, paymentId, actor, dto, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+    /** Misma respuesta que GET …/payments: el cliente actualiza la tabla y el resumen sin un segundo GET. */
+    return this.workOrderPayments.list(id, actor);
   }
 
   @Get(':id/lines/subtotal')

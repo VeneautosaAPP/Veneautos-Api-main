@@ -22,6 +22,7 @@ import { AuditService } from '../audit/audit.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';
 import { CASH_WORK_ORDER_REFERENCE_TYPE } from '../cash/cash.constants';
 import { resolveTenderAndChange } from '../cash/cash-tender.util';
+import type { DeleteWorkOrderPaymentDto } from './dto/delete-work-order-payment.dto';
 import type { RecordWorkOrderPaymentDto } from './dto/record-work-order-payment.dto';
 import { WorkOrdersService } from './work-orders.service';
 import { actorMayViewWorkOrderFinancials } from './work-orders.visibility';
@@ -314,5 +315,102 @@ export class WorkOrderPaymentsService {
     }
 
     return payment;
+  }
+
+  /**
+   * Elimina un abono (pago `PARTIAL`) de una OT abierta: borra la fila de cobro y su ingreso
+   * de caja 1:1 en la misma transacción. Bloqueado para OT Entregada/Cancelada y para la
+   * liquidación total (`FULL_SETTLEMENT`). Requiere motivo y deja auditoría.
+   */
+  async remove(
+    workOrderId: string,
+    paymentId: string,
+    actor: JwtUserPayload,
+    dto: DeleteWorkOrderPaymentDto,
+    meta: { ip?: string; userAgent?: string },
+  ) {
+    await this.workOrders.assertWorkOrderVisible(actor, workOrderId);
+
+    const reason = await this.notes.requireOperationalNote(
+      'Motivo de la eliminación del abono',
+      dto.reason,
+      'general',
+    );
+
+    const { wo, payment } = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw(Prisma.sql`SELECT 1 FROM "work_orders" WHERE id = ${workOrderId} FOR UPDATE`);
+
+        const wo = await tx.workOrder.findUnique({
+          where: { id: workOrderId },
+          select: {
+            id: true,
+            orderNumber: true,
+            publicCode: true,
+            status: true,
+          },
+        });
+        if (!wo) {
+          throw new NotFoundException('Orden de trabajo no encontrada');
+        }
+        if (
+          wo.status === WorkOrderStatus.DELIVERED ||
+          wo.status === WorkOrderStatus.CANCELLED
+        ) {
+          throw new ConflictException(
+            'La orden está cerrada; no admite cambios. Solo se pueden eliminar abonos de una orden abierta (Recibida, En taller, Esperando repuestos o Lista).',
+          );
+        }
+
+        const payment = await tx.workOrderPayment.findFirst({
+          where: { id: paymentId, workOrderId: wo.id },
+          include: { cashMovement: { select: { id: true } } },
+        });
+        if (!payment) {
+          throw new NotFoundException('El cobro no existe o no pertenece a esta orden');
+        }
+        if (payment.kind === WorkOrderPaymentKind.FULL_SETTLEMENT) {
+          throw new BadRequestException(
+            'Solo se pueden eliminar abonos; la liquidación total de la orden no se puede borrar.',
+          );
+        }
+
+        await tx.workOrderPayment.delete({ where: { id: payment.id } });
+        if (payment.cashMovement) {
+          await tx.cashMovement.delete({ where: { id: payment.cashMovement.id } });
+        }
+
+        return { wo, payment };
+      },
+      { maxWait: 5000, timeout: 15_000 },
+    );
+
+    await this.audit.recordDomain({
+      actorUserId: actor.sub,
+      action: 'work_orders.payment_deleted',
+      entityType: 'WorkOrderPayment',
+      entityId: payment.id,
+      previousPayload: {
+        workOrderId: wo.id,
+        orderNumber: wo.orderNumber,
+        publicCode: wo.publicCode,
+        workOrderStatus: wo.status,
+        paymentKind: payment.kind,
+        amount: payment.amount.toString(),
+        cashMovementId: payment.cashMovement?.id ?? null,
+        note: payment.note ?? null,
+      },
+      nextPayload: {
+        workOrderId: wo.id,
+        orderNumber: wo.orderNumber,
+        publicCode: wo.publicCode,
+        workOrderStatusAfter: wo.status,
+        amount: payment.amount.toString(),
+        cashMovementId: payment.cashMovement?.id ?? null,
+        reason,
+      },
+      ipAddress: meta.ip ?? null,
+      userAgent: meta.userAgent ?? null,
+    });
   }
 }

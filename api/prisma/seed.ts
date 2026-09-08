@@ -126,6 +126,12 @@ const PERMISSIONS: Array<{ resource: string; action: string; description: string
   },
   {
     resource: 'work_orders',
+    action: 'delete_payment',
+    description:
+      'Eliminar abonos de una OT abierta (no Entregada ni Cancelada); borra también el ingreso de caja vinculado. Nota y auditoría obligatorias',
+  },
+  {
+    resource: 'work_orders',
     action: 'view_financials',
     description:
       'Ver importes en la orden (líneas, subtotal, saldo, tope, cobros) y fijar precios en líneas; caja y administración; no técnico',
@@ -339,6 +345,7 @@ const BACKEND_REQUIRED_PERMISSION_CODES: readonly string[] = [
   'work_orders:read',
   'work_orders:reassign',
   'work_orders:record_payment',
+  'work_orders:delete_payment',
   'work_orders:view_financials',
   'work_orders:reopen_delivered',
   'work_orders:set_terminal_status',
@@ -568,6 +575,7 @@ async function main() {
     'work_orders:create',
     'work_orders:update',
     'work_orders:record_payment',
+    'work_orders:delete_payment',
     'customers:read',
     'customers:create',
     'customers:update',

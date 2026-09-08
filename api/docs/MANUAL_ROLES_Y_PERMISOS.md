@@ -87,6 +87,7 @@ Lista derivada de `PERMISSIONS` en `seed.ts` (orden lógico por dominio). La des
 | `work_orders:reassign` | Reasignar técnico / sin asignar |
 | `work_orders:set_terminal_status` | Entregada / cancelada |
 | `work_orders:record_payment` | Cobro de OT en caja |
+| `work_orders:delete_payment` | Eliminar abonos de una OT abierta (no Entregada/Cancelada); borra el ingreso de caja vinculado, con nota y auditoría |
 | `work_orders:view_financials` | Ver importes, líneas, tope, cobros; fijar precios |
 | `work_orders:reopen_delivered` | Reabrir OT entregada |
 | `work_order_lines:create` | Agregar líneas (repuesto / MO) |

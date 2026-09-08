@@ -4,6 +4,7 @@ import { api } from '../../../api/client'
 import type { WorkOrderLine, WorkOrderPatchResult } from '../../../api/types'
 import { queryKeys } from '../../../lib/queryKeys'
 import { emitWorkOrderChanged } from '../../../services/workOrderEvents'
+import type { WorkOrderPaymentRow } from '../services/workOrdersListApi'
 
 /**
  * Mutaciones de OT en detalle: invalida líneas/pagos/lista y emite el evento global.
@@ -102,6 +103,17 @@ export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
     onSuccess: notify,
   })
 
+  const deletePayment = useMutation({
+    mutationFn: ({ paymentId, reason }: { paymentId: string; reason: string }) => {
+      if (!workOrderId) throw new Error('Falta id de orden')
+      return api<WorkOrderPaymentRow[]>(`/work-orders/${workOrderId}/payments/${paymentId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason }),
+      })
+    },
+    onSuccess: notify,
+  })
+
   return {
     patchWorkOrder,
     patchWorkOrderPlain,
@@ -110,5 +122,6 @@ export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
     patchLine,
     reopenDelivered,
     recordPayment,
+    deletePayment,
   }
 }
