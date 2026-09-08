@@ -69,8 +69,13 @@ export const queryKeys = {
     /** GET /spare-parts — listado paginado (pantalla Repuestos). */
     list: (params: { q: string; limit: number; offset: number }) =>
       [...queryKeys.spareParts.root, 'list', params.q.toLowerCase(), params.limit, params.offset] as const,
-    /** GET /spare-parts?q=… — sugerencias del combobox de la OT (debounce 220 ms). */
+    /** GET /spare-parts?q=… — sugerencias del combobox de la OT cuando el catálogo no cabe en memoria. */
     search: (q: string) => [...queryKeys.spareParts.root, 'search', q.toLowerCase()] as const,
+    /**
+     * GET /spare-parts/catalog — catálogo completo para filtrar en el cliente.
+     * Una sola descarga; el buscador de la OT ya no pega al servidor por cada tecla.
+     */
+    catalog: () => [...queryKeys.spareParts.root, 'catalog'] as const,
   },
   users: {
     root: ['users'] as const,

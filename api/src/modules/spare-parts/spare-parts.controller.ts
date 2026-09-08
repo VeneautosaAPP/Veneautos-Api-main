@@ -43,6 +43,16 @@ export class SparePartsController {
     );
   }
 
+  /**
+   * Catálogo completo para el buscador de la OT: una sola descarga y el filtrado se hace en el
+   * navegador (antes cada tecla era un viaje al servidor). Cacheado en el API.
+   */
+  @Get('catalog')
+  @RequireAnyPermission('repuestos:read', 'work_order_lines:create', 'work_order_lines:update')
+  catalog() {
+    return this.spareParts.catalog();
+  }
+
   /** Export XLSX del catálogo (binario directo al cliente). */
   @Get('export')
   @RequirePermissions('repuestos:read')

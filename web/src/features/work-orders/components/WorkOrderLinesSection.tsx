@@ -16,6 +16,11 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 type TaxRateCatalogRow = { id: string; name: string; kind: string }
 
+/** Minúsculas sin tildes: que «aceite» encuentre «ACEITE» y «aceité» por igual. */
+function foldAccents(value: string): string {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 export type WorkOrderLinesSectionProps = {
   workOrder: WorkOrderDetail
   workOrderId: string | undefined
@@ -87,7 +92,29 @@ export function WorkOrderLinesSection({
   const [partCatalogTerm, setPartCatalogTerm] = useState('')
   const [partComboOpen, setPartComboOpen] = useState(false)
   const [partComboIndex, setPartComboIndex] = useState(-1)
-  const debouncedPartTerm = useDebouncedValue(partCatalogTerm.trim().slice(0, 60), 220)
+  const debouncedPartTerm = useDebouncedValue(partCatalogTerm.trim().slice(0, 60), 120)
+
+  /**
+   * Catálogo de repuestos en memoria del cliente.
+   *
+   * Antes cada tecla disparaba `GET /spare-parts?q=…` (ciento y pico de ms por viaje desde el
+   * navegador hasta Railway). Ahora el catálogo se descarga una sola vez y el filtrado se hace en
+   * local, así que escribir y ver sugerencias es inmediato y sin consumo de red.
+   *
+   * Si el catálogo supera `CATALOG_PAGE_LIMIT`, `catalogIsComplete` es false y el buscador vuelve
+   * solo a la búsqueda en servidor (mismo comportamiento de antes).
+   */
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.spareParts.catalog(),
+    queryFn: ({ signal }) => api<{ items: SparePart[]; total: number }>('/spare-parts/catalog', { signal }),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+  })
+  const catalogIsComplete = catalogQuery.data
+    ? catalogQuery.data.items.length >= catalogQuery.data.total
+    : false
+
+  /** Búsqueda en servidor: sólo si el catálogo no entró completo en memoria. */
   const partSearchQuery = useQuery({
     queryKey: queryKeys.spareParts.search(debouncedPartTerm),
     queryFn: ({ signal }) =>
@@ -95,18 +122,34 @@ export function WorkOrderLinesSection({
         `/spare-parts?q=${encodeURIComponent(debouncedPartTerm)}&limit=12`,
         { signal },
       ),
-    enabled: debouncedPartTerm.length >= 2,
+    enabled: !catalogIsComplete && debouncedPartTerm.length >= 2,
     staleTime: 60_000,
   })
-  const partSuggestions = useMemo(() => partSearchQuery.data?.items ?? [], [partSearchQuery.data])
+
+  const partSuggestions = useMemo(() => {
+    const term = debouncedPartTerm.trim().toLowerCase()
+    if (term.length < 2) return []
+    if (catalogIsComplete && catalogQuery.data) {
+      const needle = foldAccents(term)
+      return catalogQuery.data.items
+        .filter(
+          (sp) =>
+            foldAccents(sp.sku.toLowerCase()).includes(needle) ||
+            foldAccents(sp.name.toLowerCase()).includes(needle),
+        )
+        .slice(0, 12)
+    }
+    return partSearchQuery.data?.items ?? []
+  }, [catalogIsComplete, catalogQuery.data, debouncedPartTerm, partSearchQuery.data])
+
   const partTermLower = debouncedPartTerm.trim().toLowerCase()
   const partTermSkuNorm = debouncedPartTerm.trim().toUpperCase()
   const partExactCandidate = useMemo(
     () =>
-      partSearchQuery.data?.items.find(
+      partSuggestions.find(
         (s) => s.sku.toUpperCase() === partTermSkuNorm || s.name.toLowerCase() === partTermLower,
       ) ?? null,
-    [partSearchQuery.data, partTermLower, partTermSkuNorm],
+    [partSuggestions, partTermLower, partTermSkuNorm],
   )
   const canCreateSparePart = can('repuestos:create')
 
@@ -157,11 +200,18 @@ export function WorkOrderLinesSection({
       if (targetSku) payload.sparePartSku = targetSku
       if (opts.unitPrice) payload.unitPrice = opts.unitPrice
       const created = (await postLine.mutateAsync(payload)) as WorkOrderLine
-      try {
-        await refreshLinesOnWorkOrder()
-      } catch {
-        await load()
+
+      /**
+       * Alta optimista: la línea se pinta de inmediato con lo que devolvió el POST y el renglón
+       * queda editable al instante. La reconciliación (subtotales y totales que calcula el
+       * servidor) se dispara en segundo plano, sin bloquear la escritura del usuario.
+       */
+      if (created?.id) {
+        setWo((prev) => (prev ? { ...prev, lines: [...prev.lines, created] } : prev))
       }
+      void refreshLinesOnWorkOrder().catch(() => {
+        void load()
+      })
       if (created?.id) openLineEditor(created)
       return 'added'
     } catch (e) {
@@ -234,12 +284,18 @@ export function WorkOrderLinesSection({
     if (!description) return
     setMsg(null)
     try {
-      await postLine.mutateAsync({ lineType: 'LABOR', description, quantity: '1' })
-      try {
-        await refreshLinesOnWorkOrder()
-      } catch {
-        await load()
+      const created = (await postLine.mutateAsync({
+        lineType: 'LABOR',
+        description,
+        quantity: '1',
+      })) as WorkOrderLine
+      // Igual que con repuestos: pintar la línea ya y reconciliar en segundo plano.
+      if (created?.id) {
+        setWo((prev) => (prev ? { ...prev, lines: [...prev.lines, created] } : prev))
       }
+      void refreshLinesOnWorkOrder().catch(() => {
+        void load()
+      })
       setLaborDesc('')
       laborDescInputRef.current?.focus()
       setMsg('Trabajo agregado (cantidad 1; editá precio/IVA en la línea)')
@@ -500,7 +556,7 @@ export function WorkOrderLinesSection({
                         aria-label="Sugerencias del catálogo de repuestos"
                         className="absolute left-0 right-0 z-30 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
                       >
-                        {partSearchQuery.isFetching ? (
+                        {partSearchQuery.isFetching || (catalogQuery.isPending && !catalogIsComplete) ? (
                           <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Buscando en el catálogo…</p>
                         ) : partSuggestions.length === 0 ? (
                           <>

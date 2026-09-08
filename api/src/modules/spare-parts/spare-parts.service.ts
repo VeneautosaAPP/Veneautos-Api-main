@@ -41,6 +41,8 @@ const PRICE_MAX = new Prisma.Decimal('999999999999');
  */
 const LIST_CACHE_TTL_MS = 30_000;
 const LIST_CACHE_MAX_ENTRIES = 200;
+/** Tope de filas del catálogo completo que se envía al cliente para filtrar en memoria. */
+const CATALOG_MAX_ROWS = 5000;
 
 type ListResult = { items: SparePart[]; total: number };
 
@@ -91,6 +93,37 @@ export class SparePartsService {
         skip: safeOffset,
       }),
       this.prisma.sparePart.count({ where }),
+    ]);
+    const value: ListResult = { items, total };
+
+    if (this.listCache.size >= LIST_CACHE_MAX_ENTRIES) {
+      const oldest = this.listCache.keys().next().value;
+      if (oldest !== undefined) this.listCache.delete(oldest);
+    }
+    this.listCache.set(cacheKey, { at: now, value });
+    return value;
+  }
+
+  /**
+   * Catálogo completo para el buscador del cliente (se filtra en memoria: cero viajes por tecla).
+   *
+   * Devuelve `total` real para que el cliente sepa si el catálogo entró completo: si
+   * `items.length < total`, el front vuelve a la búsqueda en servidor.
+   */
+  async catalog(): Promise<ListResult> {
+    const cacheKey = '__catalog';
+    const cached = this.listCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && now - cached.at < LIST_CACHE_TTL_MS) {
+      return cached.value;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.sparePart.findMany({
+        orderBy: [{ name: 'asc' }, { sku: 'asc' }],
+        take: CATALOG_MAX_ROWS,
+      }),
+      this.prisma.sparePart.count(),
     ]);
     const value: ListResult = { items, total };
 
