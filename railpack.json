@@ -1,10 +1,24 @@
 {
   "$schema": "https://schema.railpack.com",
-  // Cliente de PostgreSQL (psql, pg_dump, pg_restore) en la imagen final.
-  // Sin esto, el backup/restore del panel falla con "psql: not found": los apt
-  // instalados a mano dentro del buildCommand NO llegan al contenedor (Railpack
-  // descarta esa capa). `deploy.aptPackages` sí los deja en la imagen de runtime.
+  // Cliente de PostgreSQL en la imagen final, para backup/restore desde el panel.
+  //
+  // El Postgres de Railway es la version 18 y el `postgresql-client` de Debian es 17:
+  // pg_dump/psql abortan con "server version mismatch". Por eso en vez del paquete apt
+  // copiamos los binarios 18 de la imagen oficial de PostgreSQL.
+  //
+  // `...` mantiene las capas que genera Railpack (base + build) y agrega esta.
   "deploy": {
-    "aptPackages": ["postgresql-client"]
+    "aptPackages": ["postgresql-client"],
+    "inputs": [
+      "...",
+      {
+        "image": "postgres:18",
+        "include": [
+          "/usr/lib/postgresql/18/bin",
+          "/usr/lib/postgresql/18/lib",
+          "/usr/lib/x86_64-linux-gnu/libpq.so.5"
+        ]
+      }
+    ]
   }
 }
