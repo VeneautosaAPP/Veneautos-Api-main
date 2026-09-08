@@ -499,15 +499,9 @@ export function WorkOrderLinesSection({
         await load()
       }
       /**
-       * Sin aviso de "línea actualizada": al editar varias líneas seguidas ese mensaje sólo
-       * ensucia la pantalla (el cambio ya se ve en la tabla). Sí mantenemos el aviso cuando la
-       * línea queda sin valor unitario, porque eso impide cobrar la orden.
+       * Sin avisos al guardar: el cambio ya se ve en la tabla y los mensajes sólo ensucian la
+       * pantalla cuando se editan varias líneas seguidas.
        */
-      setMsg(
-        canViewWoFinancials && !up
-          ? 'Línea guardada sin valor unitario: la orden no se podrá cobrar hasta que lo cargues.'
-          : null,
-      )
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al guardar')
