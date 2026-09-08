@@ -10,11 +10,24 @@ const DEFAULT_IDLE_MINUTES = 10;
 const MIN_IDLE = 1;
 const MAX_IDLE = 24 * 60;
 
+/** Vigencia en memoria del ajuste de inactividad: se lee en cada petición autenticada. */
+const IDLE_SETTING_TTL_MS = 60_000;
+/** Mínimo entre escrituras de `last_activity_at` por sesión (evita un UPDATE por request). */
+const TOUCH_MIN_INTERVAL_MS = 30_000;
+
 @Injectable()
 export class AuthSessionService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private idleSettingCache: { at: number; value: number } | null = null;
+  private readonly lastTouchAt = new Map<string, number>();
+
   async getSessionIdleTimeoutMinutes(): Promise<number> {
+    const now = Date.now();
+    if (this.idleSettingCache && now - this.idleSettingCache.at < IDLE_SETTING_TTL_MS) {
+      return this.idleSettingCache.value;
+    }
+
     const row = await this.prisma.workshopSetting.findUnique({
       where: { key: IDLE_SETTING_KEY },
     });
@@ -28,7 +41,9 @@ export class AuthSessionService {
         n = parsed;
       }
     }
-    return Math.min(MAX_IDLE, Math.max(MIN_IDLE, n));
+    const value = Math.min(MAX_IDLE, Math.max(MIN_IDLE, n));
+    this.idleSettingCache = { at: now, value };
+    return value;
   }
 
   /**
@@ -77,8 +92,18 @@ export class AuthSessionService {
     }
   }
 
-  /** Marca actividad (se llama en cada petición autenticada exitosa). */
+  /**
+   * Marca actividad (se llama en cada petición autenticada exitosa).
+   *
+   * Se limita a una escritura cada `TOUCH_MIN_INTERVAL_MS` por sesión: escribir en cada request
+   * era una consulta extra por petición y no aporta precisión útil al corte por inactividad.
+   */
   async touchSession(sessionId: string, userId: string): Promise<void> {
+    const now = Date.now();
+    const last = this.lastTouchAt.get(sessionId) ?? 0;
+    if (now - last < TOUCH_MIN_INTERVAL_MS) return;
+    this.lastTouchAt.set(sessionId, now);
+
     await this.prisma.userAuthSession.updateMany({
       where: { id: sessionId, userId, revokedAt: null },
       data: { lastActivityAt: new Date() },
@@ -86,6 +111,7 @@ export class AuthSessionService {
   }
 
   async revokeSession(sessionId: string, userId: string): Promise<void> {
+    this.lastTouchAt.delete(sessionId);
     await this.prisma.userAuthSession.updateMany({
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },

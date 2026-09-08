@@ -16,8 +16,25 @@ type JwtBody = { sub: string; sid: string; prv?: string };
 
 const PREVIEW_KEEPER = 'auth:assume_role_preview';
 
+/**
+ * Vigencia del contexto de usuario cacheado (permisos incluidos).
+ *
+ * `validate()` corre en **cada** petición autenticada. Sin caché resolvía usuario + roles +
+ * permisos anidados en cada request (varias consultas), lo que dominaba la latencia medida
+ * (~850 ms por petición). Con esta caché el costo cae a una sola consulta de sesión.
+ *
+ * 30 s: un cambio de rol/permiso tarda como máximo ese tiempo en aplicarse. La validez de la
+ * sesión (revocada o inactiva) se sigue comprobando siempre contra la BD.
+ */
+const AUTH_CONTEXT_TTL_MS = 30_000;
+/** Tope de entradas para que la caché no crezca sin límite en despliegues largos. */
+const AUTH_CONTEXT_MAX_ENTRIES = 500;
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  /** `sub|prv` -> contexto resuelto. Se purga por TTL y por tope de entradas. */
+  private readonly contextCache = new Map<string, { at: number; value: JwtUserPayload }>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sessions: AuthSessionService,
@@ -33,6 +50,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtBody): Promise<JwtUserPayload> {
     if (!payload?.sub || !payload?.sid) {
       throw new UnauthorizedException('Token incompleto. Inicie sesión de nuevo.');
+    }
+
+    const cacheKey = `${payload.sub}|${payload.prv ?? ''}`;
+    const cached = this.contextCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && now - cached.at < AUTH_CONTEXT_TTL_MS) {
+      // La sesión se valida igual: una revocación o inactividad sigue cortando el acceso al instante.
+      await this.sessions.assertSessionValid(payload.sid, payload.sub);
+      return { ...cached.value, sid: payload.sid };
     }
 
     await this.sessions.assertSessionValid(payload.sid, payload.sub);
@@ -76,7 +102,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         set.add(permissionCode(rp.permission.resource, rp.permission.action));
       }
       set.add(PREVIEW_KEEPER);
-      return {
+      const previewContext: JwtUserPayload = {
         sub: user.id,
         sid: payload.sid,
         email: user.email,
@@ -85,6 +111,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         portalCustomerId: user.portalCustomerId ?? null,
         previewRole: { id: preview.id, slug: preview.slug, name: preview.name },
       };
+      this.remember(cacheKey, previewContext);
+      return previewContext;
     }
 
     const set = new Set<string>();
@@ -97,7 +125,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       set.add(PREVIEW_KEEPER);
     }
 
-    return {
+    const context: JwtUserPayload = {
       sub: user.id,
       sid: payload.sid,
       email: user.email,
@@ -105,5 +133,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       permissions: [...set].sort(),
       portalCustomerId: user.portalCustomerId ?? null,
     };
+    this.remember(cacheKey, context);
+    return context;
+  }
+
+  private remember(key: string, value: JwtUserPayload): void {
+    if (this.contextCache.size >= AUTH_CONTEXT_MAX_ENTRIES) {
+      const oldest = this.contextCache.keys().next().value;
+      if (oldest !== undefined) this.contextCache.delete(oldest);
+    }
+    this.contextCache.set(key, { at: Date.now(), value });
   }
 }

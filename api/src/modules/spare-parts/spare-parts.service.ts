@@ -31,6 +31,19 @@ const SKU_MAX = 80;
 const NAME_MAX = 500;
 const PRICE_MAX = new Prisma.Decimal('999999999999');
 
+/**
+ * Vigencia de la caché en memoria del catálogo/búsquedas.
+ *
+ * El catálogo cambia poco y se consulta en cada tecla del buscador de la OT. Con API y base en
+ * Railway, el costo dominante era el viaje a la base por cada búsqueda; con esta caché las
+ * búsquedas repetidas se responden desde memoria. Se invalida por completo ante cualquier alta,
+ * edición, borrado o importación (ver `invalidateCache`).
+ */
+const LIST_CACHE_TTL_MS = 30_000;
+const LIST_CACHE_MAX_ENTRIES = 200;
+
+type ListResult = { items: SparePart[]; total: number };
+
 @Injectable()
 export class SparePartsService {
   constructor(
@@ -38,8 +51,25 @@ export class SparePartsService {
     private readonly audit: AuditService,
   ) {}
 
-  list(q: string | undefined, limit: number, offset: number) {
+  private readonly listCache = new Map<string, { at: number; value: ListResult }>();
+
+  /** Vacía la caché de listados: se llama tras cualquier escritura en el catálogo. */
+  private invalidateCache(): void {
+    this.listCache.clear();
+  }
+
+  async list(q: string | undefined, limit: number, offset: number): Promise<ListResult> {
     const term = q?.trim();
+    const safeLimit = Math.min(Math.max(limit, 1), 200);
+    const safeOffset = Math.max(offset, 0);
+    const cacheKey = `${term ?? ''}|${safeLimit}|${safeOffset}`;
+
+    const cached = this.listCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && now - cached.at < LIST_CACHE_TTL_MS) {
+      return cached.value;
+    }
+
     const where: Prisma.SparePartWhereInput | undefined = term
       ? {
           OR: [
@@ -49,15 +79,24 @@ export class SparePartsService {
         }
       : undefined;
 
-    return this.prisma.$transaction([
-      this.prisma.sparePart.findMany({
-        where,
-        orderBy: [{ name: 'asc' }, { sku: 'asc' }],
-        take: Math.min(Math.max(limit, 1), 200),
-        skip: Math.max(offset, 0),
-      }),
-      this.prisma.sparePart.count({ where }),
-    ]).then(([items, total]) => ({ items, total }));
+    const value = await this.prisma
+      .$transaction([
+        this.prisma.sparePart.findMany({
+          where,
+          orderBy: [{ name: 'asc' }, { sku: 'asc' }],
+          take: safeLimit,
+          skip: safeOffset,
+        }),
+        this.prisma.sparePart.count({ where }),
+      ])
+      .then(([items, total]) => ({ items, total }));
+
+    if (this.listCache.size >= LIST_CACHE_MAX_ENTRIES) {
+      const oldest = this.listCache.keys().next().value;
+      if (oldest !== undefined) this.listCache.delete(oldest);
+    }
+    this.listCache.set(cacheKey, { at: now, value });
+    return value;
   }
 
   private parsePrice(raw?: string | null): Prisma.Decimal {
@@ -108,6 +147,7 @@ export class SparePartsService {
       userAgent: meta.userAgent ?? null,
     });
 
+    this.invalidateCache();
     return row;
   }
 
@@ -175,6 +215,7 @@ export class SparePartsService {
       userAgent: meta.userAgent ?? null,
     });
 
+    this.invalidateCache();
     return row;
   }
 
@@ -241,6 +282,7 @@ export class SparePartsService {
       userAgent: meta.userAgent ?? null,
     });
 
+    this.invalidateCache();
     return row;
   }
 
@@ -265,6 +307,7 @@ export class SparePartsService {
       userAgent: meta.userAgent ?? null,
     });
 
+    this.invalidateCache();
     return { id, sku: before.sku };
   }
 
@@ -382,6 +425,7 @@ export class SparePartsService {
       });
     }
 
+    this.invalidateCache();
     return { created, updated, skipped, invalid };
   }
 }
