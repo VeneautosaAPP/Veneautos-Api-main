@@ -195,10 +195,10 @@ export function ConsultPublicWorkOrderPage() {
                   <dt className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-300">Ingreso</dt>
                   <dd>{formatWhen(result.createdAt)}</dd>
                 </div>
-                {result.deliveredAt ? (
+                {result.deliveredAt || result.cancelledAt ? (
                   <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
-                    <dt className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-300">Entrega</dt>
-                    <dd>{formatWhen(result.deliveredAt)}</dd>
+                    <dt className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-300">Cierre</dt>
+                    <dd>{formatWhen(result.deliveredAt ?? result.cancelledAt ?? '')}</dd>
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-4">

@@ -17,6 +17,7 @@ export type PublicWorkOrderLookupResponse = {
   description: string
   createdAt: string
   deliveredAt: string | null
+  cancelledAt: string | null
   customerName: string | null
   vehiclePlate: string | null
   vehicleBrand: string | null
@@ -137,6 +138,8 @@ export type WorkOrderSummary = {
   /** Odómetro al ingreso (instantánea). */
   intakeOdometerKm?: number | null
   createdAt: string
+  deliveredAt: string | null
+  cancelledAt: string | null
   /** Legado: el API devuelve siempre `null` (ya no hay tope de cobro en OT). */
   authorizedAmount?: string | null
   assignedTo?: { id: string; fullName: string; email: string } | null

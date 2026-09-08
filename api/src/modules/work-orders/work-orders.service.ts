@@ -278,6 +278,7 @@ export class WorkOrdersService {
         description: true,
         createdAt: true,
         deliveredAt: true,
+        cancelledAt: true,
         customerName: true,
         vehiclePlate: true,
         vehicleBrand: true,
@@ -324,6 +325,7 @@ export class WorkOrdersService {
       description: row.description,
       createdAt: row.createdAt.toISOString(),
       deliveredAt: row.deliveredAt?.toISOString() ?? null,
+      cancelledAt: row.cancelledAt?.toISOString() ?? null,
       customerName: row.customerName,
       vehiclePlate,
       vehicleBrand: row.vehicleBrand,
@@ -766,8 +768,13 @@ export class WorkOrdersService {
       data.status = dto.status;
       if (dto.status === WorkOrderStatus.DELIVERED) {
         data.deliveredAt = new Date();
-      } else if (before.deliveredAt) {
+        data.cancelledAt = null;
+      } else if (dto.status === WorkOrderStatus.CANCELLED) {
+        data.cancelledAt = new Date();
         data.deliveredAt = null;
+      } else {
+        data.deliveredAt = null;
+        data.cancelledAt = null;
       }
     }
 

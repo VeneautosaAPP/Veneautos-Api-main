@@ -259,6 +259,7 @@ model WorkOrder {
   /// PNG en base64 (sin prefijo data:); solo se escribe una vez por orden.
   clientSignaturePngBase64  String?   @map("client_signature_png_base64") @db.Text
   deliveredAt   DateTime?       @map("delivered_at")
+  cancelledAt   DateTime?       @map("cancelled_at")
   /// OT origen (p. ej. trabajo ya entregado) cuando esta orden es una **garantía** o seguimiento vinculado.
   parentWorkOrderId String?   @map("parent_work_order_id")
   createdById   String          @map("created_by_id")

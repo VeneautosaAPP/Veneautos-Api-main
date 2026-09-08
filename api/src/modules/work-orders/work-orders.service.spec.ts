@@ -375,7 +375,53 @@ describe('WorkOrdersService', () => {
         vehicle: null,
       });
       await service.update('wo1', closer, { status: WorkOrderStatus.DELIVERED } satisfies UpdateWorkOrderDto, {});
-      expect(prisma.workOrder.update).toHaveBeenCalled();
+      expect(prisma.workOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: WorkOrderStatus.DELIVERED,
+            deliveredAt: expect.any(Date),
+            cancelledAt: null,
+          }),
+        }),
+      );
+    });
+
+    it('marca cancelada: fija cancelledAt y limpia deliveredAt', async () => {
+      const closer: JwtUserPayload = {
+        ...actorOwn,
+        permissions: ['work_orders:read', 'work_orders:update', 'work_orders:set_terminal_status'],
+      };
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.READY,
+        deliveredAt: null,
+        assignedToId: actorId,
+        authorizedAmount: null,
+      });
+      prisma.workOrder.update.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.CANCELLED,
+        deliveredAt: null,
+        cancelledAt: new Date(),
+        vehicleId: null,
+        orderNumber: 1,
+        publicCode: 'VEN-0001',
+        assignedToId: actorId,
+        authorizedAmount: null,
+        createdBy: {},
+        assignedTo: null,
+        vehicle: null,
+      });
+      await service.update('wo1', closer, { status: WorkOrderStatus.CANCELLED } satisfies UpdateWorkOrderDto, {});
+      expect(prisma.workOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: WorkOrderStatus.CANCELLED,
+            cancelledAt: expect.any(Date),
+            deliveredAt: null,
+          }),
+        }),
+      );
     });
 
     it('desvincula vehículo con vehicleId null', async () => {

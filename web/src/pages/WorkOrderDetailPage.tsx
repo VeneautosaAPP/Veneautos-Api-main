@@ -1184,6 +1184,14 @@ export function WorkOrderDetailPage() {
                   Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}
                 </span>
               ) : null}
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                Ingreso: {new Date(wo.createdAt).toLocaleDateString('es-CO')}
+              </span>
+              {(wo.status === 'DELIVERED' || wo.status === 'CANCELLED') && (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                  Cierre: {new Date(wo.deliveredAt ?? wo.cancelledAt ?? wo.createdAt ?? '').toLocaleDateString('es-CO')}
+                </span>
+              )}
             </div>
             {cashierOnly ? (
               (wo.customerName || wo.vehiclePlate) ? (

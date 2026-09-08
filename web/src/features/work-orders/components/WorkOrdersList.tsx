@@ -9,6 +9,15 @@ import {
   WORK_ORDER_LIST_STATUS as STATUS,
 } from '../services/workOrdersListPresentation'
 
+function formatDate(iso: string | null | undefined) {
+  if (!iso) return null
+  try {
+    return new Date(iso).toLocaleDateString('es-CO')
+  } catch {
+    return null
+  }
+}
+
 export type WorkOrdersListProps = {
   rows: WorkOrderSummary[] | null
   /** Prefetch de detalle (hover/focus) para abrir la OT al instante. */
@@ -57,6 +66,12 @@ export const WorkOrdersList = memo(function WorkOrdersList({
                 <p className="mt-1 min-h-0 flex-1 text-sm font-medium leading-snug text-slate-900 line-clamp-2 dark:text-slate-50">
                   {wo.description}
                 </p>
+                <div className="mt-1 shrink-0 space-y-0.5 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                  <p>Creación: {formatDate(wo.createdAt)}</p>
+                  {(wo.status === 'DELIVERED' || wo.status === 'CANCELLED') && (
+                    <p>Cierre: {formatDate(wo.deliveredAt ?? wo.cancelledAt)}</p>
+                  )}
+                </div>
                 <div className="mt-auto flex shrink-0 items-end justify-between gap-2 pt-2">
                   <div className="min-w-0 flex-1 space-y-0.5 text-[11px] text-slate-500 dark:text-slate-300">
                     {wo.customerName ? (
