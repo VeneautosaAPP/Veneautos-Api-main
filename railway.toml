@@ -2,7 +2,7 @@
 buildCommand = "npm install --prefix api --include=dev --no-audit --no-fund && cd api && npm run build"
 
 [deploy]
-startCommand = "cd api && node dist/main"
+startCommand = "cd api && npx prisma migrate deploy && (npm run prisma:seed || true) && node dist/main"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
