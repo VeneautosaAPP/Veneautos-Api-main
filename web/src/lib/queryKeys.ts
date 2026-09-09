@@ -35,6 +35,16 @@ export const queryKeys = {
     economicSummary: (params: { from: string; to: string; granularity?: string }) =>
       [...queryKeys.reports.root, 'economic-summary', params.from, params.to, params.granularity ?? 'day'] as const,
   },
+  dashboard: {
+    root: ['dashboard'] as const,
+    /** Contador de OTs en taller (GET /work-orders con status=IN_WORKSHOP, pageSize=1). */
+    workOrdersInWorkshop: () => [...queryKeys.dashboard.root, 'work-orders', 'in-workshop'] as const,
+    /** Resumen semanal de entregas (GET /work-orders/weekly-delivered-summary). Rango ISO fija la key. */
+    weeklyDelivered: (from: string, to: string) =>
+      [...queryKeys.dashboard.root, 'work-orders', 'weekly-delivered', from, to] as const,
+    /** Resumen de órdenes «Lista» (GET /work-orders/ready-orders-summary). */
+    readyOrders: () => [...queryKeys.dashboard.root, 'work-orders', 'ready'] as const,
+  },
   quotes: {
     root: ['quotes'] as const,
     list: (params: { filterKey: string; page: number; pageSize: number }) =>

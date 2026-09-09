@@ -31,6 +31,7 @@ import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { DeleteWorkOrderPaymentDto } from './dto/delete-work-order-payment.dto';
 import { ListWorkOrdersQueryDto } from './dto/list-work-orders.query.dto';
 import { LookupPublicWorkOrderDto } from './dto/lookup-public-work-order.dto';
+import { WeeklyDeliveredSummaryQueryDto } from './dto/weekly-delivered-summary.query.dto';
 import { RecordWorkOrderPaymentDto } from './dto/record-work-order-payment.dto';
 import { ReopenDeliveredWorkOrderDto } from './dto/reopen-delivered-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
@@ -76,6 +77,27 @@ export class WorkOrdersController {
   @RequireAnyPermission('work_orders:read', 'work_orders:read_portal')
   list(@CurrentUser() actor: JwtUserPayload, @Query() query: ListWorkOrdersQueryDto) {
     return this.workOrders.list(actor, query);
+  }
+
+  @Get('weekly-delivered-summary')
+  @RequireAnyPermission('work_orders:read', 'work_orders:read_portal')
+  weeklyDeliveredSummary(
+    @CurrentUser() actor: JwtUserPayload,
+    @Query() query: WeeklyDeliveredSummaryQueryDto,
+  ) {
+    return this.workOrders.weeklyDeliveredSummary(actor, query);
+  }
+
+  @Get('ready-orders-summary')
+  @RequireAnyPermission('work_orders:read', 'work_orders:read_portal')
+  readyOrdersSummary(@CurrentUser() actor: JwtUserPayload) {
+    return this.workOrders.readyOrdersSummary(actor);
+  }
+
+  @Get('in-workshop-summary')
+  @RequireAnyPermission('work_orders:read', 'work_orders:read_portal')
+  inWorkshopSummary(@CurrentUser() actor: JwtUserPayload) {
+    return this.workOrders.inWorkshopSummary(actor);
   }
 
   @Get('assignable-users')

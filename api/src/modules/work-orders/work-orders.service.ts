@@ -393,6 +393,126 @@ export class WorkOrdersService {
     };
   }
 
+  /**
+   * Resumen (panel) de entregas: OTs en estado Entregada con `deliveredAt` dentro del rango
+   * (semana Lun–Sáb en el cliente) y, para perfiles con visibilidad financiera, el total pagado.
+   * Respeta la misma visibilidad de listado (`workOrderVisibilityWhere`).
+   */
+  async weeklyDeliveredSummary(
+    actor: JwtUserPayload,
+    query: { from?: Date; to?: Date },
+  ): Promise<{
+    week: { from: string; to: string };
+    count: number;
+    paymentsTotal: string | null;
+  }> {
+    const now = new Date();
+    const from = query.from ? new Date(query.from.getTime()) : new Date(now.getTime() - 6 * 24 * 3600 * 1000);
+    const to = query.to ? new Date(query.to.getTime()) : now;
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from.getTime() > to.getTime()) {
+      throw new BadRequestException('Rango de fechas inválido.');
+    }
+    if (to.getTime() - from.getTime() > 31 * 24 * 3600 * 1000) {
+      throw new BadRequestException('El rango máximo del resumen es de 31 días.');
+    }
+
+    const scope: Prisma.WorkOrderWhereInput = {
+      ...this.workOrderVisibilityWhere(actor),
+      status: WorkOrderStatus.DELIVERED,
+      cancelledAt: null,
+      deliveredAt: { gte: from, lte: to },
+    };
+
+    const [count, paid] = await Promise.all([
+      this.prisma.workOrder.count({ where: scope }),
+      this.prisma.workOrderPayment.aggregate({
+        where: { workOrder: scope },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const mayViewFinancials = actorMayViewWorkOrderFinancials(actor);
+    return {
+      week: { from: from.toISOString(), to: to.toISOString() },
+      count,
+      paymentsTotal: mayViewFinancials
+        ? (paid._sum.amount ?? new Prisma.Decimal(0)).toString()
+        : null,
+    };
+  }
+
+  /**
+   * Resumen (panel) de órdenes en un estado operativo (READY/IN_WORKSHOP): cantidad + suma
+   * del total a cobrar (grandTotal, líneas + descuentos + IVA/INC) para perfiles con
+   * visibilidad financiera. Respeta la misma visibilidad de listado (`workOrderVisibilityWhere`).
+   */
+  private async ordersValueSummary(
+    actor: JwtUserPayload,
+    status: WorkOrderStatus,
+  ): Promise<{ count: number; totalValue: string | null }> {
+    const scope: Prisma.WorkOrderWhereInput = {
+      ...this.workOrderVisibilityWhere(actor),
+      status,
+      cancelledAt: null,
+    };
+
+    const [count, rows] = await Promise.all([
+      this.prisma.workOrder.count({ where: scope }),
+      this.prisma.workOrder.findMany({
+        where: scope,
+        select: {
+          lines: {
+            select: {
+              id: true,
+              lineType: true,
+              quantity: true,
+              unitPrice: true,
+              discountAmount: true,
+              costSnapshot: true,
+              taxRateId: true,
+              taxRatePercentSnapshot: true,
+              taxRate: { select: { kind: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const mayViewFinancials = actorMayViewWorkOrderFinancials(actor);
+    if (!mayViewFinancials) {
+      return { count, totalValue: null };
+    }
+
+    let total = new Prisma.Decimal(0);
+    for (const row of rows) {
+      const linesForTotals: LineForTotals[] = row.lines.map((ln) => ({
+        id: ln.id,
+        lineType: ln.lineType,
+        quantity: ln.quantity,
+        unitPrice: ln.unitPrice,
+        discountAmount: ln.discountAmount,
+        costSnapshot: ln.costSnapshot,
+        taxRateId: ln.taxRateId,
+        taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
+        taxRate: ln.taxRate ? { kind: ln.taxRate.kind } : null,
+      }));
+      total = total.plus(ceilWholeCop(computeWorkOrderTotals(linesForTotals).grandTotal));
+    }
+
+    return { count, totalValue: total.toString() };
+  }
+
+  /** Resumen (panel) de órdenes «Lista» (READY). */
+  readyOrdersSummary(actor: JwtUserPayload): Promise<{ count: number; totalValue: string | null }> {
+    return this.ordersValueSummary(actor, WorkOrderStatus.READY);
+  }
+
+  /** Resumen (panel) de órdenes «En taller» (IN_WORKSHOP). */
+  inWorkshopSummary(actor: JwtUserPayload): Promise<{ count: number; totalValue: string | null }> {
+    return this.ordersValueSummary(actor, WorkOrderStatus.IN_WORKSHOP);
+  }
+
   /** Usuarios activos para selector de reasignación (recepción / jefe de taller). */
   async listAssignableUsers() {
     return this.prisma.user.findMany({

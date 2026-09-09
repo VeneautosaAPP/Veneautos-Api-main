@@ -88,3 +88,40 @@ export async function cancelWorkOrderToTerminal(id: string): Promise<void> {
     body: JSON.stringify({ status: 'CANCELLED' }),
   })
 }
+
+export type WeeklyDeliveredSummary = {
+  week: { from: string; to: string }
+  count: number
+  paymentsTotal: string | null
+}
+
+export async function fetchWeeklyDeliveredSummary(
+  from: Date,
+  to: Date,
+  signal?: AbortSignal,
+): Promise<WeeklyDeliveredSummary> {
+  const qs = new URLSearchParams()
+  qs.set('from', from.toISOString())
+  qs.set('to', to.toISOString())
+  return api<WeeklyDeliveredSummary>(`/work-orders/weekly-delivered-summary?${qs.toString()}`, {
+    signal,
+  })
+}
+
+/** Resumen (panel) de OTs en un estado: cantidad + valor total a cobrar. `totalValue` null si el perfil no ve importes. */
+export type WorkOrdersValueSummary = {
+  count: number
+  totalValue: string | null
+}
+
+export type ReadyOrdersSummary = WorkOrdersValueSummary
+
+export async function fetchReadyOrdersSummary(signal?: AbortSignal): Promise<ReadyOrdersSummary> {
+  return api<ReadyOrdersSummary>('/work-orders/ready-orders-summary', { signal })
+}
+
+export type InWorkshopSummary = WorkOrdersValueSummary
+
+export async function fetchInWorkshopSummary(signal?: AbortSignal): Promise<InWorkshopSummary> {
+  return api<InWorkshopSummary>('/work-orders/in-workshop-summary', { signal })
+}

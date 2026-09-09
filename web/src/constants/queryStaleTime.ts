@@ -16,3 +16,9 @@ export const STALE_WORK_ORDER_DETAIL_MS = 180_000
 
 /** GET /settings y GET /users en Configuración: sección poco frecuente; reutilizar datos varios minutos. */
 export const STALE_SETTINGS_ADMIN_MS = 10 * 60_000
+
+/**
+ * Tarjetas del panel: los datos se persisten en localStorage y se muestran al entrar.
+ * El refetch de fondo solo ocurre si vencieron (10 min) o si hubo una modificación (WORK_ORDER_CHANGED_EVENT).
+ */
+export const STALE_DASHBOARD_MS = 10 * 60_000
