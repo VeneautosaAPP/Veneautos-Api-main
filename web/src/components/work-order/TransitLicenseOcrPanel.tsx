@@ -217,11 +217,6 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900">
       <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Licencia de tránsito (OCR)</h3>
-      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-300">
-        Subí una foto clara de la tarjeta. Se usan las posiciones del texto en la imagen (debajo de cada título) y un
-        respaldo por líneas de texto. Completá patente, marca, modelo, línea, cilindraje y color; guardá la orden para
-        persistir.
-      </p>
 
       {recovered && pendingFile ? (
         <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-100">

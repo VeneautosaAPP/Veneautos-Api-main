@@ -18,6 +18,7 @@ import { useAlert, useConfirm, usePrompt } from '../components/confirm/ConfirmPr
 import { ClientConsentSignModal } from '../components/work-order/ClientConsentSignModal'
 import { ClientConsentSignedModal } from '../components/work-order/ClientConsentSignedModal'
 import { TransitLicenseOcrPanel } from '../components/work-order/TransitLicenseOcrPanel'
+import { Check, ChevronDown, Wrench } from 'lucide-react'
 import { NotesMinCharCounter } from '../components/NotesMinCharCounter'
 import {
   notesMinHint,
@@ -233,6 +234,10 @@ export function WorkOrderDetailPage() {
   /** Consentimiento: modal ver firmado o modal registrar (ya no hay tarjeta fija en la página). */
   const [consentModal, setConsentModal] = useState<null | 'view' | 'sign'>(null)
   const [orderDataModalOpen, setOrderDataModalOpen] = useState(false)
+  /** Desplegable de estado en el banner (elegir guarda automáticamente). */
+  const [statusOpen, setStatusOpen] = useState(false)
+  /** Desplegable de técnico en el banner (elegir guarda automáticamente). */
+  const [assignmentOpen, setAssignmentOpen] = useState(false)
 
   const cashierOnly = useMemo(() => isCashierWorkOrderSimplifiedView(user), [user])
 
@@ -250,6 +255,52 @@ export function WorkOrderDetailPage() {
     if (p.cylinderCc) setWoVehicleCylinderCc(p.cylinderCc)
     if (p.color) setWoVehicleColor(p.color)
   }, [])
+
+  /** Aplica un estado elegido en el desplegable del banner (guardado automático al seleccionar). */
+  async function applyStatusFromPill(next: WorkOrderStatus) {
+    if (!id || !wo || !canPatchWo || closed) return
+    if (next === wo.status) {
+      setStatusOpen(false)
+      return
+    }
+    const cancelNow = next === 'CANCELLED'
+    const unassignNow = next === 'UNASSIGNED' && Boolean(wo.assignedTo)
+    if (cancelNow || unassignNow) {
+      const lines: string[] = [`¿Pasar la orden a «${STATUS[next].label}»?`, '']
+      if (unassignNow) {
+        lines.push(`· Se quita a ${wo.assignedTo?.fullName ?? 'el técnico'} y la orden vuelve a la cola «Sin asignar».`)
+      }
+      if (cancelNow) {
+        lines.push('', '⚠ La orden pasará a CANCELADA. Revisá cobros y líneas antes de continuar.')
+      }
+      const ok = await confirm({
+        title: `Orden ${wo.publicCode}`,
+        message: lines.join('\n'),
+        confirmLabel: 'Cambiar estado',
+        variant: cancelNow ? 'danger' : 'default',
+      })
+      if (!ok) return
+    }
+    setMsg(null)
+    setAssignBusy(true)
+    try {
+      const updated = await patchWorkOrder.mutateAsync({ status: next })
+      try {
+        mergeWorkOrderPatchIntoState(updated, setWo, setWoStatus, setWoDesc)
+      } catch {
+        /* respuesta distinta a la esperada; load() alinea con el servidor */
+      }
+      setMsg(`Estado: ${STATUS[next].label}`)
+      setStatusOpen(false)
+      await load()
+    } catch (e) {
+      if (!(await showBlockingConflictModal(e))) {
+        setMsg(e instanceof Error ? e.message : 'Error')
+      }
+    } finally {
+      setAssignBusy(false)
+    }
+  }
 
   const showBlockingConflictModal = useCallback(
     async (err: unknown) => {
@@ -539,8 +590,13 @@ export function WorkOrderDetailPage() {
       flow.push('UNASSIGNED')
     }
     flow.push('RECEIVED', 'IN_WORKSHOP', 'WAITING_PARTS', 'READY')
+    /**
+     * «Entregada» NO se ofrece en el desplegable: la entrega es la consecuencia
+     * automática del pago total (liquidación) registrado en caja (el backend la
+     * fija al registrar el cobro). Solo «Cancelada» se puede elegir manualmente.
+     */
     const withTerminal = can('work_orders:set_terminal_status')
-      ? ([...flow, 'DELIVERED', 'CANCELLED'] as WorkOrderStatus[])
+      ? ([...flow, 'CANCELLED'] as WorkOrderStatus[])
       : flow
     if (!wo) return withTerminal
     if (!withTerminal.includes(wo.status)) return [...withTerminal, wo.status]
@@ -607,6 +663,7 @@ export function WorkOrderDetailPage() {
           : 'Asignación actualizada',
       )
       await load()
+      setAssignmentOpen(false)
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
         setMsg(e instanceof Error ? e.message : 'Error')
@@ -616,12 +673,12 @@ export function WorkOrderDetailPage() {
     }
   }
 
-  async function submitReassign() {
-    if (!id || !reassignUserId || !wo || closed) return
+  async function submitReassignTo(userId: string) {
+    if (!id || !userId || !wo || closed) return
     setMsg(null)
     setAssignBusy(true)
     try {
-      const updated = await patchWorkOrder.mutateAsync({ assignedToId: reassignUserId })
+      const updated = await patchWorkOrder.mutateAsync({ assignedToId: userId })
       try {
         mergeWorkOrderPatchIntoState(updated, setWo, setWoStatus, setWoDesc)
       } catch {
@@ -633,6 +690,7 @@ export function WorkOrderDetailPage() {
           : 'Asignación actualizada',
       )
       setReassignUserId('')
+      setAssignmentOpen(false)
       await load()
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
@@ -641,6 +699,11 @@ export function WorkOrderDetailPage() {
     } finally {
       setAssignBusy(false)
     }
+  }
+
+  async function submitReassign() {
+    if (!reassignUserId) return
+    await submitReassignTo(reassignUserId)
   }
 
   async function saveWorkOrder(e: React.FormEvent) {
@@ -1131,7 +1194,7 @@ export function WorkOrderDetailPage() {
               ))}
             </select>
           </label>
-          <button
+<button
             type="button"
             disabled={!reassignUserId || assignBusy}
             onClick={() => void submitReassign()}
@@ -1143,6 +1206,149 @@ export function WorkOrderDetailPage() {
       )}
     </Fragment>
   )
+
+  /**
+   * Píldora de estado en el título del banner. Un clic despliega la lista de
+   * opciones (un solo despliegue) y elegir una guarda automáticamente.
+   */
+  const statusPill = () => {
+    const interactive = canPatchWo && !closed
+    return (
+      <span className="relative inline-flex">
+        <button
+          type="button"
+          onClick={() => {
+            if (!interactive) return
+            setStatusOpen((v) => !v)
+          }}
+          disabled={!interactive}
+          title={interactive ? 'Cambiar estado de la orden' : undefined}
+          aria-label={`Estado: ${st.label}`}
+          aria-expanded={interactive ? statusOpen : undefined}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${st.tone}${
+            interactive ? ' cursor-pointer hover:brightness-95' : ' cursor-default'
+          }`}
+        >
+          <span>{st.label}</span>
+          {interactive ? (
+            <ChevronDown size={12} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
+          ) : null}
+        </button>
+        {interactive && statusOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Cerrar panel de estado"
+              tabIndex={-1}
+              className="fixed inset-0 z-30 cursor-default"
+              onClick={() => setStatusOpen(false)}
+            />
+            <div className="absolute left-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+              {selectableStatuses.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={assignBusy}
+                  onClick={() => void applyStatusFromPill(s)}
+                  className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition disabled:opacity-50 ${
+                    s === wo.status
+                      ? `font-semibold ${STATUS[s].tone}`
+                      : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{STATUS[s].label}</span>
+                  {s === wo.status ? <Check size={14} className="shrink-0" /> : null}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </span>
+    )
+  }
+
+  /**
+   * Píldora de técnico en el banner. Un clic despliega la lista de opciones
+   * (un solo despliegue) y elegir una guarda automáticamente.
+   */
+  const workshopAssignmentPill = () => {
+    const tech = wo.assignedTo?.fullName ?? null
+    const interactive = canPatchWo && !closed
+    const canReassignTech =
+      interactive && can('work_orders:reassign') && Array.isArray(assignableUsers) && assignableUsers.length > 0
+    const canTake = interactive && !tech && user && !canReassignTech
+    return (
+      <span className="relative inline-flex">
+        <button
+          type="button"
+          onClick={() => {
+            if (!interactive) return
+            setAssignmentOpen((v) => !v)
+          }}
+          disabled={!interactive}
+          title={interactive ? 'Cambiar técnico asignado' : undefined}
+          aria-label={tech ? `Técnico asignado: ${tech}` : 'Sin técnico asignado'}
+          aria-expanded={interactive ? assignmentOpen : undefined}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+            tech
+              ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200'
+              : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200'
+          }${interactive ? ' cursor-pointer hover:brightness-95' : ' cursor-default'}`}
+        >
+          <Wrench size={12} />
+          <span>{tech ?? 'En cola del taller'}</span>
+          {interactive ? (
+            <ChevronDown size={12} className={`transition-transform ${assignmentOpen ? 'rotate-180' : ''}`} />
+          ) : null}
+        </button>
+        {interactive && assignmentOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Cerrar panel de técnico asignado"
+              tabIndex={-1}
+              className="fixed inset-0 z-30 cursor-default"
+              onClick={() => setAssignmentOpen(false)}
+            />
+            <div className="absolute left-0 top-full z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+              {canReassignTech ? (
+                assignableUsers.map((u) => {
+                  const current = u.id === wo.assignedTo?.id
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      disabled={assignBusy}
+                      onClick={() => void submitReassignTo(u.id)}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition disabled:opacity-50 ${
+                        current
+                          ? 'bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-50'
+                          : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="min-w-0 truncate">{u.fullName}</span>
+                      {current ? <Check size={14} className="shrink-0" /> : null}
+                    </button>
+                  )
+                })
+              ) : canTake ? (
+                <div className="p-2">
+                  <button
+                    type="button"
+                    disabled={assignBusy}
+                    onClick={() => void takeWorkOrder()}
+                    className="va-btn-primary w-full disabled:opacity-50"
+                  >
+                    {assignBusy ? 'Guardando…' : 'Tomar esta orden (asignarme)'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </span>
+    )
+  }
 
   return (
     <div className={detailRootClass}>
@@ -1161,12 +1367,13 @@ export function WorkOrderDetailPage() {
                 #{wo.orderNumber}
               </span>
             </span>
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${st.tone}`}>{st.label}</span>
+            {statusPill()}
           </span>
         }
         description={
           <>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              {workshopAssignmentPill()}
               {(() => {
                 const b = (wo.vehicleBrand ?? wo.vehicle?.brand ?? '').trim()
                 if (!b) return null
@@ -1389,12 +1596,12 @@ ${formatCopFromString(wo.amountDue ?? '0')}
       {canPatchWo && orderDataModalOpen && (
         <div className="va-modal-overlay" role="presentation" onClick={() => setOrderDataModalOpen(false)}>
           <div
-            className="va-modal-panel max-h-[90vh] overflow-y-auto"
+            className="flex max-h-[min(92dvh,56rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-black/50"
             role="dialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-6">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Datos de la orden</h2>
                 <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-300">
@@ -1410,34 +1617,20 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 ×
               </button>
             </div>
-            <form onSubmit={saveWorkOrder} className="mt-4">
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm sm:col-span-2">
-              <span className="va-label">Descripción</span>
-              <textarea
-                required
-                minLength={3}
-                value={woDesc}
-                onChange={(e) => setWoDesc(e.target.value)}
-                rows={3}
-                className="va-field mt-1"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="va-label">Estado</span>
-              <select
-                value={woStatus}
-                onChange={(e) => setWoStatus(e.target.value as WorkOrderStatus)}
-                className="va-field mt-1"
-              >
-                {selectableStatuses.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS[s].label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
+              <form onSubmit={saveWorkOrder} className="mt-4">
+          <label className="block text-sm">
+            <span className="va-label">Descripción</span>
+            <textarea
+              required
+              minLength={3}
+              value={woDesc}
+              onChange={(e) => setWoDesc(e.target.value)}
+              rows={3}
+              className="va-field mt-1"
+            />
+          </label>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
               <h3 className="va-section-title text-sm">Cliente y vehículo (facturación)</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="block text-sm">
@@ -1533,9 +1726,9 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                   />
                 </label>
               </div>
-              {/* Tres tarjetas alineadas: revisión/consentimiento | OCR | asignación (lg 4+5+3) */}
-              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-200 pt-4 dark:border-slate-600 lg:grid-cols-12 lg:items-stretch lg:gap-4">
-                <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900 lg:col-span-4">
+              {/* Dos tarjetas alineadas: revisión/consentimiento y OCR */}
+              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-200 pt-4 dark:border-slate-600 lg:grid-cols-2 lg:items-stretch lg:gap-4">
+                <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900">
                   <h3 className="va-section-title text-sm">Revisión y consentimiento</h3>
                   <div className="mt-3 flex min-h-0 flex-1 flex-col gap-4">
                     <label className="block min-w-0 text-sm">
@@ -1578,21 +1771,14 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     )}
                   </div>
                 </div>
-                <div className="flex min-h-0 min-w-0 lg:col-span-5">
+                <div className="flex min-h-0 min-w-0">
                   <TransitLicenseOcrPanel
                     disabled={!canPatchWo || closed}
                     onApply={applyTransitLicenseFromOcr}
                   />
                 </div>
-                <aside className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-900 lg:col-span-3">
-                  <h3 className="va-section-title text-sm">Asignación al taller</h3>
-                  <div className="mt-3 flex min-h-0 flex-1 flex-col">
-                    {workshopAssignmentBlock()}
-                  </div>
-                </aside>
               </div>
             </div>
-          </div>
           <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-100 pt-6 dark:border-slate-800">
             <button type="button" onClick={() => setOrderDataModalOpen(false)} className="va-btn-secondary">
               Cancelar
@@ -1613,7 +1799,8 @@ ${formatCopFromString(wo.amountDue ?? '0')}
               Guardar orden
             </button>
           </div>
-          </form>
+            </form>
+            </div>
           </div>
         </div>
       )}

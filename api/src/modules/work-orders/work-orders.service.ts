@@ -513,10 +513,20 @@ export class WorkOrdersService {
     return this.ordersValueSummary(actor, WorkOrderStatus.IN_WORKSHOP);
   }
 
-  /** Usuarios activos para selector de reasignación (recepción / jefe de taller). */
+  /**
+   * Usuarios activos para selector de reasignación (recepción / jefe de taller).
+   * Solo perfiles cuyo ÚNICO rol es «Mecánico»: el técnico asignado a una OT
+   * siempre es un mecánico, no administradores, cajeros, dueño ni clientes.
+   */
   async listAssignableUsers() {
     return this.prisma.user.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        AND: [
+          { roles: { some: { role: { slug: 'mecanico' } } } },
+          { NOT: { roles: { some: { role: { slug: { not: 'mecanico' } } } } } },
+        ],
+      },
       select: { id: true, fullName: true, email: true },
       orderBy: { fullName: 'asc' },
     });
@@ -1025,12 +1035,21 @@ export class WorkOrdersService {
   }
 
   private async assertAssignableUser(userId: string): Promise<void> {
-    const u = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, isActive: true },
+    const u = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        AND: [
+          { roles: { some: { role: { slug: 'mecanico' } } } },
+          { NOT: { roles: { some: { role: { slug: { not: 'mecanico' } } } } } },
+        ],
+      },
+      select: { id: true },
     });
-    if (!u || !u.isActive) {
-      throw new ForbiddenException('Usuario asignado inválido o inactivo');
+    if (!u) {
+      throw new ForbiddenException(
+        'El usuario asignado debe estar activo y tener como único rol «Mecánico»',
+      );
     }
   }
 }
