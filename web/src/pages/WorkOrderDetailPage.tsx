@@ -53,7 +53,8 @@ import type {
   WorkOrderPatchResult,
   WorkOrderStatus,
 } from '../api/types'
-import { WorkOrderLinesSection } from '../features/work-orders/components/WorkOrderLinesSection'
+import { WorkOrderLinesSection, type WorkOrderLinesHandle } from '../features/work-orders/components/WorkOrderLinesSection'
+import { WorkOrderLineAddPanel } from '../features/work-orders/components/WorkOrderLineAddPanel'
 import { WhatsAppSendModal } from '../features/work-orders/components/WhatsAppSendModal'
 import { normalizeWhatsAppPhone } from '../lib/whatsappPhone'
 import { linesSubtotalFromLines } from '../features/work-orders/services/workOrderLinesPresentation'
@@ -180,6 +181,8 @@ export function WorkOrderDetailPage() {
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [waSendOpen, setWaSendOpen] = useState(false)
+  /** Tabla de líneas: el panel de alta le pide abrir la fila recién agregada en edición. */
+  const linesTableRef = useRef<WorkOrderLinesHandle | null>(null)
 
 
   // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
@@ -1507,6 +1510,19 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           </div>
         }
       />
+      {canMutateLines ? (
+        <WorkOrderLineAddPanel
+          workOrder={wo}
+          workOrderId={id}
+          setWorkOrder={setWo}
+          canCreateSparePart={can('repuestos:create')}
+          setMsg={setMsg}
+          onLinesChanged={refreshLinesOnWorkOrder}
+          onReload={load}
+          onBlockingError={showBlockingConflictModal}
+          onRequestOpenLine={(line) => linesTableRef.current?.openLineEditor(line)}
+        />
+      ) : null}
       {msg && (
         <p className="va-card-muted" role="status" aria-live="polite">
           {msg}
@@ -2212,11 +2228,11 @@ ${formatCopFromString(wo.amountDue ?? '0')}
       )}
 
       <WorkOrderLinesSection
+        ref={linesTableRef}
         workOrder={wo}
         workOrderId={id}
         setWorkOrder={setWo}
         can={can}
-        canMutateLines={Boolean(canMutateLines)}
         canUpdateLine={Boolean(canUpdateLine)}
         canDeleteLine={Boolean(canDeleteLine)}
         canViewWoFinancials={canViewWoFinancials}
