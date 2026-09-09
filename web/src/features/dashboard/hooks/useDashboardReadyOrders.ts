@@ -25,15 +25,16 @@ export function useDashboardReadyOrders() {
 
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) => fetchReadyOrdersSummary(signal),
+    // queryFn solo corre ante respuestas reales del servidor → cachear ahí (nunca el placeholder initialData).
+    queryFn: ({ signal }) =>
+      fetchReadyOrdersSummary(signal).then((data) => {
+        readyOrdersCache.write(userId, data)
+        return data
+      }),
     staleTime: STALE_DASHBOARD_MS,
     initialData: cached?.value,
     initialDataUpdatedAt: cached?.savedAt,
   })
-
-  useEffect(() => {
-    if (query.data) readyOrdersCache.write(userId, query.data)
-  }, [query.data, query.dataUpdatedAt, userId])
 
   return {
     count: query.data?.count ?? null,

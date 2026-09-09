@@ -10,8 +10,6 @@ import {
 } from '../../work-orders/services/workOrdersListApi'
 import { workshopCounterCache } from '../services/dashboardCache'
 
-type LegacyWorkshopCacheValue = { total?: number }
-
 export function useDashboardWorkshopCount() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
@@ -19,15 +17,13 @@ export function useDashboardWorkshopCount() {
 
   const cached = useMemo(() => {
     const raw = workshopCounterCache.read(userId)
-    if (!raw) return { entry: undefined, legacyNoValue: false }
-    const legacy = raw.value as WorkOrdersValueSummary & LegacyWorkshopCacheValue
-    const legacyNoValue = legacy.count == null && legacy.total != null && legacy.totalValue == null
+    if (!raw) return undefined
+    // Migración: entradas viejas guardaban solo `{ total }` (sin el valor total).
+    const legacy = raw.value as WorkOrdersValueSummary & { total?: number }
     return {
-      entry: {
-        value: { count: legacy.count ?? legacy.total ?? 0, totalValue: legacy.totalValue ?? null },
-        savedAt: raw.savedAt,
-      },
-      legacyNoValue,
+      count: legacy.count ?? legacy.total ?? 0,
+      totalValue: legacy.totalValue ?? null,
+      savedAt: raw.savedAt,
     }
   }, [userId])
 
@@ -41,15 +37,18 @@ export function useDashboardWorkshopCount() {
 
   const query = useQuery<WorkOrdersValueSummary>({
     queryKey: queryKeys.dashboard.workOrdersInWorkshop(),
-    queryFn: ({ signal }) => fetchInWorkshopSummary(signal),
-    staleTime: cached.legacyNoValue ? 0 : STALE_DASHBOARD_MS,
-    initialData: cached.entry?.value,
-    initialDataUpdatedAt: cached.entry?.savedAt,
+    // queryFn solo corre ante respuestas reales del servidor → cachear ahí (nunca el placeholder initialData).
+    queryFn: ({ signal }) =>
+      fetchInWorkshopSummary(signal).then((data) => {
+        workshopCounterCache.write(userId, data)
+        return data
+      }),
+    // Caché sin valor (entrada vieja `{total}` o un placeholder guardado sin el monto):
+    // forzamos refetch de fondo aunque la entrada sea reciente, para que el total aparezca.
+    staleTime: cached && cached.totalValue == null ? 0 : STALE_DASHBOARD_MS,
+    initialData: cached ? { count: cached.count, totalValue: cached.totalValue } : undefined,
+    initialDataUpdatedAt: cached?.savedAt,
   })
-
-  useEffect(() => {
-    if (query.data) workshopCounterCache.write(userId, query.data)
-  }, [query.data, query.dataUpdatedAt, userId])
 
   return {
     count: query.data?.count ?? null,

@@ -35,15 +35,16 @@ export function useDashboardWeeklyDelivered() {
 
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) => fetchWeeklyDeliveredSummary(range.from, range.to, signal),
+    // queryFn solo corre ante respuestas reales del servidor → cachear ahí (nunca el placeholder initialData).
+    queryFn: ({ signal }) =>
+      fetchWeeklyDeliveredSummary(range.from, range.to, signal).then((data) => {
+        weeklyDeliveredCache.write(userId, fromIso, toIso, data)
+        return data
+      }),
     staleTime: STALE_DASHBOARD_MS,
     initialData: cached?.value,
     initialDataUpdatedAt: cached?.savedAt,
   })
-
-  useEffect(() => {
-    if (query.data) weeklyDeliveredCache.write(userId, fromIso, toIso, query.data)
-  }, [query.data, query.dataUpdatedAt, userId, fromIso, toIso])
 
   return {
     from: range.from,
