@@ -1,4 +1,5 @@
 import type {
+  MonthlyDeliveredSummary,
   ReadyOrdersSummary,
   WeeklyDeliveredSummary,
   WorkOrdersValueSummary,
@@ -79,6 +80,16 @@ export const weeklyDeliveredCache = {
   },
   write(userId: string, fromIso: string, toIso: string, value: WeeklyDeliveredSummary): void {
     writeCached<WeeklyDeliveredSummary>('weekly-delivered', `${fromIso}--${toIso}`, userId, value)
+  },
+}
+
+/** Tarjeta "Entregadas este mes" — el scope incluye el rango ISO para que un mes viejo no calce en el actual. */
+export const monthlyDeliveredCache = {
+  read(userId: string, fromIso: string, toIso: string): CachedEnvelope<MonthlyDeliveredSummary> | null {
+    return readCached<MonthlyDeliveredSummary>(storageKey('monthly-delivered', `${fromIso}--${toIso}`, userId))
+  },
+  write(userId: string, fromIso: string, toIso: string, value: MonthlyDeliveredSummary): void {
+    writeCached<MonthlyDeliveredSummary>('monthly-delivered', `${fromIso}--${toIso}`, userId, value)
   },
 }
 

@@ -409,7 +409,35 @@ export class WorkOrdersService {
     const now = new Date();
     const from = query.from ? new Date(query.from.getTime()) : new Date(now.getTime() - 6 * 24 * 3600 * 1000);
     const to = query.to ? new Date(query.to.getTime()) : now;
+    const { fromIso, toIso, count, paymentsTotal } = await this.deliveredSummaryInRange(actor, from, to);
+    return { week: { from: fromIso, to: toIso }, count, paymentsTotal };
+  }
 
+  /**
+   * Resumen (panel) de entregas del mes corriente (1° al último día, calculado en el cliente)
+   * y, para perfiles con visibilidad financiera, el total pagado. Misma visibilidad de listado.
+   */
+  async monthlyDeliveredSummary(
+    actor: JwtUserPayload,
+    query: { from?: Date; to?: Date },
+  ): Promise<{
+    month: { from: string; to: string };
+    count: number;
+    paymentsTotal: string | null;
+  }> {
+    const now = new Date();
+    const from = query.from ? new Date(query.from.getTime()) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = query.to ? new Date(query.to.getTime()) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const { fromIso, toIso, count, paymentsTotal } = await this.deliveredSummaryInRange(actor, from, to);
+    return { month: { from: fromIso, to: toIso }, count, paymentsTotal };
+  }
+
+  /** Entregas en un rango: cantidad + total pagado (null si el perfil no ve importes). El rango máximo es de 31 días. */
+  private async deliveredSummaryInRange(
+    actor: JwtUserPayload,
+    from: Date,
+    to: Date,
+  ): Promise<{ fromIso: string; toIso: string; count: number; paymentsTotal: string | null }> {
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from.getTime() > to.getTime()) {
       throw new BadRequestException('Rango de fechas inválido.');
     }
@@ -434,11 +462,10 @@ export class WorkOrdersService {
 
     const mayViewFinancials = actorMayViewWorkOrderFinancials(actor);
     return {
-      week: { from: from.toISOString(), to: to.toISOString() },
+      fromIso: from.toISOString(),
+      toIso: to.toISOString(),
       count,
-      paymentsTotal: mayViewFinancials
-        ? (paid._sum.amount ?? new Prisma.Decimal(0)).toString()
-        : null,
+      paymentsTotal: mayViewFinancials ? (paid._sum.amount ?? new Prisma.Decimal(0)).toString() : null,
     };
   }
 

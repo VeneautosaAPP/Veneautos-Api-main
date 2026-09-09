@@ -2,6 +2,7 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { useAuth } from '../auth/AuthContext'
 import { DashboardWorkshopOrdersCard } from '../features/dashboard/components/DashboardWorkshopOrdersCard'
 import { DashboardWeeklyDeliveredCard } from '../features/dashboard/components/DashboardWeeklyDeliveredCard'
+import { DashboardMonthlyDeliveredCard } from '../features/dashboard/components/DashboardMonthlyDeliveredCard'
 import { DashboardReadyOrdersCard } from '../features/dashboard/components/DashboardReadyOrdersCard'
 
 export function DashboardPage() {
@@ -21,6 +22,7 @@ export function DashboardPage() {
         <DashboardWorkshopOrdersCard />
         <DashboardReadyOrdersCard />
         <DashboardWeeklyDeliveredCard />
+        <DashboardMonthlyDeliveredCard />
       </div>
     </div>
   )

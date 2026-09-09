@@ -108,6 +108,25 @@ export async function fetchWeeklyDeliveredSummary(
   })
 }
 
+export type MonthlyDeliveredSummary = {
+  month: { from: string; to: string }
+  count: number
+  paymentsTotal: string | null
+}
+
+export async function fetchMonthlyDeliveredSummary(
+  from: Date,
+  to: Date,
+  signal?: AbortSignal,
+): Promise<MonthlyDeliveredSummary> {
+  const qs = new URLSearchParams()
+  qs.set('from', from.toISOString())
+  qs.set('to', to.toISOString())
+  return api<MonthlyDeliveredSummary>(`/work-orders/monthly-delivered-summary?${qs.toString()}`, {
+    signal,
+  })
+}
+
 /** Resumen (panel) de OTs en un estado: cantidad + valor total a cobrar. `totalValue` null si el perfil no ve importes. */
 export type WorkOrdersValueSummary = {
   count: number

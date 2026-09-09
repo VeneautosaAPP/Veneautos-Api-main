@@ -32,6 +32,7 @@ import { DeleteWorkOrderPaymentDto } from './dto/delete-work-order-payment.dto';
 import { ListWorkOrdersQueryDto } from './dto/list-work-orders.query.dto';
 import { LookupPublicWorkOrderDto } from './dto/lookup-public-work-order.dto';
 import { WeeklyDeliveredSummaryQueryDto } from './dto/weekly-delivered-summary.query.dto';
+import { MonthlyDeliveredSummaryQueryDto } from './dto/monthly-delivered-summary.query.dto';
 import { RecordWorkOrderPaymentDto } from './dto/record-work-order-payment.dto';
 import { ReopenDeliveredWorkOrderDto } from './dto/reopen-delivered-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
@@ -86,6 +87,15 @@ export class WorkOrdersController {
     @Query() query: WeeklyDeliveredSummaryQueryDto,
   ) {
     return this.workOrders.weeklyDeliveredSummary(actor, query);
+  }
+
+  @Get('monthly-delivered-summary')
+  @RequireAnyPermission('work_orders:read', 'work_orders:read_portal')
+  monthlyDeliveredSummary(
+    @CurrentUser() actor: JwtUserPayload,
+    @Query() query: MonthlyDeliveredSummaryQueryDto,
+  ) {
+    return this.workOrders.monthlyDeliveredSummary(actor, query);
   }
 
   @Get('ready-orders-summary')

@@ -42,6 +42,9 @@ export const queryKeys = {
     /** Resumen semanal de entregas (GET /work-orders/weekly-delivered-summary). Rango ISO fija la key. */
     weeklyDelivered: (from: string, to: string) =>
       [...queryKeys.dashboard.root, 'work-orders', 'weekly-delivered', from, to] as const,
+    /** Resumen mensual de entregas (GET /work-orders/monthly-delivered-summary). Rango ISO fija la key. */
+    monthlyDelivered: (from: string, to: string) =>
+      [...queryKeys.dashboard.root, 'work-orders', 'monthly-delivered', from, to] as const,
     /** Resumen de órdenes «Lista» (GET /work-orders/ready-orders-summary). */
     readyOrders: () => [...queryKeys.dashboard.root, 'work-orders', 'ready'] as const,
   },
