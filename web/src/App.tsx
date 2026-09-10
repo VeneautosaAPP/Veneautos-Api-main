@@ -17,7 +17,7 @@ import { CustomerDetailPage } from './pages/CustomerDetailPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { CommercialLandingPage } from './pages/CommercialLandingPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { ConsultPublicWorkOrderPage } from './pages/ConsultPublicWorkOrderPage'
+import { ClientAccountLookupPage } from './pages/ClientAccountLookupPage'
 import { LoginPage } from './pages/LoginPage'
 import { VehicleDetailPage } from './pages/VehicleDetailPage'
 import { InvoiceDetailPage } from './pages/InvoiceDetailPage'
@@ -36,7 +36,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<CommercialLandingPage />} />
-      <Route path="/consultar-ot" element={<ConsultPublicWorkOrderPage />} />
+      {/** SEO/compat: la consulta OT ahora vive en /consulta-cliente */}
+      <Route path="/consultar-ot" element={<Navigate to="/consulta-cliente" replace />} />
+      <Route path="/consulta-cliente" element={<ClientAccountLookupPage />} />
       <Route path="/login" element={<Navigate to={portalPath('/login')} replace />} />
       <Route path={`${PORTAL_BASE}/login`} element={<LoginPage />} />
       <Route path={PORTAL_BASE} element={<AppShell />}>

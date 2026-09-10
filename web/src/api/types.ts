@@ -24,6 +24,91 @@ export type PublicWorkOrderLookupResponse = {
   vehicleModel: string | null
 }
 
+export type ClientPortalInvoiceStatus = 'DRAFT' | 'ISSUED' | 'VOIDED'
+
+export type PortalLine = {
+  lineType: 'PART' | 'LABOR'
+  description: string | null
+  quantity: string
+  unitPrice: string | null
+  discountAmount: string
+  taxPercent: string
+  taxKind: 'VAT' | 'INC' | null
+  lineTotal: string
+}
+
+export type PortalCreditNote = {
+  documentNumber: string
+  status: string
+  reason: string | null
+  grandTotal: string
+  issuedAt: string | null
+}
+
+export type PortalInvoice = {
+  documentNumber: string
+  status: ClientPortalInvoiceStatus
+  createdAt: string
+  issuedAt: string | null
+  voidedAt: string | null
+  voidedReason: string | null
+  cufe: string | null
+  subtotal: string
+  totalDiscount: string
+  totalTax: string
+  grandTotal: string
+  effectiveAmount: string
+  amountPaid: string
+  amountDue: string
+  lines: PortalLine[]
+  creditNotes: PortalCreditNote[]
+  debitNotes: PortalCreditNote[]
+}
+
+export type PortalOrder = {
+  publicCode: string
+  status: WorkOrderStatus
+  description: string | null
+  createdAt: string
+  deliveredAt: string | null
+  cancelledAt: string | null
+  intakeOdometerKm: number | null
+  inspectionOnly: boolean
+  lines: PortalLine[]
+  subtotal: string
+  totalDiscount: string
+  totalTax: string
+  grandTotal: string
+  amountPaid: string
+  amountDue: string
+  invoices: PortalInvoice[]
+}
+
+export type PortalVehicle = {
+  plate: string
+  brand: string | null
+  model: string | null
+  year: number | null
+  color: string | null
+  orders: PortalOrder[]
+}
+
+/** `POST /client-portal/account` — cuenta cliente de solo lectura (placa + celular). */
+export type ClientPortalAccount = {
+  cliente: {
+    displayName: string | null
+    documentId: string | null
+    maskedPhone: string | null
+  }
+  resumen: {
+    vehiclesCount: number
+    openOrders: number
+    invoicesCount: number
+    openBalance: string
+  }
+  vehicles: PortalVehicle[]
+}
+
 export type WorkOrderLineType = 'PART' | 'LABOR'
 
 /** Familia del impuesto (Fase 6). IVA estándar, INC reservado. */

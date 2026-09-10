@@ -238,11 +238,11 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 Contacto
               </a>
               <Link
-                to="/consultar-ot"
-                title="Consultar orden de trabajo"
+                to="/consulta-cliente"
+                title="Consultar estado de cuenta"
                 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400 transition hover:text-brand-400"
               >
-                Consultar OT
+                Consultar estado de cuenta
               </Link>
             </div>
           </div>
@@ -319,11 +319,11 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 Contacto
               </a>
               <Link
-                to="/consultar-ot"
+                to="/consulta-cliente"
                 onClick={closeMenu}
                 className="border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold uppercase tracking-[0.14em] text-zinc-700 transition hover:border-brand-600 hover:text-brand-700 dark:text-zinc-200 dark:hover:text-brand-300"
               >
-                Consultar OT
+                Consultar estado de cuenta
               </Link>
             </nav>
 

@@ -70,11 +70,11 @@ function consultOtJsonLd(origin: string) {
   return {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
-    '@id': `${origin}/consultar-ot`,
-    url: `${origin}/consultar-ot`,
-    name: `Consultar orden de trabajo (OT) | ${SITE_BRAND}`,
+    '@id': `${origin}/consulta-cliente`,
+    url: `${origin}/consulta-cliente`,
+    name: `Consultar estado de cuenta | ${SITE_BRAND}`,
     description:
-      'Consultá el estado de la orden de trabajo de tu vehículo en el taller Vene Autos (Colombia). Seguimiento online con código OT.',
+      'Consultá el estado de cuenta de tu vehículo en el taller Vene Autos (Colombia): órdenes de trabajo, facturas y saldos en una consulta segura por placa y celular.',
     inLanguage: 'es-CO',
     isPartOf: { '@type': 'WebSite', name: SITE_BRAND, url: `${origin}/` },
   }
@@ -108,14 +108,14 @@ export function SiteSeo() {
       return { tags, jsonLd: landingJsonLd(origin, locality) }
     }
 
-    if (pathname === '/consultar-ot') {
-      const titleOk = `Consultar OT y estado de reparación | ${SITE_BRAND} Colombia`
+    if (pathname === '/consultar-ot' || pathname === '/consulta-cliente') {
+      const titleOk = `Consultar estado de cuenta | ${SITE_BRAND} Colombia`
       const description =
-        'Consultá online el avance de la mecánica y reparación de tu vehículo: orden de trabajo (OT) del taller Vene Autos en Colombia.'
+        'Consultá online el estado de cuenta de tu vehículo: órdenes de trabajo, facturas y saldos en el taller Vene Autos en Colombia.'
       const tags: HeadTags = {
         title: titleOk,
         description,
-        canonicalUrl: fullUrl('/consultar-ot'),
+        canonicalUrl: fullUrl('/consulta-cliente'),
         robots: 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
         ogType: 'website',
         ogImageUrl: ogImage,

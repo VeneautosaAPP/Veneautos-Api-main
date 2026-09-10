@@ -25,6 +25,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { TaxRatesModule } from './modules/tax-rates/tax-rates.module';
 import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { ClientPortalModule } from './modules/client-portal/client-portal.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { HealthController } from './health/health.controller';
@@ -49,6 +50,7 @@ import { RootController } from './root.controller';
     TaxRatesModule,
     SparePartsModule,
     BillingModule,
+    ClientPortalModule,
     ReportsModule,
     PayrollModule,
     BackupModule,

@@ -29,6 +29,13 @@ export class AuditHttpMiddleware implements NestMiddleware {
     }
 
     const path = req.originalUrl ?? req.url;
+    // Portal público de clientes: el cuerpo (placa + celular) es información personal y
+    // no debe quedar persistida en auditoría HTTP. El control de intentos ya lo hace su propio
+    // rate limit con huellas anónimas.
+    if (path.includes('/client-portal/')) {
+      next();
+      return;
+    }
     let logged = false;
 
     const logOnce = () => {

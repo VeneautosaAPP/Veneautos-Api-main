@@ -21,7 +21,7 @@
  * para perfiles amplios, una consulta de la lista de mecánicos. Cero N+1: los totales se
  * agrupan en memoria.
  */
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, WorkOrderLineType, WorkOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';

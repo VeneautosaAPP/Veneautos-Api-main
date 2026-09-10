@@ -112,6 +112,24 @@ model UserAuthSession {
   @@map("user_auth_sessions")
 }
 
+/// Control anti fuerza bruta de la consulta pública del portal de clientes
+/// (`POST /client-portal/account`). Se guarda una huella SHA-256 del IP (nunca IP crudo)
+/// y se bloquea temporalmente la huella tras muchos intentos fallidos.
+model ClientPortalAttempt {
+  id            String    @id @default(cuid())
+  /// SHA-256 de `ip|client-portal|<secreto>`; evita persistir IPs crudos.
+  fingerprint   String    @unique @db.VarChar(128)
+  /// Intentos dentro de la ventana actual (`window_start_at`).
+  attempts      Int       @default(0)
+  windowStartAt DateTime  @default(now()) @map("window_start_at")
+  /// Null = no bloqueada; no nula = la huella está temporalmente suspendida hasta esa hora.
+  blockedUntil  DateTime? @map("blocked_until")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([updatedAt])
+  @@map("client_portal_attempts")
+}
+
 /// Estado de una sesión de caja: solo una fila debería estar OPEN a la vez (regla en aplicación).
 enum CashSessionStatus {
   OPEN
