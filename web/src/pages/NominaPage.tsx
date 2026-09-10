@@ -2,17 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
 import { PageHeader } from '../components/layout/PageHeader'
+import { panelUsesModernShell } from '../config/operationalNotes'
+import { usePanelTheme } from '../theme/PanelThemeProvider'
 import { PayrollPercentageCalculator } from '../features/payroll/components/PayrollPercentageCalculator'
 import { NominaMechanicCard } from '../features/payroll/components/NominaMechanicCard'
 import { usePayrollWeekly } from '../features/payroll/hooks/usePayrollWeekly'
 import { queryKeys } from '../lib/queryKeys'
 import { updatePayrollCommissionPct } from '../features/payroll/services/payrollApi'
+import { formatCopInteger } from '../utils/copFormat'
 
 export function NominaPage() {
   const { can, user } = useAuth()
   const queryClient = useQueryClient()
   const { weekRangeLabel, summary, isLoading, isError, refetch } = usePayrollWeekly()
 
+  const isSaas = panelUsesModernShell(usePanelTheme())
   const canEdit = can('payroll:read_all')
 
   /** % de nómina por OT (solo las editadas; el resto usa el valor del servidor). */
@@ -93,24 +97,55 @@ export function NominaPage() {
     )
   }
 
-  const pageHeader = (
-    <PageHeader
-      eyebrow="Semana lunes–sábado"
-      title="Nómina"
-      description={`${weekRangeLabel}. Se paga un porcentaje configurable de la mano de obra (sin IVA) por orden entregada. ${
-        summary?.isOwnOnly ? 'Estás viendo tu propia nómina.' : 'Estás viendo la nómina de todos los mecánicos.'
-      }`}
-    />
-  )
+  /** Suma del a pagar de todas las nóminas, en vivo con los % editados (igual que las tarjetas). */
+  const totalNomina = (summary?.mechanics ?? []).reduce((sum, m) => {
+    for (const o of m.orders) {
+      const labor = Number(o.laborTotal)
+      if (!Number.isFinite(labor)) continue
+      const pct = pctByOrder[o.id] ?? (Number(o.commissionPct) || 50)
+      sum += Math.round((labor * pct) / 100)
+    }
+    return sum
+  }, 0)
 
-  const calculator = <PayrollPercentageCalculator ratePercent={50} />
+  const banner = summary ? (
+    <div
+      className={isSaas ? 'va-saas-page-hero' : 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5'}
+      style={isSaas ? { paddingTop: 12, paddingBottom: 12 } : undefined}
+    >
+      <div className="grid w-full grid-cols-1 divide-y divide-slate-200 xl:grid-cols-3 xl:items-center xl:divide-y-0 xl:divide-x dark:divide-slate-700">
+        <div className="min-w-0 first:pt-0 pt-4 xl:pt-0 xl:pr-6">
+          <p className="va-page-eyebrow">Semana lunes–sábado</p>
+          <h1 className="va-page-title">Nómina</h1>
+          <p className="va-page-desc">
+            {weekRangeLabel}
+            {summary.isOwnOnly ? ' Estás viendo tu propia nómina.' : ''}
+          </p>
+        </div>
+        <div className="min-w-0 pt-4 xl:pt-0 xl:px-8">
+          <PayrollPercentageCalculator ratePercent={50} compact />
+        </div>
+        <div className="flex items-center justify-center pt-4 xl:pt-0 xl:pl-6">
+          <p className="text-center">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Total nómina
+            </span>
+            <span className="block text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+              ${formatCopInteger(totalNomina)}
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <PageHeader eyebrow="Semana lunes–sábado" title="Nómina" description={weekRangeLabel} />
+  )
 
   const loadingOrError = isError || !summary
 
   return (
     <div className="space-y-6">
-      {pageHeader}
-      {calculator}
+      {banner}
       {isLoading && !summary
         ? (
           <p className="text-slate-500 dark:text-slate-400">Cargando nómina…</p>

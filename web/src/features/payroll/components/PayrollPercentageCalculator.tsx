@@ -9,6 +9,8 @@ import {
 type Props = {
   /** Porcentaje inicial sugerido (50 para el 50%). */
   ratePercent?: number
+  /** Compacta (dentro del banner): sin tarjeta y con inputs más angostos. */
+  compact?: boolean
 }
 
 function toPesos(raw: string): number {
@@ -27,7 +29,7 @@ function formatPercent(n: number): string {
  * - Ingresás base y monto → muestra el porcentaje equivalente.
  * Los tres campos se editan; la última edición recalcula el campo derivado.
  */
-export function PayrollPercentageCalculator({ ratePercent = 50 }: Props) {
+export function PayrollPercentageCalculator({ ratePercent = 50, compact = false }: Props) {
   const [baseRaw, setBaseRaw] = useState('')
   const [percentRaw, setPercentRaw] = useState(String(ratePercent))
   const [amountRaw, setAmountRaw] = useState('')
@@ -57,20 +59,17 @@ export function PayrollPercentageCalculator({ ratePercent = 50 }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+    <div className={compact ? '' : 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5'}>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Calculadora de porcentaje
       </p>
-      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-        Ingresá base y porcentaje para ver el monto a pagar; o base y monto para ver el porcentaje.
-      </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <div className={compact ? 'mt-2 grid gap-2 sm:grid-cols-3' : 'mt-3 grid gap-3 sm:grid-cols-3'}>
         <label className="text-sm">
-          <span className="va-label">Base — mano de obra (COP)</span>
+          <span className="va-label whitespace-nowrap">{compact ? 'Base (COP)' : 'Base — mano de obra (COP)'}</span>
           <input
             inputMode="numeric"
             autoComplete="off"
-            className="va-field mt-1 tabular-nums"
+            className={`va-field mt-1 tabular-nums${compact ? ' max-w-[11rem] !py-1.5' : ''}`}
             placeholder="ej. 1.000.000"
             value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(baseRaw))}
             onChange={(e) => onBaseChange(e.target.value)}
@@ -81,25 +80,25 @@ export function PayrollPercentageCalculator({ ratePercent = 50 }: Props) {
           <input
             inputMode="decimal"
             autoComplete="off"
-            className="va-field mt-1 tabular-nums"
+            className={`va-field mt-1 tabular-nums${compact ? ' max-w-[11rem] !py-1.5' : ''}`}
             placeholder="ej. 10"
             value={percentRaw}
             onChange={(e) => onPercentChange(e.target.value)}
           />
         </label>
         <label className="text-sm">
-          <span className="va-label">Monto a pagar (COP)</span>
+          <span className="va-label whitespace-nowrap">{compact ? 'Monto (COP)' : 'Monto a pagar (COP)'}</span>
           <input
             inputMode="numeric"
             autoComplete="off"
-            className="va-field mt-1 tabular-nums"
+            className={`va-field mt-1 tabular-nums${compact ? ' max-w-[11rem] !py-1.5' : ''}`}
             placeholder="ej. 100.000"
             value={formatMoneyInputDisplayFromNormalized(normalizeMoneyDecimalStringForApi(amountRaw))}
             onChange={(e) => onAmountChange(e.target.value)}
           />
         </label>
       </div>
-      {baseNum > 0 && percentNum > 0 ? (
+      {!compact && baseNum > 0 && percentNum > 0 ? (
         <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
           El <span className="font-semibold tabular-nums">{formatPercent(percentNum)}%</span> de{' '}
           <span className="font-semibold tabular-nums">${formatCopInteger(baseNum)}</span> es{' '}

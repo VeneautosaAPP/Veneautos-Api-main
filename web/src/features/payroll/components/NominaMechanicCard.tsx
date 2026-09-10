@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, ChevronDown, Clock3, XCircle } from 'lucide-react'
+import { ChevronDown, Clock3, XCircle } from 'lucide-react'
 import { usePanelTheme } from '../../../theme/PanelThemeProvider'
 import { panelUsesModernShell } from '../../../config/operationalNotes'
 import { formatCopFromString } from '../../../utils/copFormat'
@@ -101,32 +101,31 @@ export function NominaMechanicCard({
 
   const cardClass = isSaas
     ? 'va-saas-module-card'
-    : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900'
+    : 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900'
 
   return (
-    <section className={`${cardClass} flex flex-col gap-4`} aria-label={`Nómina de ${mechanic.fullName}`}>
+    <section className={`${cardClass} !min-h-0 flex flex-col gap-3`} aria-label={`Nómina de ${mechanic.fullName}`}>
       <button
         type="button"
         disabled={!hasOrders}
         aria-expanded={hasOrders ? otOpen : undefined}
         aria-label={hasOrders ? `Órdenes de ${mechanic.fullName}` : undefined}
         onClick={() => setOtOpen((v) => !v)}
-        className={`flex w-full flex-wrap items-start justify-between gap-2 text-left ${
+        className={`flex w-full items-center gap-2 text-left ${
           hasOrders ? 'cursor-pointer' : 'cursor-default'
         }`}
       >
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white">{mechanic.fullName}</h2>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {!hasOrders
-              ? 'Sin entregas esta semana'
-              : `${mechanic.ordersCount} ${mechanic.ordersCount === 1 ? 'orden entregada' : 'órdenes entregadas'}`}{' '}
-            · lunes a sábado · clic para {otOpen ? 'ocultar' : 'ver'}
-          </p>
+        <div className="flex min-w-0 flex-1 justify-start">
+          <h2 className="truncate text-base font-semibold text-slate-900 dark:text-white">{mechanic.fullName}</h2>
         </div>
-        <span className="flex items-center gap-2">
+        <p className="text-base font-semibold text-slate-900 dark:text-white">
+          {!hasOrders
+            ? 'Sin entregas esta semana'
+            : `${mechanic.ordersCount} ${mechanic.ordersCount === 1 ? 'orden entregada' : 'órdenes entregadas'}`}
+        </p>
+        <div className="flex shrink-0 flex-1 justify-end">
           {hasOrders && (
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800">
+            <span className="hidden items-center gap-2 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800">
               {Math.round(effectivePct)}% efectivo a pagar
             </span>
           )}
@@ -136,27 +135,25 @@ export function NominaMechanicCard({
               aria-hidden
             />
           )}
-        </span>
+        </div>
       </button>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="flex items-baseline justify-between gap-3 rounded-xl bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/60">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Mano de obra
-          </p>
-          <p className="mt-1 text-lg font-bold tabular-nums text-slate-900 dark:text-white">
+          </span>
+          <span className="text-base font-bold tabular-nums text-slate-900 dark:text-white">
             ${formatCopFromString(mechanic.laborTotal)}
-          </p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">Sin IVA</p>
+          </span>
         </div>
-        <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-950/60">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+        <div className="flex items-baseline justify-between gap-3 rounded-xl bg-emerald-50 px-2.5 py-1.5 dark:bg-emerald-950/60">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
             A pagar
-          </p>
-          <p className="mt-1 text-lg font-bold tabular-nums text-emerald-800 dark:text-emerald-200">
+          </span>
+          <span className="text-base font-bold tabular-nums text-emerald-800 dark:text-emerald-200">
             ${formatCopFromString(String(payableTotal))}
-          </p>
-          <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/70">Esta semana</p>
+          </span>
         </div>
       </div>
 
@@ -166,7 +163,7 @@ export function NominaMechanicCard({
             const saving = savingIds.has(o.id)
             const failed = failedIds.has(o.id)
             return (
-              <li key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
+              <li key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-1.5">
                 <div className="min-w-0 flex-1 basis-40">
                   <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
                     <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{o.publicCode}</span>
@@ -216,13 +213,6 @@ export function NominaMechanicCard({
             )
           })}
         </ul>
-      ) : null}
-
-      {otOpen && canEdit && rows.length > 0 ? (
-        <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-          <CheckCircle2 className="size-3" aria-hidden />
-          El porcentaje se guarda automáticamente por OT al terminar de escribir.
-        </p>
       ) : null}
     </section>
   )
