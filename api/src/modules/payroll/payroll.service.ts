@@ -10,7 +10,10 @@
  * - La base de la comisión es la suma de las líneas LABOR **sin IVA** (`taxableBase`),
  *   la misma matemática que usa facturación/informes (`computeBillingTotals`), para que
  *   el valor cuadre con lo cobrado al cliente.
- * - La comisión es el **50%** de la mano de obra (`PAYROLL_RATE`), redondeada entera.
+ * - La comisión es el **% de nómina de cada OT** (`laborCommissionPct`, configurable por el
+ *   dueño/administrador en la sección Nómina), sobre la mano de obra sin IVA, redondeada entera.
+ *   Sin valor configurado aplica el 50% (`PAYROLL_RATE`); el total por mecánico es la suma del
+ *   payable de cada OT (cada una puede tener su propio %).
  * - Un perfil sin `payroll:read_all` (p. ej. mecánico) solo ve su propia nómina; el
  *   administrador/dueño ven la de todos los mecánicos activos.
  *
@@ -18,7 +21,7 @@
  * para perfiles amplios, una consulta de la lista de mecánicos. Cero N+1: los totales se
  * agrupan en memoria.
  */
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, WorkOrderLineType, WorkOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user.payload';
@@ -36,6 +39,8 @@ export const PAYROLL_READ_ALL = 'payroll:read_all' as const;
 /** Porcentaje de la mano de obra que recibe el mecánico (50%). */
 const PAYROLL_RATE = new Prisma.Decimal('0.5');
 const PAYROLL_RATE_STR = PAYROLL_RATE.toString();
+/** % por defecto de una OT sin valor configurado (50%). */
+const DEFAULT_PCT = new Prisma.Decimal(50);
 
 /** Shape para cargar líneas LABOR desde Prisma y pasarlas a `computeBillingTotals`. */
 const lineTotalsSelect = {
@@ -104,6 +109,7 @@ export class PayrollService {
         plate: string | null;
         deliveredAt: string;
         laborTotal: string;
+        commissionPct: string;
         payable: string;
       }>;
     }>;
@@ -127,6 +133,7 @@ export class PayrollService {
           publicCode: true,
           description: true,
           deliveredAt: true,
+          laborCommissionPct: true,
           assignedTo: { select: { id: true, fullName: true } },
           vehicle: { select: { plate: true } },
           lines: {
@@ -157,6 +164,7 @@ export class PayrollService {
       plate: string | null;
       deliveredAt: string;
       laborTotal: string;
+      commissionPct: string;
       payable: string;
     };
     type Bucket = {
@@ -164,6 +172,7 @@ export class PayrollService {
       fullName: string;
       ordersCount: number;
       laborTotal: Prisma.Decimal;
+      payable: Prisma.Decimal;
       orders: OrderEntry[];
     };
     const byMechanic = new Map<string, Bucket>();
@@ -174,6 +183,7 @@ export class PayrollService {
         fullName: m.fullName,
         ordersCount: 0,
         laborTotal: new Prisma.Decimal(0),
+        payable: new Prisma.Decimal(0),
         orders: [],
       });
     }
@@ -186,14 +196,17 @@ export class PayrollService {
         fullName: wo.assignedTo.fullName,
         ordersCount: 0,
         laborTotal: new Prisma.Decimal(0),
+        payable: new Prisma.Decimal(0),
         orders: [],
       };
       const laborTotal = computeBillingTotals(
         laborLinesToForTotals(wo.lines as unknown as LaborLineRow[]),
       ).taxableBase;
-      const payable = this.commissionOf(laborTotal);
+      const commissionPct = wo.laborCommissionPct ?? DEFAULT_PCT;
+      const payable = this.commissionOf(laborTotal, commissionPct);
       bucket.ordersCount += 1;
       bucket.laborTotal = bucket.laborTotal.plus(laborTotal);
+      bucket.payable = bucket.payable.plus(payable);
       bucket.orders.push({
         id: wo.id,
         publicCode: wo.publicCode,
@@ -201,6 +214,7 @@ export class PayrollService {
         plate: wo.vehicle?.plate ?? null,
         deliveredAt: wo.deliveredAt.toISOString(),
         laborTotal: laborTotal.toString(),
+        commissionPct: commissionPct.toString(),
         payable: payable.toString(),
       });
       byMechanic.set(key, bucket);
@@ -213,7 +227,7 @@ export class PayrollService {
         fullName: b.fullName,
         ordersCount: b.ordersCount,
         laborTotal: b.laborTotal.toString(),
-        payable: this.commissionOf(b.laborTotal).toString(),
+        payable: b.payable.toString(),
         orders: b.orders,
       }));
 
@@ -225,9 +239,32 @@ export class PayrollService {
     };
   }
 
-  /** Comisión 50% de la mano de obra, redondeada al peso más cercano. */
-  private commissionOf(laborTotal: Prisma.Decimal): Prisma.Decimal {
-    return laborTotal.mul(PAYROLL_RATE).toDecimalPlaces(0);
+  /** Comisión `pct`% (p. ej. 50) de la mano de obra, redondeada al peso más cercano. */
+  private commissionOf(laborTotal: Prisma.Decimal, pct: Prisma.Decimal): Prisma.Decimal {
+    return laborTotal.mul(pct).div(100).toDecimalPlaces(0);
+  }
+
+  /**
+   * Configura el % de nómina de una OT (persistente). Solo el dueño/administrador
+   * (`payroll:read_all`) puede hacerlo; el mecánico ve su nómina en solo-lectura.
+   */
+  async setCommissionPercent(
+    workOrderId: string,
+    commissionPct: number,
+  ): Promise<{ ok: true; workOrderId: string; commissionPct: string }> {
+    const wo = await this.prisma.workOrder.findUnique({
+      where: { id: workOrderId },
+      select: { id: true },
+    });
+    if (!wo) {
+      throw new NotFoundException('No existe la orden de trabajo.');
+    }
+    const value = new Prisma.Decimal(commissionPct);
+    await this.prisma.workOrder.update({
+      where: { id: workOrderId },
+      data: { laborCommissionPct: value },
+    });
+    return { ok: true, workOrderId, commissionPct: value.toString() };
   }
 
   /** Rango de la semana: válido el que llega el cliente; fallback lun–sáb actual (UTC). */

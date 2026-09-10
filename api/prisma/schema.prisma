@@ -260,6 +260,8 @@ model WorkOrder {
   clientSignaturePngBase64  String?   @map("client_signature_png_base64") @db.Text
   deliveredAt   DateTime?       @map("delivered_at")
   cancelledAt   DateTime?       @map("cancelled_at")
+  /// % de comisión de nómina sobre la mano de obra de ESTA OT (null = default 50); lo configura el dueño en la sección Nómina.
+  laborCommissionPct Decimal?   @map("labor_commission_pct") @db.Decimal(5, 2)
   /// OT origen (p. ej. trabajo ya entregado) cuando esta orden es una **garantía** o seguimiento vinculado.
   parentWorkOrderId String?   @map("parent_work_order_id")
   createdById   String          @map("created_by_id")
