@@ -134,7 +134,7 @@ export function NominaPage() {
               </p>
             )
             : (
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4">
                 {summary.mechanics.map((m) => (
                   <NominaMechanicCard
                     key={m.mechanicId}

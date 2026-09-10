@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, Clock3, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Clock3, XCircle } from 'lucide-react'
 import { usePanelTheme } from '../../../theme/PanelThemeProvider'
 import { panelUsesModernShell } from '../../../config/operationalNotes'
 import { formatCopFromString } from '../../../utils/copFormat'
@@ -87,6 +87,7 @@ export function NominaMechanicCard({
   failedIds,
 }: Props) {
   const isSaas = panelUsesModernShell(usePanelTheme())
+  const [otOpen, setOtOpen] = useState(false)
 
   const rows = mechanic.orders.map((o) => {
     const labor = toLaborNum(o.laborTotal)
@@ -96,6 +97,7 @@ export function NominaMechanicCard({
   const laborTotal = toLaborNum(mechanic.laborTotal)
   const payableTotal = rows.reduce((sum, r) => sum + r.payable, 0)
   const effectivePct = laborTotal > 0 ? (payableTotal / laborTotal) * 100 : 0
+  const hasOrders = mechanic.ordersCount > 0
 
   const cardClass = isSaas
     ? 'va-saas-module-card'
@@ -103,22 +105,39 @@ export function NominaMechanicCard({
 
   return (
     <section className={`${cardClass} flex flex-col gap-4`} aria-label={`Nómina de ${mechanic.fullName}`}>
-      <header className="flex flex-wrap items-start justify-between gap-2">
+      <button
+        type="button"
+        disabled={!hasOrders}
+        aria-expanded={hasOrders ? otOpen : undefined}
+        aria-label={hasOrders ? `Órdenes de ${mechanic.fullName}` : undefined}
+        onClick={() => setOtOpen((v) => !v)}
+        className={`flex w-full flex-wrap items-start justify-between gap-2 text-left ${
+          hasOrders ? 'cursor-pointer' : 'cursor-default'
+        }`}
+      >
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">{mechanic.fullName}</h2>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {mechanic.ordersCount === 0
+            {!hasOrders
               ? 'Sin entregas esta semana'
               : `${mechanic.ordersCount} ${mechanic.ordersCount === 1 ? 'orden entregada' : 'órdenes entregadas'}`}{' '}
-            · lunes a sábado
+            · lunes a sábado · clic para {otOpen ? 'ocultar' : 'ver'}
           </p>
         </div>
-        {mechanic.ordersCount > 0 && (
-          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800">
-            {Math.round(effectivePct)}% efectivo a pagar
-          </span>
-        )}
-      </header>
+        <span className="flex items-center gap-2">
+          {hasOrders && (
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800">
+              {Math.round(effectivePct)}% efectivo a pagar
+            </span>
+          )}
+          {hasOrders && (
+            <ChevronDown
+              className={`size-4 text-slate-400 transition-transform ${otOpen ? '' : '-rotate-90'}`}
+              aria-hidden
+            />
+          )}
+        </span>
+      </button>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
@@ -141,7 +160,7 @@ export function NominaMechanicCard({
         </div>
       </div>
 
-      {rows.length > 0 ? (
+      {otOpen && rows.length > 0 ? (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {rows.map(({ o, labor, pct, payable }) => {
             const saving = savingIds.has(o.id)
@@ -199,7 +218,7 @@ export function NominaMechanicCard({
         </ul>
       ) : null}
 
-      {canEdit && rows.length > 0 ? (
+      {otOpen && canEdit && rows.length > 0 ? (
         <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
           <CheckCircle2 className="size-3" aria-hidden />
           El porcentaje se guarda automáticamente por OT al terminar de escribir.
