@@ -26,6 +26,7 @@ import { TaxRatesModule } from './modules/tax-rates/tax-rates.module';
 import { SparePartsModule } from './modules/spare-parts/spare-parts.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { HealthController } from './health/health.controller';
 import { RootController } from './root.controller';
 
@@ -49,6 +50,7 @@ import { RootController } from './root.controller';
     SparePartsModule,
     BillingModule,
     ReportsModule,
+    PayrollModule,
     BackupModule,
   ],
   controllers: [RootController, HealthController],

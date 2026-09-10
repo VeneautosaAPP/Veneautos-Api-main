@@ -292,6 +292,18 @@ const PERMISSIONS: Array<{ resource: string; action: string; description: string
     action: 'delete',
     description: 'Eliminar repuestos del catálogo',
   },
+  // -------- Fase 9 · Nómina de mecánicos (semana lun–sáb) --------
+  {
+    resource: 'payroll',
+    action: 'read',
+    description:
+      'Ver la sección Nómina: el mecánico ve su propia nómina semanal (mano de obra sin IVA, 50%); administrador/dueño ven todas',
+  },
+  {
+    resource: 'payroll',
+    action: 'read_all',
+    description: 'Ver la nómina de todos los mecánicos en la sección Nómina (admin/dueño)',
+  },
 ];
 
 /**
@@ -319,6 +331,8 @@ const BACKEND_REQUIRED_PERMISSION_CODES: readonly string[] = [
   'customers:read',
   'customers:update',
   'permissions:read',
+  'payroll:read',
+  'payroll:read_all',
   'reports:read',
   'roles:create',
   'roles:delete',
@@ -471,15 +485,15 @@ async function main() {
 
   /**
    * Limpieza de permisos huérfanos: módulos eliminados en la simplificación (cotizaciones,
-   * ventas, inventario, recepción/compras, nómina, finanzas taller, crédito empleados y
+   * ventas, inventario, recepción/compras, finanzas taller, crédito empleados y
    * servicios). `RolePermission.permission` borra en cascada, así que los roles pierden
-   * las asignaciones viejas automáticamente.
+   * las asignaciones viejas automáticamente. `payroll` se re-habilita (Fase 9); los permisos
+   * previos de esa fase se recrean en `PERMISSIONS`.
    */
   const REMOVED_PERMISSION_RESOURCES = [
     'employee_credits',
     'inventory_items',
     'measurement_units',
-    'payroll',
     'purchase_receipts',
     'quote_lines',
     'quotes',
@@ -667,6 +681,7 @@ async function main() {
     'vehicles:read',
     'tax_rates:read',
     'repuestos:read',
+    'payroll:read',
   ];
   const mecanicoPerms = pick(...mecanicoCodes);
   const mecanicoRole = await prisma.role.upsert({
@@ -675,13 +690,13 @@ async function main() {
       name: 'Mecánico',
       slug: 'mecanico',
       description:
-        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar líneas de trabajo (texto libre) y editar descripciones; no ve importes en la OT (precios, saldo, cobros) ni fija precios. Sin caja ni ver todas las OT del taller',
+        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar líneas de trabajo (texto libre) y editar descripciones; no ve importes en la OT (precios, saldo, cobros) ni fija precios. Sin caja ni ver todas las OT del taller. Ve su propia nómina semanal (menú Nómina)',
       isSystem: true,
     },
     update: {
       name: 'Mecánico',
       description:
-        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar líneas de trabajo (texto libre) y editar descripciones; no ve importes en la OT (precios, saldo, cobros) ni fija precios. Sin caja ni ver todas las OT del taller',
+        'Operación en taller: ver cola y órdenes asignadas, tomar OT, agregar líneas de trabajo (texto libre) y editar descripciones; no ve importes en la OT (precios, saldo, cobros) ni fija precios. Sin caja ni ver todas las OT del taller. Ve su propia nómina semanal (menú Nómina)',
     },
   });
   await prisma.rolePermission.deleteMany({ where: { roleId: mecanicoRole.id } });
