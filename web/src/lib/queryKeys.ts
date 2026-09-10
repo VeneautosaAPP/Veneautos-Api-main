@@ -48,6 +48,16 @@ export const queryKeys = {
     /** Resumen de órdenes «Lista» (GET /work-orders/ready-orders-summary). */
     readyOrders: () => [...queryKeys.dashboard.root, 'work-orders', 'ready'] as const,
   },
+  payroll: {
+    root: ['payroll'] as const,
+    /**
+     * Resumen semanal por mecánico (GET /payroll/weekly-summary).
+     * Rango ISO + alcance (`true` = todas las filas, `false` = solo la propia) fijan la key:
+     * al preview de un rol mecánico el alcance cambia y no se mezcla con la vista de administrador.
+     */
+    weekly: (from: string, to: string, readAll: boolean) =>
+      [...queryKeys.payroll.root, 'weekly', readAll ? 'all' : 'own', from, to] as const,
+  },
   quotes: {
     root: ['quotes'] as const,
     list: (params: { filterKey: string; page: number; pageSize: number }) =>

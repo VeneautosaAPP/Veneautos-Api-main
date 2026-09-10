@@ -30,6 +30,7 @@ const WorkOrderDetailPage = lazy(() =>
   import('./pages/WorkOrderDetailPage').then((m) => ({ default: m.WorkOrderDetailPage })),
 )
 const WorkOrdersPage = lazy(() => import('./pages/WorkOrdersPage').then((m) => ({ default: m.WorkOrdersPage })))
+const NominaPage = lazy(() => import('./pages/NominaPage').then((m) => ({ default: m.NominaPage })))
 
 export default function App() {
   return (
@@ -54,6 +55,14 @@ export default function App() {
             element={
               <RouteSuspense>
                 <WorkOrderDetailPage />
+              </RouteSuspense>
+            }
+          />
+          <Route
+            path="nomina"
+            element={
+              <RouteSuspense>
+                <NominaPage />
               </RouteSuspense>
             }
           />

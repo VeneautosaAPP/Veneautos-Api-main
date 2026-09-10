@@ -5,7 +5,7 @@
 
 ## Foco actual (pendiente en curso)
 
-### Sección «Nómina» (pendiente — plan aprobado, a implementar)
+### Sección «Nómina» (implementada localmente — pendiente de commit, push y deploy)
 
 Nueva sección de menú **Nómina**, semana **lunes–sábado**, para mecánicos:
 
@@ -14,8 +14,12 @@ Nueva sección de menú **Nómina**, semana **lunes–sábado**, para mecánicos
   2. Qué cuenta: OTs `DELIVERED` con `deliveredAt` ∈ [lunes 00:00, sábado 23:59:59.999] y `cancelledAt: null`.
   3. Base de comisión: líneas `LABOR` **sin IVA** (`taxableBase = ceil(cantidad×valor) − descuento`, `computeLineTotals`). Comisión fija **50%** por ahora.
   4. Calculadora de porcentajes **por mecánico (total de la semana) y por OT**: valor COP → % (valor ÷ mano de obra) y % → valor. Ej. base 2.800.000, pagar 1.300.000 → **46,43%**.
-- **Pasos planeados:** API `GET /payroll/weekly-summary?from&to` (≤2 queries, índice `[assignedToId, deliveredAt]`, sin tablas nuevas), permisos en `seed.ts` (quitar `'payroll'` de `REMOVED_PERMISSION_RESOURCES`, agregar a `PERMISSIONS` + `BACKEND_REQUIRED_PERMISSION_CODES` + `mecanicoCodes`), frontend `pages/NominaPage.tsx` + `features/payroll/` con caché local (patrón `dashboardCache`), ruta `nomina` + ítem de menú `can('payroll:read')`. Reutilizar `weekCycle.currentWeekDeliveredRange()` (ya es lun–sáb).
-- **Estado:** plan aprobado por el usuario (2026-09-09); commit de este pendiente = `docs: pendiente sección Nómina (payroll)`.
+- **Implementado:**
+  - API `GET /payroll/weekly-summary?from&to` (`api/src/modules/payroll/`, registrado en `app.module.ts`): 2 queries (OTs entregadas con líneas LABOR + lista de mecánicos), filtra por permisos `payroll:read`/`payroll:read_all`, rango ≤31 días, responde `{ week, rate:'0.5', isOwnOnly, mechanics:[{ mechanicId, fullName, ordersCount, laborTotal, payable, orders:[...] }] }`.
+  - `seed.ts`: permisos `payroll:read` + `payroll:read_all` en `PERMISSIONS`/`BACKEND_REQUIRED_PERMISSION_CODES`, rol Mecánico con `payroll:read`, `'payroll'` fuera de `REMOVED_PERMISSION_RESOURCES`. Seed local aplicado.
+  - Frontend: `web/src/features/payroll/` (api, caché localStorage con alcance `all`/`own`, hook `usePayrollWeekly` con `queryKeys.payroll.weekly(from,to,readAll)`, calculadora, tarjeta por mecánico), `pages/NominaPage.tsx`, ruta `nomina` (lazy) y ítem de menú `Nómina` con `can('payroll:read')`.
+  - Verificado: `tsc` (api+web), `eslint` (web), curl admin (3 mecánicos) y mecánico (`isOwnOnly` 1 fila), Playwright admin (3 tarjetas, calculadora 50%→147.500 y 137.000→46,44%) y preview de rol mecánico (own-only → 3 al volver a admin).
+- **Estado:** implementado y verificado en local (2026-09-09). Faltan: commit(s), push y deploy (API Railway + re-seed; web Vercel) según `DEPLOY-CHECKLIST.md`.
 
 ## Pendiente de decisión (previo, sin elegir)
 
@@ -88,7 +92,7 @@ Commit **`e559979`** (push `9493e40..e559979`). Incluye:
 
 ## Siguiente paso (al retomar)
 
-0. **Implementar la sección «Nómina»** (ver "Foco actual"): backend `payroll` + permisos seed + frontend `NominaPage`/`features/payroll` + ruta `nomina` + menú. Verificar seed/tsc/eslint/curl/Playwright. Luego commit y push.
+0. **Commits + push + deploy de la sección «Nómina»** (ver "Foco actual"): 2 commits (`feat(payroll): endpoint...` backend + `feat(payroll): página Nómina...` frontend), push, y desplegar API (Railway, incluye re-seed de permisos `payroll:*`) y web (Vercel) según `DEPLOY-CHECKLIST.md`.
 1. **Volver a preguntar** al usuario la decisión WhatsApp Desktop vs Web (ver "Pendiente de decisión"); no asumir.
 2. Según la elección:
    - **Deep link desktop:** modificar `modal`/`background` para abrir `whatsapp://send?phone=<dígitos>&text=<msg codificado>` (sin PDF automático; instrucción de adjuntar manual y dar Enter). Quitar/adaptar el flujo CDP para ese caso. Validar ventana de confirmación de Chrome ("Abrir esta aplicación externa"). Agregar aviso en el modal.
