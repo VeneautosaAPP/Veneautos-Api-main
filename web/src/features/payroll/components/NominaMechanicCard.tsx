@@ -1,15 +1,74 @@
 import { useState } from 'react'
-import { Calculator, ChevronDown } from 'lucide-react'
+import { CheckCircle2, Clock3, XCircle } from 'lucide-react'
 import { usePanelTheme } from '../../../theme/PanelThemeProvider'
 import { panelUsesModernShell } from '../../../config/operationalNotes'
 import { formatCopFromString } from '../../../utils/copFormat'
 import type { PayrollMechanicRow } from '../services/payrollApi'
-import { PayrollPercentageCalculator } from './PayrollPercentageCalculator'
+
+const DEFAULT_PCT = 50
 
 type Props = {
   mechanic: PayrollMechanicRow
-  /** Porcentaje de comisión sobre la mano de obra (50 para el 50%). */
-  ratePercent: number
+  /** % de nómina por OT (fuente de verdad en la página). */
+  pctByOrder: Record<string, number>
+  /** false para mecánicos (solo lectura); true para dueño/admin. */
+  canEdit: boolean
+  onChangePercent: (orderId: string, pct: number) => void
+  /** OTs cuyo guardado está en curso. */
+  savingIds: ReadonlySet<string>
+  /** OTs cuyo último guardado falló (el valor volvió al del servidor). */
+  failedIds: ReadonlySet<string>
+}
+
+function toLaborNum(s: string): number {
+  const n = Number(s)
+  return Number.isFinite(n) ? n : 0
+}
+
+function formatPctInput(n: number): string {
+  if (!Number.isFinite(n)) return ''
+  const s = n.toLocaleString('es-CO', { maximumFractionDigits: 2 })
+  return s === 'NaN' ? '' : s
+}
+
+/** Input de % con borrador local para permitir decimales mientras se escribe. */
+function PercentDraftInput({ initial, onChange }: { initial: number; onChange: (n: number) => void }) {
+  const [draft, setDraft] = useState(() => formatPctInput(initial))
+  const [prevInitial, setPrevInitial] = useState(initial)
+  const [focused, setFocused] = useState(false)
+
+  // Ajuste de estado durante render: refleja un valor externo nuevo mientras no se está editando.
+  if (!focused && prevInitial !== initial) {
+    setPrevInitial(initial)
+    setDraft(formatPctInput(initial))
+  }
+
+  return (
+    <input
+      inputMode="decimal"
+      autoComplete="off"
+      aria-label="Porcentaje de nómina"
+      className="va-field w-16 px-2 py-1 text-right tabular-nums"
+      value={draft}
+      onFocus={() => {
+        setPrevInitial(initial)
+        setFocused(true)
+      }}
+      onBlur={() => {
+        setFocused(false)
+        setDraft(formatPctInput(initial))
+      }}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        const clean = e.target.value.trim().replace(',', '.').replace(/[^\d.]/g, '')
+        if (!clean || clean === '.') return
+        const n = Number(clean)
+        if (Number.isFinite(n)) {
+          onChange(n)
+        }
+      }}
+    />
+  )
 }
 
 function shortDate(iso: string): string {
@@ -19,28 +78,28 @@ function shortDate(iso: string): string {
     : d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' })
 }
 
-export function NominaMechanicCard({ mechanic, ratePercent }: Props) {
+export function NominaMechanicCard({
+  mechanic,
+  pctByOrder,
+  canEdit,
+  onChangePercent,
+  savingIds,
+  failedIds,
+}: Props) {
   const isSaas = panelUsesModernShell(usePanelTheme())
-  const [calcOpen, setCalcOpen] = useState(false)
-  const [calcBaseKey, setCalcBaseKey] = useState('total')
+
+  const rows = mechanic.orders.map((o) => {
+    const labor = toLaborNum(o.laborTotal)
+    const pct = pctByOrder[o.id] ?? (toLaborNum(o.commissionPct) || DEFAULT_PCT)
+    return { o, labor, pct, payable: Math.round((labor * pct) / 100) }
+  })
+  const laborTotal = toLaborNum(mechanic.laborTotal)
+  const payableTotal = rows.reduce((sum, r) => sum + r.payable, 0)
+  const effectivePct = laborTotal > 0 ? (payableTotal / laborTotal) * 100 : 0
 
   const cardClass = isSaas
     ? 'va-saas-module-card'
     : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900'
-
-  const bases = [
-    {
-      key: 'total',
-      label: `Total de la semana (${mechanic.ordersCount} ${mechanic.ordersCount === 1 ? 'OT' : 'OTs'})`,
-      base: mechanic.laborTotal,
-    },
-    ...mechanic.orders.map((o) => ({
-      key: o.id,
-      label: `${o.publicCode}${o.plate ? ` · ${o.plate}` : ''}`,
-      base: o.laborTotal,
-    })),
-  ]
-  const activeBase = bases.find((b) => b.key === calcBaseKey) ?? bases[0]!
 
   return (
     <section className={`${cardClass} flex flex-col gap-4`} aria-label={`Nómina de ${mechanic.fullName}`}>
@@ -54,9 +113,11 @@ export function NominaMechanicCard({ mechanic, ratePercent }: Props) {
             · lunes a sábado
           </p>
         </div>
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800">
-          {ratePercent}% a pagar
-        </span>
+        {mechanic.ordersCount > 0 && (
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800">
+            {Math.round(effectivePct)}% efectivo a pagar
+          </span>
+        )}
       </header>
 
       <div className="grid grid-cols-2 gap-3">
@@ -71,78 +132,79 @@ export function NominaMechanicCard({ mechanic, ratePercent }: Props) {
         </div>
         <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-950/60">
           <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-            A pagar ({ratePercent}%)
+            A pagar
           </p>
           <p className="mt-1 text-lg font-bold tabular-nums text-emerald-800 dark:text-emerald-200">
-            ${formatCopFromString(mechanic.payable)}
+            ${formatCopFromString(String(payableTotal))}
           </p>
           <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/70">Esta semana</p>
         </div>
       </div>
 
-      {mechanic.orders.length > 0 && (
+      {rows.length > 0 ? (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-          {mechanic.orders.map((o) => (
-            <li key={o.id} className="flex items-center justify-between gap-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                  <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{o.publicCode}</span>
-                  {o.description ? ` · ${o.description}` : null}
-                </p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                  {o.plate ?? 'Sin placa'} · {shortDate(o.deliveredAt)}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
-                  ${formatCopFromString(o.payable)}
-                </p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">de ${formatCopFromString(o.laborTotal)}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+          {rows.map(({ o, labor, pct, payable }) => {
+            const saving = savingIds.has(o.id)
+            const failed = failedIds.has(o.id)
+            return (
+              <li key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                    <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{o.publicCode}</span>
+                    {o.description ? ` · ${o.description}` : null}
+                  </p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {o.plate ?? 'Sin placa'} · {shortDate(o.deliveredAt)}
+                  </p>
+                </div>
 
-      <footer className="space-y-2">
-        <button
-          type="button"
-          onClick={() => setCalcOpen((v) => !v)}
-          aria-expanded={calcOpen}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-        >
-          <Calculator className="size-3.5" strokeWidth={1.75} aria-hidden />
-          Calculadora de porcentaje
-          <ChevronDown
-            className={`size-3.5 transition-transform ${calcOpen ? '' : '-rotate-90'}`}
-            strokeWidth={2}
-            aria-hidden
-          />
-        </button>
-        {calcOpen && (
-          <div className="space-y-3">
-            <label className="block text-sm">
-              <span className="va-label">Base de cálculo</span>
-              <select
-                className="va-field mt-1"
-                value={calcBaseKey}
-                onChange={(e) => setCalcBaseKey(e.target.value)}
-              >
-                {bases.map((b) => (
-                  <option key={b.key} value={b.key}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <PayrollPercentageCalculator
-              base={activeBase.base}
-              baseLabel={activeBase.label}
-              ratePercent={ratePercent}
-            />
-          </div>
-        )}
-      </footer>
+                {canEdit ? (
+                  <label className="flex items-center gap-1 text-sm">
+                    <PercentDraftInput initial={pct} onChange={(n) => onChangePercent(o.id, n)} />
+                    <span className="text-xs text-slate-500 dark:text-slate-400">%</span>
+                  </label>
+                ) : (
+                  <span className="text-sm font-medium tabular-nums text-slate-700 dark:text-slate-200">
+                    {formatPctInput(pct)}%
+                  </span>
+                )}
+
+                <div className="shrink-0 text-right">
+                  <p
+                    className={`text-sm font-semibold tabular-nums ${
+                      failed ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'
+                    }`}
+                  >
+                    ${formatCopFromString(String(payable))}
+                  </p>
+                  <p className="flex items-center justify-end gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                    {saving ? (
+                      <>
+                        <Clock3 className="size-3" aria-hidden />
+                        <span className="text-amber-600 dark:text-amber-400">Guardando…</span>
+                      </>
+                    ) : null}
+                    {failed ? (
+                      <>
+                        <XCircle className="size-3" aria-hidden />
+                        <span className="text-rose-600 dark:text-rose-400">No se guardó</span>
+                      </>
+                    ) : null}
+                    {!saving && !failed ? `de $${formatCopFromString(String(labor))}` : null}
+                  </p>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+
+      {canEdit && rows.length > 0 ? (
+        <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+          <CheckCircle2 className="size-3" aria-hidden />
+          El porcentaje se guarda automáticamente por OT al terminar de escribir.
+        </p>
+      ) : null}
     </section>
   )
 }

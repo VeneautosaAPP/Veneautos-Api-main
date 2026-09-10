@@ -5,21 +5,22 @@
 
 ## Foco actual (pendiente en curso)
 
-### Sección «Nómina» (implementada localmente — pendiente de commit, push y deploy)
+### Sección «Nómina» (implementada localmente — pendiente de push y deploy)
 
 Nueva sección de menú **Nómina**, semana **lunes–sábado**, para mecánicos:
 
 - **Decisiones acordadas:**
   1. Visibilidad: el **mecánico ve solo su nómina**; **administrador/dueno ven todas**. Permisos nuevos `payroll:read` (sección + propia) y `payroll:read_all` (todas); el servidor filtra por rol.
   2. Qué cuenta: OTs `DELIVERED` con `deliveredAt` ∈ [lunes 00:00, sábado 23:59:59.999] y `cancelledAt: null`.
-  3. Base de comisión: líneas `LABOR` **sin IVA** (`taxableBase = ceil(cantidad×valor) − descuento`, `computeLineTotals`). Comisión fija **50%** por ahora.
-  4. Calculadora de porcentajes **por mecánico (total de la semana) y por OT**: valor COP → % (valor ÷ mano de obra) y % → valor. Ej. base 2.800.000, pagar 1.300.000 → **46,43%**.
+  3. Base de comisión: líneas `LABOR` **sin IVA** (`taxableBase = ceil(cantidad×valor) − descuento`, `computeLineTotals`). El **% de nómina es por OT** (`WorkOrder.laborCommissionPct`, configurable por el dueño/admin en pantalla, persistido en el servidor; **default 50%**). Total por mecánico = **suma del payable de cada OT** (cada una con su propio %). Rango válido %: 0–100, hasta 2 decimales.
+  4. **Una sola calculadora libre** en la parte superior (base + % → monto; o base + monto → %). No hay calculadora por tarjeta.
 - **Implementado:**
-  - API `GET /payroll/weekly-summary?from&to` (`api/src/modules/payroll/`, registrado en `app.module.ts`): 2 queries (OTs entregadas con líneas LABOR + lista de mecánicos), filtra por permisos `payroll:read`/`payroll:read_all`, rango ≤31 días, responde `{ week, rate:'0.5', isOwnOnly, mechanics:[{ mechanicId, fullName, ordersCount, laborTotal, payable, orders:[...] }] }`.
+  - API: `GET /payroll/weekly-summary?from&to` + `PUT /payroll/weekly-summary/ratios/:workOrderId` (`api/src/modules/payroll/`, registrado en `app.module.ts`): 2 queries (OTs entregadas con líneas LABOR + lista de mecánicos), filtra por permisos `payroll:read`/`payroll:read_all`, rango ≤31 días, responde `{ week, rate, isOwnOnly, mechanics:[{ mechanicId, fullName, ordersCount, laborTotal, payable, orders:[{..., laborTotal, commissionPct, payable}] }] }`. El PUT persiste el % (requiere `payroll:read_all`; 403 para el mecánico) con validación 0–100.
+  - Migración nueva: `20260910022505_work_order_labor_commission_pct` agrega la columna nullable `labor_commission_pct` a `WorkOrder` (null ⇒ 50). **En prod se aplica a mano con `prisma migrate deploy` sobre la BD (como `cancelled_at`); no requiere re-seed.**
   - `seed.ts`: permisos `payroll:read` + `payroll:read_all` en `PERMISSIONS`/`BACKEND_REQUIRED_PERMISSION_CODES`, rol Mecánico con `payroll:read`, `'payroll'` fuera de `REMOVED_PERMISSION_RESOURCES`. Seed local aplicado.
-  - Frontend: `web/src/features/payroll/` (api, caché localStorage con alcance `all`/`own`, hook `usePayrollWeekly` con `queryKeys.payroll.weekly(from,to,readAll)`, calculadora, tarjeta por mecánico), `pages/NominaPage.tsx`, ruta `nomina` (lazy) y ítem de menú `Nómina` con `can('payroll:read')`.
-  - Verificado: `tsc` (api+web), `eslint` (web), curl admin (3 mecánicos) y mecánico (`isOwnOnly` 1 fila), Playwright admin (3 tarjetas, calculadora 50%→147.500 y 137.000→46,44%) y preview de rol mecánico (own-only → 3 al volver a admin).
-- **Estado:** implementado y verificado en local (2026-09-09). Faltan: commit(s), push y deploy (API Railway + re-seed; web Vercel) según `DEPLOY-CHECKLIST.md`.
+  - Frontend: `web/src/features/payroll/` (api con `updatePayrollCommissionPct`, caché localStorage con alcance `all`/`own`, hook `usePayrollWeekly` con `queryKeys.payroll.weekly(from,to,readAll)`, calculadora libre, tarjeta por mecánico con % editable por fila + totales en vivo + guardado optimista con debounce 600ms y revert en error), `pages/NominaPage.tsx`, ruta `nomina` (lazy) y ítem de menú `Nómina` con `can('payroll:read')`.
+  - Verificado: `tsc` (api+web), `eslint` (web), curl admin (50→147.500, PUT 60→177.000, 150→400, mecánico→403) y Playwright (calculadora única 1.000.000@10%→100.000 y 600.000/millon→60%; editar % por OT → cambia el pago en vivo, persiste tras recarga, y queda de solo lectura en preview mecánico con su única tarjeta).
+- **Estado:** implementado y verificado en local (commits `b356d43` + `9b6bca2` pusheados; cambios de % por OT y calculadora única sin commitear). **Commits pendientes: `feat(payroll)` backend (migración + PUT + % por OT) y frontend (calculadora libre + % editable).** Push y deploy (API Railway: `prisma migrate deploy` + re-seed de permisos; web Vercel) según `DEPLOY-CHECKLIST.md`.
 
 ## Pendiente de decisión (previo, sin elegir)
 
@@ -92,7 +93,7 @@ Commit **`e559979`** (push `9493e40..e559979`). Incluye:
 
 ## Siguiente paso (al retomar)
 
-0. **Commits + push + deploy de la sección «Nómina»** (ver "Foco actual"): 2 commits (`feat(payroll): endpoint...` backend + `feat(payroll): página Nómina...` frontend), push, y desplegar API (Railway, incluye re-seed de permisos `payroll:*`) y web (Vercel) según `DEPLOY-CHECKLIST.md`.
+0. **Commits + push + deploy de la sección «Nómina»** (ver "Foco actual"): los 2 commits originales ya están pusheados (`b356d43`, `9b6bca2`); quedan por commitear y pushear los cambios de **% de comisión por OT** (migración `20260910022505_work_order_labor_commission_pct`, `PUT /payroll/weekly-summary/ratios/:id`, calculadora libre única, % editable por fila). Luego desplegar API (Railway: **`prisma migrate deploy` a mano** + re-seed de permisos `payroll:*`) y web (Vercel) según `DEPLOY-CHECKLIST.md`.
 1. **Volver a preguntar** al usuario la decisión WhatsApp Desktop vs Web (ver "Pendiente de decisión"); no asumir.
 2. Según la elección:
    - **Deep link desktop:** modificar `modal`/`background` para abrir `whatsapp://send?phone=<dígitos>&text=<msg codificado>` (sin PDF automático; instrucción de adjuntar manual y dar Enter). Quitar/adaptar el flujo CDP para ese caso. Validar ventana de confirmación de Chrome ("Abrir esta aplicación externa"). Agregar aviso en el modal.
