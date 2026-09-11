@@ -597,7 +597,7 @@
 
   /** Fase 2 — cabecera de página (contenido dentro de `va-saas-page-hero`). */
   html.va-panel-theme-saas-light .va-saas-page-header-row {
-    @apply flex min-w-0 flex-col justify-between gap-3 sm:flex-row sm:items-end;
+    @apply flex min-w-0 flex-col justify-between gap-3 xl:flex-row xl:items-end;
   }
   /**
    * Menús internos de pestañas (Caja, Config., OT, filtros, radiogrupos):
@@ -1125,4 +1125,13 @@ html.dark .va-landing-commercial-brand :is(.rounded-2xl, [class*='rounded-2xl'])
   border-color: #2a2e3a !important;
   background-color: #1a1d27 !important;
   box-shadow: 0 4px 32px rgba(255, 122, 51, 0.08), 0 0 0 1px #2a2e3a !important;
+}
+
+/* --- Cabecera fija de página (sticky) en pantallas táctiles bajas (tablets en horizontal,
+   móviles en horizontal): el banner principal NO queda clavado, se desplaza con el contenido
+   para que las líneas de la OT (y demás contenido) nunca queden ocultas detrás de él. --- */
+@media (hover: none) and (max-height: 800px) {
+  .va-hero-sticky {
+    position: static !important;
+  }
 }

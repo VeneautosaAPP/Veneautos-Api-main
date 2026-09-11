@@ -541,8 +541,8 @@ export function WorkOrderDetailPage() {
    * coincide con su posición en reposo: el banner no se desplaza al scrollear.
    */
   const stickyHeaderClass = isSaas
-    ? `sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 shadow-sm`
-    : `sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900`
+    ? `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 shadow-sm`
+    : `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900`
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
