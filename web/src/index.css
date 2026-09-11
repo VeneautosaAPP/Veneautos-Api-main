@@ -548,7 +548,7 @@
    * En temas standard/commercial las clases no tienen reglas (equivalente al antiguo `isSaas ? '' : …`).
    */
   html.va-panel-theme-saas-light .va-saas-page-hero {
-    @apply rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] px-4 py-4 shadow-sm sm:px-5 dark:border-slate-500 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.1)];
+    @apply rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] px-4 py-3 shadow-sm sm:px-5 sm:py-4 dark:border-slate-500 dark:shadow-[0_1px_0_0_rgba(148,163,184,0.1)];
   }
   html.va-panel-theme-saas-light .va-saas-link-card {
     @apply block rounded-2xl border border-slate-200 bg-[var(--va-surface-elevated)] p-4 shadow-sm transition hover:border-brand-200 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-brand-600;

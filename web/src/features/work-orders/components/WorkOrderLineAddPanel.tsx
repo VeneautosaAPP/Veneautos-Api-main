@@ -26,6 +26,8 @@ export type WorkOrderLineAddPanelProps = {
   onBlockingError: (e: unknown) => Promise<boolean>
   /** Línea recién agregada/duplicada: la fila de la tabla queda editable (la tabla la enfoca al recibir el pedido). */
   onRequestOpenLine: (line: WorkOrderLine) => void
+  /** Abre las sugerencias hacia arriba (barra fija inferior móvil). */
+  dropdownUp?: boolean
 }
 
 /**
@@ -42,6 +44,7 @@ export function WorkOrderLineAddPanel({
   setMsg,
   onBlockingError,
   onRequestOpenLine,
+  dropdownUp = false,
 }: WorkOrderLineAddPanelProps) {
   const blockingAlert = useAlert()
   const queryClient = useQueryClient()
@@ -349,7 +352,9 @@ export function WorkOrderLineAddPanel({
               id="wo-parts-listbox"
               role="listbox"
               aria-label="Sugerencias del catálogo de repuestos"
-              className="absolute left-0 right-0 z-30 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+              className={`absolute left-0 right-0 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900 ${
+                dropdownUp ? 'bottom-full z-50 mb-2' : 'z-30'
+              }`}
             >
               {partSearchQuery.isFetching || (catalogQuery.isPending && !catalogIsComplete) ? (
                 <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Buscando en el catálogo…</p>

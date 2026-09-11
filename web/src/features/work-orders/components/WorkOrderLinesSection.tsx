@@ -34,6 +34,7 @@ export type WorkOrderLinesSectionProps = {
   closed: boolean
   taxRatesCatalog: TaxRateCatalogRow[]
   sectionClassName: string
+  scrollTargetId?: string
   setMsg: (m: string | null) => void
   onBlockingError: (e: unknown) => Promise<boolean>
   /** Pedido del panel de alta para abrir la fila recién agregada en edición. */
@@ -59,6 +60,7 @@ export function WorkOrderLinesSection({
   canViewWoCosts,
   closed,
   taxRatesCatalog,
+  scrollTargetId,
   sectionClassName,
   setMsg,
   onBlockingError,
@@ -270,7 +272,7 @@ export function WorkOrderLinesSection({
     (canViewWoCosts ? 1 : 0) +
     (showLineActionsColumn ? 1 : 0)
   return (
-      <section className={sectionClassName}>
+      <section id={scrollTargetId} className={sectionClassName}>
         <div className="va-table-scroll">
           <table
             className={`va-table ${lineTableColSpan >= 7 ? 'min-w-[760px]' : 'min-w-[480px]'}`}

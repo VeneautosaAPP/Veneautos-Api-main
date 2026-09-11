@@ -17,7 +17,17 @@ import { useAlert, useConfirm, usePrompt } from '../components/confirm/ConfirmPr
 import { ClientConsentSignModal } from '../components/work-order/ClientConsentSignModal'
 import { ClientConsentSignedModal } from '../components/work-order/ClientConsentSignedModal'
 import { TransitLicenseOcrPanel } from '../components/work-order/TransitLicenseOcrPanel'
-import { Check, ChevronDown, Wrench } from 'lucide-react'
+import {
+  Banknote,
+  Check,
+  ChevronDown,
+  MessageCircle,
+  MoreVertical,
+  Pencil,
+  Printer,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
 import { NotesMinCharCounter } from '../components/NotesMinCharCounter'
 import {
   notesMinHint,
@@ -180,6 +190,19 @@ export function WorkOrderDetailPage() {
   const [waSendOpen, setWaSendOpen] = useState(false)
   /** Tabla de líneas: el panel de alta le pide abrir la fila recién agregada en edición. */
   const linesTableRef = useRef<WorkOrderLinesHandle | null>(null)
+
+  /** Móvil: pills de vehículo colapsables tras «Ver detalles». */
+  const [showVehicleDetails, setShowVehicleDetails] = useState(false)
+  /** Móvil: menú de acciones (overflow “…”) */
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
+  /** Móvil: pantalla completa oculta la navbar inferior; la barra de alta se apoya en el borde inferior. */
+  const [mobileFullscreen, setMobileFullscreen] = useState(() => typeof document !== 'undefined' && Boolean(document.fullscreenElement))
+
+  useEffect(() => {
+    const sync = () => setMobileFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
 
 
   // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
@@ -533,7 +556,9 @@ export function WorkOrderDetailPage() {
     woIntakeKm,
   ])
 
-  const detailRootClass = isSaas ? 'space-y-7' : 'space-y-8'
+  const detailRootClass = isSaas
+    ? `space-y-7 ${canMutateLines ? 'pb-16 sm:pb-16 lg:pb-0' : ''}`
+    : 'space-y-8'
   /**
    * Cabecera fija al hacer scroll: se pega debajo de la barra superior del panel
    * (`--va-app-header-h`, 0 en escritorio SaaS donde el header está oculto) más el
@@ -1319,6 +1344,108 @@ export function WorkOrderDetailPage() {
     )
   }
 
+  const vehicleInfoPills = () => {
+    if (!wo) return null
+    return (
+      <>
+        {(() => {
+          const b = (wo.vehicleBrand ?? wo.vehicle?.brand ?? '').trim()
+          if (!b) return null
+          return (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+              Marca: {b}
+            </span>
+          )
+        })()}
+        {(() => {
+          const m = (wo.vehicleModel ?? wo.vehicle?.model ?? '').trim()
+          if (!m) return null
+          return (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+              Modelo: {m}
+            </span>
+          )
+        })()}
+        {wo.intakeOdometerKm != null ? (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+            Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}
+          </span>
+        ) : null}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+          Ingreso: {new Date(wo.createdAt).toLocaleDateString('es-CO')}
+        </span>
+        {(wo.status === 'DELIVERED' || wo.status === 'CANCELLED') && (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+            Cierre: {new Date(wo.deliveredAt ?? wo.cancelledAt ?? wo.createdAt ?? '').toLocaleDateString('es-CO')}
+          </span>
+        )}
+      </>
+    )
+  }
+
+  const openReceipt = () => {
+    if (!wo) return
+    void openAuthenticatedHtml(
+      `/work-orders/${wo.id}/receipt?autoprint=1`,
+      `Comprobante OT ${wo.publicCode}`,
+    ).catch((err) => {
+      setMsg(
+        err instanceof Error ? err.message : 'No se pudo abrir el comprobante',
+      )
+    })
+  }
+
+  const woActions: Array<{
+    key: string
+    label: string
+    title: string
+    icon: LucideIcon
+    show: boolean
+    onClick: () => void
+    buttonClass: string
+  }> = [
+    {
+      key: 'print',
+      label: 'Imprimir comprobante',
+      title: 'Abrir comprobante interno imprimible (no es factura electrónica)',
+      icon: Printer,
+      show: true,
+      onClick: openReceipt,
+      buttonClass:
+        'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800',
+    },
+    {
+      key: 'wa',
+      label: 'Enviar por WhatsApp',
+      title: 'Enviar el comprobante de esta orden por WhatsApp',
+      icon: MessageCircle,
+      show: Boolean(woWaPhone),
+      onClick: () => setWaSendOpen(true),
+      buttonClass:
+        'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900',
+    },
+    {
+      key: 'edit',
+      label: 'Editar datos de la orden',
+      title: 'Editar datos de la orden (descripción, cliente, vehículo y kilometraje)',
+      icon: Pencil,
+      show: Boolean(canPatchWo),
+      onClick: () => setOrderDataModalOpen(true),
+      buttonClass:
+        'border-brand-300 bg-brand-50 text-brand-800 hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950 dark:text-brand-200 dark:hover:bg-brand-900',
+    },
+    {
+      key: 'cash',
+      label: 'Cobros en caja',
+      title: 'Ver cobros de esta orden y registrar abonos o pago total',
+      icon: Banknote,
+      show: !hideWorkOrderCashUi,
+      onClick: () => setCashModalOpen(true),
+      buttonClass:
+        'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900',
+    },
+  ]
+
   return (
     <div className={detailRootClass}>
       <PageHeader
@@ -1344,38 +1471,30 @@ export function WorkOrderDetailPage() {
           <>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
               {workshopAssignmentPill()}
-              {(() => {
-                const b = (wo.vehicleBrand ?? wo.vehicle?.brand ?? '').trim()
-                if (!b) return null
-                return (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                    Marca: {b}
-                  </span>
-                )
-              })()}
-              {(() => {
-                const m = (wo.vehicleModel ?? wo.vehicle?.model ?? '').trim()
-                if (!m) return null
-                return (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                    Modelo: {m}
-                  </span>
-                )
-              })()}
-              {wo.intakeOdometerKm != null ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                  Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}
-                </span>
-              ) : null}
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                Ingreso: {new Date(wo.createdAt).toLocaleDateString('es-CO')}
-              </span>
-              {(wo.status === 'DELIVERED' || wo.status === 'CANCELLED') && (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                  Cierre: {new Date(wo.deliveredAt ?? wo.cancelledAt ?? wo.createdAt ?? '').toLocaleDateString('es-CO')}
-                </span>
+              {isSaas ? (
+                <div className="hidden md:contents">{vehicleInfoPills()}</div>
+              ) : (
+                vehicleInfoPills()
               )}
             </div>
+            {isSaas ? (
+              <div id="va-wo-vehicle-details" className="mt-1.5 flex items-center gap-2 md:hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowVehicleDetails((v) => !v)}
+                  aria-expanded={showVehicleDetails}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {showVehicleDetails ? 'Ocultar' : 'Ver detalles'}
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${showVehicleDetails ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {showVehicleDetails && (
+                  <span className="flex flex-wrap items-center gap-2">{vehicleInfoPills()}</span>
+                )}
+              </div>
+            ) : null}
             {cashierOnly ? (
               (wo.customerName || wo.vehiclePlate) ? (
                 <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">
@@ -1386,7 +1505,11 @@ export function WorkOrderDetailPage() {
               <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">{wo.description}</p>
             )}
             {canMutateLines ? (
-              <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+              <div
+                className={`mt-3 border-t border-slate-200 pt-3 dark:border-slate-700 ${
+                  isSaas ? 'hidden lg:block' : ''
+                }`}
+              >
                 <WorkOrderLineAddPanel
                   workOrder={wo}
                   workOrderId={id}
@@ -1403,7 +1526,13 @@ export function WorkOrderDetailPage() {
         actions={
           <div className="flex flex-col items-end gap-3">
             {!hideWorkOrderCashUi && canViewWoFinancials ? (
-              <div className="flex flex-wrap items-start justify-end gap-x-6 gap-y-2">
+              <div
+                className={
+                  isSaas
+                    ? 'hidden lg:flex lg:flex-wrap lg:items-start lg:justify-end lg:gap-x-6 lg:gap-y-2'
+                    : 'flex flex-wrap items-start justify-end gap-x-6 gap-y-2'
+                }
+              >
                 <div className="text-right">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Subtotal líneas
@@ -1436,55 +1565,111 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                 </div>
               </div>
             ) : null}
+
+            {isSaas && !hideWorkOrderCashUi && canViewWoFinancials ? (
+              <div
+                  id="va-wo-fin-compact"
+                  className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:w-auto lg:hidden dark:border-slate-700 dark:bg-slate-800"
+                >
+                <span className="flex items-center gap-1.5">
+                  <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
+                  <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                    ${formatCopFromString(wo.linesSubtotal ?? '0')}
+                  </span>
+                </span>
+                <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">
+                  ·
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-slate-500 dark:text-slate-400">Cobrado</span>
+                  <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                    ${formatCopFromString(wo.paymentSummary.totalPaid ?? '0')}
+                  </span>
+                </span>
+                <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">
+                  ·
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-slate-500 dark:text-slate-400">Saldo</span>
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      woAmountDueNum > 0
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                    }`}
+                  >
+                    ${formatCopFromString(wo.amountDue ?? '0')}
+                  </span>
+                </span>
+              </div>
+            ) : null}
+
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void openAuthenticatedHtml(
-                    `/work-orders/${wo.id}/receipt?autoprint=1`,
-                    `Comprobante OT ${wo.publicCode}`,
-                  ).catch((err) => {
-                    setMsg(
-                      err instanceof Error
-                        ? err.message
-                        : 'No se pudo abrir el comprobante',
-                    )
-                  })
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                title="Abrir comprobante interno imprimible (no es factura electrónica)"
+              <div
+                className={
+                  isSaas
+                    ? 'hidden lg:flex lg:flex-wrap lg:items-center lg:justify-end lg:gap-2'
+                    : 'flex flex-wrap items-center justify-end gap-2'
+                }
               >
-                Imprimir comprobante
-              </button>
-              {woWaPhone ? (
-                <button
-                  type="button"
-                  onClick={() => setWaSendOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
-                  title="Enviar el comprobante de esta orden por WhatsApp"
-                >
-                  Enviar por WhatsApp
-                </button>
-              ) : null}
-              {canPatchWo ? (
-                <button
-                  type="button"
-                  onClick={() => setOrderDataModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-800 shadow-sm hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950 dark:text-brand-200 dark:hover:bg-brand-900"
-                  title="Editar datos de la orden (descripción, cliente, vehículo y kilometraje)"
-                >
-                  Editar datos de la orden
-                </button>
-              ) : null}
-              {!hideWorkOrderCashUi ? (
-                <button
-                  type="button"
-                  onClick={() => setCashModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900"
-                  title="Ver cobros de esta orden y registrar abonos o pago total"
-                >
-                  Cobros en caja
-                </button>
+                {woActions.filter((a) => a.show).map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    onClick={a.onClick}
+                    title={a.title}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm ${a.buttonClass}`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+
+              {isSaas ? (
+                <div className="relative lg:hidden">
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={actionsMenuOpen}
+                    aria-label="Más acciones"
+                    onClick={() => setActionsMenuOpen((v) => !v)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                  {actionsMenuOpen ? (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setActionsMenuOpen(false)}
+                      />
+                      <div
+                        role="menu"
+                        aria-label="Acciones de la orden"
+                        className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+                      >
+                        {woActions.filter((a) => a.show).map((a) => {
+                          const Icon = a.icon
+                          return (
+                            <button
+                              key={a.key}
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setActionsMenuOpen(false)
+                                a.onClick()
+                              }}
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                              <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+                              {a.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </div>
@@ -2206,10 +2391,35 @@ ${formatCopFromString(wo.amountDue ?? '0')}
         canViewWoCosts={canViewWoCosts}
         closed={closed}
         taxRatesCatalog={taxRatesCatalog}
+        scrollTargetId="wo-lines-section"
         sectionClassName={sectionFlushClass}
         setMsg={setMsg}
         onBlockingError={showBlockingConflictModal}
       />
+
+      {isSaas && canMutateLines ? (
+        <div
+          id="va-wo-mobile-add-bar"
+          className={`fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-2 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden ${
+            mobileFullscreen ? 'bottom-0' : 'bottom-[4.25rem]'
+          }`}
+        >
+          <WorkOrderLineAddPanel
+            workOrder={wo}
+            workOrderId={id}
+            setWorkOrder={setWo}
+            canCreateSparePart={can('repuestos:create')}
+            setMsg={setMsg}
+            onBlockingError={showBlockingConflictModal}
+            onRequestOpenLine={(line) => {
+              document.getElementById('wo-lines-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              linesTableRef.current?.openLineEditor(line)
+            }}
+            dropdownUp
+          />
+        </div>
+      ) : null}
+
       {consentModal === 'view' && wo.clientConsentSignedAt && wo.clientSignaturePngBase64 ? (
         <ClientConsentSignedModal
           orderNumber={wo.orderNumber}
