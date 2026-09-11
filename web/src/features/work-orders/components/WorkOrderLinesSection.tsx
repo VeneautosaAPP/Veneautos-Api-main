@@ -312,7 +312,15 @@ export function WorkOrderLinesSection({
                 return (
                 <tr
                   key={ln.id}
-                  className="va-table-body-row"
+                  className={`va-table-body-row ${!editing && canUpdateLine && !closed ? 'cursor-pointer' : ''}`}
+                  onClick={(e) => {
+                    if (editing || !canUpdateLine || closed) return
+                    // Los botones (editar/eliminar) y los campos ya vivos no abren la edición por clic.
+                    const target = e.target as HTMLElement
+                    if (target.closest('button, a, input, select')) return
+                    startEdit(ln)
+                    setAutoEditFocus((prev) => ({ id: ln.id, seq: (prev?.seq ?? 0) + 1 }))
+                  }}
                   onBlur={(e) => {
                     if (!editing) return
                     const next = e.relatedTarget as Node | null

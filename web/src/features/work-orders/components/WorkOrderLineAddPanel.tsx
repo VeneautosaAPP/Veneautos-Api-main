@@ -53,6 +53,13 @@ export function WorkOrderLineAddPanel({
   const [laborDesc, setLaborDesc] = useState('')
   const partDescInputRef = useRef<HTMLInputElement | null>(null)
   const laborDescInputRef = useRef<HTMLInputElement | null>(null)
+  /**
+   * Bloqueo de alta en vuelo: un solo Enter agrega la línea. Sin esto, mantener el Enter
+   * presionado (repetición de tecla) o apretarlo dos veces en ráfaga dispara dos POST y
+   * quedan repuestos/trabajos duplicados de la misma descripción.
+   */
+  const partAddPendingRef = useRef(false)
+  const laborAddPendingRef = useRef(false)
   const [partCatalogTerm, setPartCatalogTerm] = useState('')
   const [partComboOpen, setPartComboOpen] = useState(false)
   const [partComboIndex, setPartComboIndex] = useState(-1)
@@ -224,14 +231,20 @@ export function WorkOrderLineAddPanel({
   }
 
   async function selectPart(sp: SparePart) {
-    const result = await addPartLine({
-      description: sp.name,
-      sku: sp.sku,
-      unitPrice: Number(sp.price) > 0 ? normalizeMoneyDecimalStringForApi(String(sp.price)) : undefined,
-    })
-    if (result === false) return
-    // Sin aviso: la línea nueva ya aparece en la tabla.
-    resetPartAdd()
+    if (partAddPendingRef.current) return
+    partAddPendingRef.current = true
+    try {
+      const result = await addPartLine({
+        description: sp.name,
+        sku: sp.sku,
+        unitPrice: Number(sp.price) > 0 ? normalizeMoneyDecimalStringForApi(String(sp.price)) : undefined,
+      })
+      if (result === false) return
+      // Sin aviso: la línea nueva ya aparece en la tabla.
+      resetPartAdd()
+    } finally {
+      partAddPendingRef.current = false
+    }
   }
 
   async function addPartFromFreeText() {
@@ -245,6 +258,8 @@ export function WorkOrderLineAddPanel({
       )
       return
     }
+    if (partAddPendingRef.current) return
+    partAddPendingRef.current = true
     try {
       const created = await api<SparePart>('/spare-parts/free-text', {
         method: 'POST',
@@ -264,6 +279,8 @@ export function WorkOrderLineAddPanel({
       if (!(await onBlockingError(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al crear el repuesto')
       }
+    } finally {
+      partAddPendingRef.current = false
     }
   }
 
@@ -271,6 +288,8 @@ export function WorkOrderLineAddPanel({
     if (!id) return
     const description = laborDesc.trim()
     if (!description) return
+    if (laborAddPendingRef.current) return
+    laborAddPendingRef.current = true
     setMsg(null)
     try {
       const created = (await postLine.mutateAsync({
@@ -292,6 +311,8 @@ export function WorkOrderLineAddPanel({
       if (!(await onBlockingError(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al agregar trabajo')
       }
+    } finally {
+      laborAddPendingRef.current = false
     }
   }
 
