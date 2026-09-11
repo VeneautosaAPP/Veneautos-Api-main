@@ -7,6 +7,7 @@ import {
   Coins,
   LayoutDashboard,
   LogOut,
+  Menu,
   Package,
   ScrollText,
   Settings,
@@ -14,6 +15,7 @@ import {
   Users,
   UsersRound,
   Wallet,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -148,6 +150,30 @@ function AppShellInner() {
       return next
     })
   }, [])
+
+  /** Menú lateral móvil: oculto por defecto, se desliza desde la izquierda al abrirse. */
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuClose = useCallback(() => setMobileMenuOpen(false), [])
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [mobileMenuOpen])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
 
   const [previewRoles, setPreviewRoles] = useState<PreviewRoleRow[]>([])
   const [rolePreviewBusy, setRolePreviewBusy] = useState(false)
@@ -421,7 +447,7 @@ function AppShellInner() {
   const horizontalNav =
     links.length > 0 ? (
       <nav
-        className={`va-app-shell-subnav border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${isSaas ? 'lg:hidden' : 'bg-slate-100 dark:shadow-[inset_0_1px_0_0_rgba(148,163,184,0.08)]'}`}
+        className={`va-app-shell-subnav border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${isSaas ? 'hidden' : 'bg-slate-100 dark:shadow-[inset_0_1px_0_0_rgba(148,163,184,0.08)]'}`}
       >
         <div ref={navOuterRef} className={`relative mx-auto w-full px-3 py-2 sm:px-4 xl:px-5 ${shellMaxClass}`}>
           <div
@@ -616,7 +642,18 @@ function AppShellInner() {
         >
           {isSaas && user ? (
             <div className={`mx-auto flex w-full flex-col gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 xl:px-5 xl:py-3.5 ${shellMaxClass}`}>
-              <div className="flex items-center justify-between gap-2 lg:hidden">
+              <div className="flex items-center gap-2 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className={`${saasIconButtonClass()} !p-2`}
+                  title="Abrir menú"
+                  aria-label="Abrir menú"
+                  aria-expanded={mobileMenuOpen}
+                  aria-controls="va-mobile-sidebar"
+                >
+                  <Menu className="size-5 shrink-0" strokeWidth={1.75} aria-hidden />
+                </button>
                 <NavLink
                   to={portalPath('/')}
                   className="va-app-shell-brand flex min-w-0 items-center overflow-hidden rounded-md outline-offset-2"
@@ -657,6 +694,98 @@ function AppShellInner() {
           <div className={`mx-auto text-left ${shellMaxClass}`}>Vene Autos — panel del taller</div>
         </footer>
       </div>
+
+      {isSaas && (
+        <>
+          {mobileMenuOpen ? (
+            <div
+              className="fixed inset-0 z-[90] bg-slate-950/40 backdrop-blur-[1px] lg:hidden"
+              onClick={mobileMenuClose}
+              aria-hidden
+            />
+          ) : null}
+          <div
+            id="va-mobile-sidebar"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú principal"
+            inert={!mobileMenuOpen}
+            className={`fixed inset-y-0 left-0 z-[100] flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900 lg:hidden ${
+              mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+          >
+            <div className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-800">
+              <NavLink
+                to={portalPath('/')}
+                className="va-app-shell-brand flex min-w-0 flex-1 items-center overflow-hidden rounded-md outline-offset-2"
+                onClick={mobileMenuClose}
+                end
+              >
+                <PanelBrandLogo className="h-7 w-auto max-w-[min(55vw,10rem)] object-contain object-left" />
+              </NavLink>
+              <button
+                type="button"
+                onClick={mobileMenuClose}
+                className={`${saasIconButtonClass()} !p-2`}
+                title="Cerrar menú"
+                aria-label="Cerrar menú"
+              >
+                <X className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+              </button>
+            </div>
+            <nav
+              className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3"
+              aria-label="Navegación principal"
+            >
+              {links.map((l) => {
+                const Icon = l.Icon
+                return (
+                  <NavLink
+                    key={l.to}
+                    to={l.to}
+                    onClick={mobileMenuClose}
+                    className={(args) => [navLinkSidebarSaasClass(args), 'w-full'].join(' ')}
+                  >
+                    <Icon className="size-[1.125rem] shrink-0" strokeWidth={1.75} aria-hidden />
+                    <span className="truncate">{l.label}</span>
+                  </NavLink>
+                )
+              })}
+            </nav>
+            {user ? (
+              <div className="shrink-0 border-t border-slate-200 p-3 dark:border-slate-800">
+                {renderRolePreviewSelect({
+                  id: 'mobile-role-preview',
+                  placeholder: 'Mis permisos',
+                  wrapperClass: 'mb-2 w-full',
+                  selectClass:
+                    'va-field w-full cursor-pointer rounded-lg border-slate-200 py-1.5 pr-6 text-xs font-medium dark:border-slate-600',
+                })}
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800 dark:bg-slate-700 dark:text-white"
+                    aria-hidden
+                  >
+                    {initialsFromName(user.fullName)}
+                  </div>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="va-app-shell-meta-strong truncate">{user.fullName}</p>
+                    <p className="va-app-shell-meta capitalize truncate">{userSubtitle}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="mt-2 flex w-full items-center gap-2 rounded-lg bg-slate-100 px-2 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200 hover:text-red-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-red-400"
+                >
+                  <LogOut className="size-[1.125rem] shrink-0" strokeWidth={1.75} aria-hidden />
+                  <span className="truncate">Salir</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </>
+      )}
     </div>
   )
 }
