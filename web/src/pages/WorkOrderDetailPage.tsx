@@ -557,7 +557,7 @@ export function WorkOrderDetailPage() {
   ])
 
   const detailRootClass = isSaas
-    ? `space-y-7 ${canMutateLines ? 'pb-16 sm:pb-16 lg:pb-0' : ''}`
+    ? `space-y-7 ${canMutateLines ? 'pb-20 sm:pb-20 lg:pb-0' : ''}`
     : 'space-y-8'
   /**
    * Cabecera fija al hacer scroll: se pega debajo de la barra superior del panel
@@ -1624,57 +1624,53 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                   </button>
                 ))}
               </div>
-
-              {isSaas ? (
-                <div className="relative lg:hidden">
-                  <button
-                    type="button"
-                    aria-haspopup="menu"
-                    aria-expanded={actionsMenuOpen}
-                    aria-label="Más acciones"
-                    onClick={() => setActionsMenuOpen((v) => !v)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {actionsMenuOpen ? (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setActionsMenuOpen(false)}
-                      />
-                      <div
-                        role="menu"
-                        aria-label="Acciones de la orden"
-                        className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900"
-                      >
-                        {woActions.filter((a) => a.show).map((a) => {
-                          const Icon = a.icon
-                          return (
-                            <button
-                              key={a.key}
-                              type="button"
-                              role="menuitem"
-                              onClick={() => {
-                                setActionsMenuOpen(false)
-                                a.onClick()
-                              }}
-                              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                              <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
-                              {a.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
           </div>
         }
       />
+      {isSaas ? (
+        <div className="fixed right-3 top-2 z-[80] lg:hidden">
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={actionsMenuOpen}
+            aria-label="Más acciones"
+            onClick={() => setActionsMenuOpen((v) => !v)}
+            className="inline-flex size-10 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-lg backdrop-blur transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <MoreVertical className="h-5 w-5" aria-hidden />
+          </button>
+          {actionsMenuOpen ? (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setActionsMenuOpen(false)} />
+              <div
+                role="menu"
+                aria-label="Acciones de la orden"
+                className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+              >
+                {woActions.filter((a) => a.show).map((a) => {
+                  const Icon = a.icon
+                  return (
+                    <button
+                      key={a.key}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setActionsMenuOpen(false)
+                        a.onClick()
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      <Icon className="size-4 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
+                      {a.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {msg && (
         <p className="va-card-muted" role="status" aria-live="polite">
           {msg}
@@ -2401,7 +2397,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
         <div
           id="va-wo-mobile-add-bar"
           className={`fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-2 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden ${
-            mobileFullscreen ? 'bottom-0' : 'bottom-[4.25rem]'
+            mobileFullscreen ? 'bottom-0' : 'bottom-2'
           }`}
         >
           <WorkOrderLineAddPanel

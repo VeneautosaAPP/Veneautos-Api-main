@@ -7,7 +7,6 @@ import {
   Coins,
   LayoutDashboard,
   LogOut,
-  Menu,
   Package,
   ScrollText,
   Settings,
@@ -31,16 +30,9 @@ import { setStoredLastModulePath } from '../services/lastModuleStorage'
 import { prefetchCashShellQueries } from '../features/cash/cashPrefetch'
 import { prefetchSettingsAdminPanel } from '../features/settings/prefetchSettingsNav'
 import { prefetchDefaultWorkOrdersList } from '../features/work-orders/prefetch/workOrdersNavPrefetch'
-import { WorkOrderStatusAlertsBell } from '../features/work-orders'
 import { FullscreenToggle } from './FullscreenToggle'
 
 type PreviewRoleRow = { id: string; name: string; slug: string; isSystem: boolean }
-
-/**
- * Campanita de alertas de OT: oculta por decisión de producto, pero el componente y su
- * cableado se conservan para reutilizarlos más adelante. Volver a `true` para reactivarla.
- */
-const SHOW_WORK_ORDER_ALERTS_BELL = false
 
 function activeNavTo(pathname: string, linkTos: readonly string[]): string | null {
   const matches = linkTos.filter((to) => pathname === to || pathname.startsWith(`${to}/`))
@@ -330,14 +322,6 @@ function AppShellInner() {
 
   const linkTos = useMemo(() => links.map((l) => l.to), [links])
 
-  const mobileBottomLinks = useMemo(
-    () =>
-      [portalPath('/'), portalPath('/ordenes'), portalPath('/caja'), portalPath('/clientes')]
-        .map((to) => links.find((l) => l.to === to))
-        .filter((l): l is NavLinkItem => Boolean(l)),
-    [links],
-  )
-
   const horizontalLinkClass = isSaas ? navLinkHorizontalSaasClass : navLinkClass
 
   const syncPill = useCallback(() => {
@@ -466,24 +450,6 @@ function AppShellInner() {
         className={`${isSaas ? 'rounded-lg' : 'rounded-xl'} border border-slate-300 bg-white px-2.5 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 sm:px-3 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`}
       >
         Salir
-      </button>
-    </div>
-  )
-
-  const saasToolbar = user && (
-    <div className="flex shrink-0 items-center gap-1.5">
-      {SHOW_WORK_ORDER_ALERTS_BELL ? (
-        <WorkOrderStatusAlertsBell iconButtonClassName={saasIconButtonClass()} />
-      ) : null}
-      <FullscreenToggle className={saasIconButtonClass()} />
-      <button
-        type="button"
-        onClick={handleLogout}
-        title="Cerrar sesión"
-        aria-label="Cerrar sesión"
-        className={saasIconButtonClass()}
-      >
-        <LogOut className="size-[1.125rem]" strokeWidth={1.75} aria-hidden />
       </button>
     </div>
   )
@@ -682,58 +648,30 @@ function AppShellInner() {
       )}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header
-          ref={appShellHeaderRef}
-          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200 bg-white dark:bg-slate-900 lg:hidden' : 'bg-white dark:bg-slate-900'} ${isFullscreen ? 'hidden' : ''}`}
-        >
-          {isSaas && user ? (
+        {!isSaas && (
+          <header
+            ref={appShellHeaderRef}
+            className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300 bg-white backdrop-blur-md dark:border-slate-800 dark:bg-slate-900 ${isFullscreen ? 'hidden' : ''}`}
+          >
             <div
-              className={`mx-auto flex w-full items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5 xl:px-5 ${shellMaxClass} ${
-                isFullscreen ? 'hidden' : ''
-              }`}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(true)}
-                  className={`${saasIconButtonClass()} !p-2`}
-                  title="Abrir menú"
-                  aria-label="Abrir menú"
-                  aria-expanded={mobileMenuOpen}
-                  aria-controls="va-mobile-sidebar"
-                >
-                  <Menu className="size-5 shrink-0" strokeWidth={1.75} aria-hidden />
-                </button>
-                <NavLink
-                  to={portalPath('/')}
-                  className="va-app-shell-brand flex min-w-0 items-center overflow-hidden rounded-md outline-offset-2"
-                  end
-                >
-                  <PanelBrandLogo className="h-7 w-auto max-w-[min(52vw,13rem)] object-contain object-left sm:h-8 sm:max-w-[14rem]" />
-                </NavLink>
-              </div>
-              {saasToolbar}
-            </div>
-          ) : (
-            <div
-              className={`mx-auto flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 xl:px-5 ${shellMaxClass} ${isSaas ? 'lg:justify-end' : ''}`}
+              className={`mx-auto flex w-full items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 xl:px-5 ${shellMaxClass} lg:justify-end`}
             >
               <NavLink
                 to={portalPath('/')}
-                className={`va-app-shell-brand flex min-w-0 shrink items-center overflow-hidden rounded-md outline-offset-2 ${isSaas && user ? 'lg:hidden' : ''}`}
+                className="va-app-shell-brand flex min-w-0 shrink items-center overflow-hidden rounded-md outline-offset-2"
                 end
               >
                 <PanelBrandLogo className="h-8 w-auto max-w-[min(72vw,13rem)] object-contain object-left sm:max-w-[15rem]" />
               </NavLink>
               {classicToolbar}
             </div>
-          )}
-          {horizontalNav}
-        </header>
+            {horizontalNav}
+          </header>
+        )}
 
         <main
           id="app-main-content"
-          className={`va-app-shell-main mx-auto w-full flex-1 px-3 pt-4 sm:px-4 sm:pt-6 ${isFullscreen ? 'pb-4 sm:pb-6' : 'pb-16 sm:pb-16'} lg:pb-7 xl:px-5 xl:py-7 ${shellMaxClass}`}
+          className={`va-app-shell-main mx-auto w-full flex-1 px-3 pt-4 sm:px-4 sm:pt-6 ${isFullscreen ? 'pb-4 sm:pb-6' : isSaas ? 'pb-6 sm:pb-8' : 'pb-16 sm:pb-16'} lg:pb-7 xl:px-5 xl:py-7 ${shellMaxClass}`}
         >
           <Outlet />
         </main>
@@ -742,48 +680,6 @@ function AppShellInner() {
           <div className={`mx-auto text-left ${shellMaxClass}`}>Vene Autos — panel del taller</div>
         </footer>
       </div>
-
-      {isSaas && (
-        <nav
-          aria-label="Barra inferior móvil"
-          className={`fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-0.5 border-t border-slate-200 bg-white px-1 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1 lg:hidden dark:border-slate-800 dark:bg-slate-900 ${
-            isFullscreen ? 'hidden' : ''
-          }`}
-        >
-          {mobileBottomLinks.map(({ to, label, Icon }) => {
-            const active = location.pathname === to || location.pathname.startsWith(`${to}/`)
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                aria-current={active ? 'page' : undefined}
-                onClick={mobileMenuClose}
-                className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-semibold ${
-                  active
-                    ? 'text-brand-700 dark:text-brand-300'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-              >
-                <Icon size={19} strokeWidth={active ? 2.5 : 2} aria-hidden />
-                <span className="truncate">{label}</span>
-              </NavLink>
-            )
-          })}
-          <button
-            type="button"
-            aria-label="Abrir más opciones"
-            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-semibold ${
-              mobileMenuOpen
-                ? 'text-brand-700 dark:text-brand-300'
-                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-            }`}
-            onClick={() => setMobileMenuOpen(true)}
-          >
-            <Menu size={19} strokeWidth={2} aria-hidden />
-            <span>Más</span>
-          </button>
-        </nav>
-      )}
 
       {isSaas && (
         <>
@@ -813,6 +709,7 @@ function AppShellInner() {
               >
                 <PanelBrandLogo className="h-7 w-auto max-w-[min(55vw,10rem)] object-contain object-left" />
               </NavLink>
+              <FullscreenToggle className={saasIconButtonClass()} />
               <button
                 type="button"
                 onClick={mobileMenuClose}
@@ -866,6 +763,7 @@ function AppShellInner() {
                 <button
                   type="button"
                   onClick={handleLogout}
+                  aria-label="Cerrar sesión"
                   className="mt-2 flex w-full items-center gap-2 rounded-lg bg-slate-100 px-2 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200 hover:text-red-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-red-400"
                 >
                   <LogOut className="size-[1.125rem] shrink-0" strokeWidth={1.75} aria-hidden />
