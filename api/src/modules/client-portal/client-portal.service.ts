@@ -27,6 +27,10 @@ import {
   type LineForTotals,
 } from '../../common/billing/billing-totals';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  ReceiptsService,
+  type WorkOrderForReceipt,
+} from '../receipts/receipts.service';
 import { comparableVehiclePlate, normalizeVehiclePlate } from '../vehicles/vehicle-plate.util';
 import {
   CLIENT_PORTAL_NOT_FOUND,
@@ -34,6 +38,7 @@ import {
   CLIENT_PORTAL_RATE_LIMITED,
 } from './client-portal.constants';
 import type { LookupClientPortalDto } from './dto/lookup-client-portal.dto';
+import type { ReceiptClientPortalDto } from './dto/receipt-client-portal.dto';
 
 const ZERO = new Prisma.Decimal(0);
 
@@ -52,43 +57,47 @@ type PortalScope =
   | { kind: 'legacy-orders'; orderIds: string[] };
 
 type WorkOrderWithRelations = Prisma.WorkOrderGetPayload<{
-  include: {
-    vehicle: { select: { id: true; plate: true; brand: true; model: true; year: true; color: true } };
-    lines: {
-      orderBy: { sortOrder: 'asc' };
-      include: { taxRate: { select: { kind: true; name: true; ratePercent: true } } };
-    };
-    payments: { select: { amount: true; createdAt: true }; orderBy: { createdAt: 'asc' } };
-    invoices: {
-      orderBy: { createdAt: 'desc' };
-      include: {
-        lines: {
-          orderBy: { sortOrder: 'asc' };
-          include: { taxRate: { select: { kind: true; name: true; ratePercent: true } } };
-        };
-        payments: { select: { amount: true; createdAt: true }; orderBy: { createdAt: 'asc' } };
-        creditNotes: {
-          select: {
-            documentNumber: true;
-            status: true;
-            reason: true;
-            grandTotal: true;
-            issuedAt: true;
-          };
-        };
-        debitNotes: {
-          select: {
-            documentNumber: true;
-            status: true;
-            reason: true;
-            grandTotal: true;
-            issuedAt: true;
-          };
-        };
-      };
-    };
-  };
+  include: WorkOrderOrderInclude;
 }>;
+
+const ORDER_INCLUDE = {
+  vehicle: { select: { id: true, plate: true, brand: true, model: true, year: true, color: true } },
+  lines: {
+    orderBy: { sortOrder: 'asc' },
+    include: { taxRate: { select: { kind: true, name: true, ratePercent: true } } },
+  },
+  payments: { select: { amount: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+  invoices: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      lines: {
+        orderBy: { sortOrder: 'asc' },
+        include: { taxRate: { select: { kind: true, name: true, ratePercent: true } } },
+      },
+      payments: { select: { amount: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+      creditNotes: {
+        select: {
+          documentNumber: true,
+          status: true,
+          reason: true,
+          grandTotal: true,
+          issuedAt: true,
+        },
+      },
+      debitNotes: {
+        select: {
+          documentNumber: true,
+          status: true,
+          reason: true,
+          grandTotal: true,
+          issuedAt: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.WorkOrderInclude;
+
+type WorkOrderOrderInclude = typeof ORDER_INCLUDE;
 
 export type PortalLine = {
   lineType: 'PART' | 'LABOR';
@@ -179,7 +188,10 @@ export type ClientPortalAccount = {
 export class ClientPortalService {
   private readonly logger = new Logger(ClientPortalService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly receipts: ReceiptsService,
+  ) {}
 
   async lookup(dto: LookupClientPortalDto, ip?: string): Promise<ClientPortalAccount> {
     const fingerprint = this.fingerprintFor(ip);
@@ -188,6 +200,38 @@ export class ClientPortalService {
       const account = await this.loadAccount(dto);
       await this.clearAttempts(fingerprint);
       return account;
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw new NotFoundException(CLIENT_PORTAL_NOT_FOUND);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Comprobante imprimible de una OT del portal: revalida placa + celular, confirma que el
+   * `orderCode` pertenece a esa cuenta y renderiza con el MISMO formato que entrega la OT al
+   * taller (`ReceiptsService.renderWorkOrderReceipt`), para que el cliente baje el mismo
+   * documento que se generaría desde el panel.
+   */
+  async renderReceipt(dto: ReceiptClientPortalDto, ip?: string): Promise<string> {
+    const fingerprint = this.fingerprintFor(ip);
+    await this.registerAttemptOrThrow(fingerprint);
+    try {
+      const scope = await this.resolveScope(dto);
+      const wo = await this.prisma.workOrder.findFirst({
+        where: {
+          AND: [this.workOrderWhere(scope), { publicCode: dto.orderCode }],
+        },
+        include: ORDER_INCLUDE,
+      });
+      if (!wo) {
+        throw new NotFoundException(CLIENT_PORTAL_NOT_FOUND);
+      }
+      const payload = this.buildReceiptPayload(wo);
+      const html = await this.receipts.renderWorkOrderReceipt(payload);
+      await this.clearAttempts(fingerprint);
+      return html;
     } catch (err) {
       if (err instanceof NotFoundException) {
         throw new NotFoundException(CLIENT_PORTAL_NOT_FOUND);
@@ -376,42 +420,7 @@ export class ClientPortalService {
     const rows = await this.prisma.workOrder.findMany({
       where: this.workOrderWhere(scope),
       orderBy: { createdAt: 'desc' },
-      include: {
-        vehicle: { select: { id: true, plate: true, brand: true, model: true, year: true, color: true } },
-        lines: {
-          orderBy: { sortOrder: 'asc' },
-          include: { taxRate: { select: { kind: true, name: true, ratePercent: true } } },
-        },
-        payments: { select: { amount: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
-        invoices: {
-          orderBy: { createdAt: 'desc' },
-          include: {
-            lines: {
-              orderBy: { sortOrder: 'asc' },
-              include: { taxRate: { select: { kind: true, name: true, ratePercent: true } } },
-            },
-            payments: { select: { amount: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
-            creditNotes: {
-              select: {
-                documentNumber: true,
-                status: true,
-                reason: true,
-                grandTotal: true,
-                issuedAt: true,
-              },
-            },
-            debitNotes: {
-              select: {
-                documentNumber: true,
-                status: true,
-                reason: true,
-                grandTotal: true,
-                issuedAt: true,
-              },
-            },
-          },
-        },
-      },
+      include: ORDER_INCLUDE,
     });
 
     if (rows.length === 0) {
@@ -673,6 +682,77 @@ export class ClientPortalService {
         grandTotal: dn.grandTotal.toString(),
         issuedAt: dn.issuedAt?.toISOString() ?? null,
       })),
+    };
+  }
+
+  private buildReceiptPayload(wo: WorkOrderWithRelations): WorkOrderForReceipt {
+    const linesForTotals: LineForTotals[] = wo.lines.map((ln) => ({
+      id: ln.id,
+      lineType: ln.lineType,
+      quantity: ln.quantity,
+      unitPrice: ln.unitPrice,
+      discountAmount: ln.discountAmount,
+      costSnapshot: ln.costSnapshot,
+      taxRateId: ln.taxRateId,
+      taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
+      taxRate: ln.taxRate,
+    }));
+    const totals = computeBillingTotals(linesForTotals);
+    const paid = wo.payments.reduce((acc, p) => acc.plus(p.amount), ZERO);
+    const amountDue = totals.grandTotal.minus(paid);
+    const clampedDue = amountDue.gt(0) ? amountDue : ZERO;
+
+    return {
+      id: wo.id,
+      publicCode: wo.publicCode,
+      orderNumber: wo.orderNumber,
+      status: wo.status,
+      description: wo.description ?? null,
+      createdAt: wo.createdAt,
+      deliveredAt: wo.deliveredAt ?? null,
+      customerName: wo.customerName ?? null,
+      customerPhone: wo.customerPhone ?? null,
+      customerEmail: wo.customerEmail ?? null,
+      vehicle: wo.vehicle
+        ? {
+            plate: wo.vehicle.plate ?? null,
+            brand: wo.vehicle.brand ?? null,
+            model: wo.vehicle.model ?? null,
+            year: wo.vehicle.year ?? null,
+            color: wo.vehicle.color ?? null,
+          }
+        : null,
+      intakeOdometerKm: wo.intakeOdometerKm ?? null,
+      lines: wo.lines.map((ln) => {
+        const line = computeLineTotals({
+          id: ln.id,
+          lineType: ln.lineType,
+          quantity: ln.quantity,
+          unitPrice: ln.unitPrice,
+          discountAmount: ln.discountAmount,
+          costSnapshot: ln.costSnapshot,
+          taxRateId: ln.taxRateId,
+          taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
+          taxRate: ln.taxRate,
+        });
+        return {
+          lineType: ln.lineType,
+          description: ln.description,
+          quantity: ln.quantity,
+          unitPrice: ln.unitPrice,
+          discountAmount: ln.discountAmount,
+          totals: { lineTotal: line.lineTotal.toString() },
+        };
+      }),
+      totals: {
+        linesSubtotal: totals.linesSubtotal.toString(),
+        totalDiscount: totals.totalDiscount.toString(),
+        totalTax: totals.totalTax.toString(),
+        grandTotal: totals.grandTotal.toString(),
+      },
+      paymentSummary: { totalPaid: paid.toString() },
+      amountDue: clampedDue.toString(),
+      payments: wo.payments.map((p) => ({ amount: p.amount, createdAt: p.createdAt })),
     };
   }
 }

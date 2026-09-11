@@ -2,6 +2,7 @@ import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Prisma, WorkOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ReceiptsService } from '../receipts/receipts.service';
 import {
   CLIENT_PORTAL_NOT_FOUND,
   CLIENT_PORTAL_RATE,
@@ -18,6 +19,7 @@ type WorkOrderFindManyArgs = {
     vehicleId?: string | { in?: string[] };
   };
   select?: unknown;
+  include?: unknown;
 };
 
 function makeLine(overrides: Record<string, unknown> = {}) {
@@ -107,7 +109,7 @@ async function createService(overrides?: {
   vehicleFindUnique?: () => unknown;
   vehicleFindMany?: () => unknown;
   workOrderFindMany?: (args: WorkOrderFindManyArgs) => unknown;
-  workOrderFindFirst?: () => unknown;
+  workOrderFindFirst?: (args: WorkOrderFindManyArgs) => unknown;
   customerFindUnique?: () => unknown;
   attemptFindUnique?: () => unknown;
 }) {
@@ -143,11 +145,18 @@ async function createService(overrides?: {
         ),
     },
   };
+  const receipts = {
+    renderWorkOrderReceipt: jest.fn().mockResolvedValue('<html>comprobante</html>'),
+  };
   const moduleRef = await Test.createTestingModule({
-    providers: [ClientPortalService, { provide: PrismaService, useValue: prisma }],
+    providers: [
+      ClientPortalService,
+      { provide: PrismaService, useValue: prisma },
+      { provide: ReceiptsService, useValue: receipts },
+    ],
   }).compile();
   const service = moduleRef.get(ClientPortalService);
-  return { service, prisma };
+  return { service, prisma, receipts };
 }
 
 const DTO = { plate: 'EKP112', phone: '300 555 0199' };
@@ -392,6 +401,75 @@ describe('ClientPortalService', () => {
       const updateData = prisma.clientPortalAttempt.update.mock.calls[0]![0]!.data;
       expect(updateData.attempts).toBe(1);
       expect(updateData.blockedUntil).toBeNull();
+    });
+  });
+
+  describe('comprobante (mismo formato que la OT)', () => {
+    it('devuelve el HTML del comprobante para una OT de la cuenta', async () => {
+      const { service, prisma, receipts } = await createService({
+        vehicleFindMany: () => [
+          { id: 'v1', plate: 'EKP112', brand: null, model: null, year: null, color: null },
+        ],
+        workOrderFindMany: (args: WorkOrderFindManyArgs) => {
+          if (args.select) return [{ customerPhone: '3005550199' }];
+          return [makeWorkOrder()];
+        },
+        workOrderFindFirst: (args: WorkOrderFindManyArgs) =>
+          args?.include ? makeWorkOrder() : null,
+      });
+
+      const html = await service.renderReceipt({ ...DTO, orderCode: 'VEN-0001' });
+
+      expect(html).toBe('<html>comprobante</html>');
+      expect(receipts.renderWorkOrderReceipt).toHaveBeenCalledTimes(1);
+      const payload = receipts.renderWorkOrderReceipt.mock.calls[0]![0]!;
+      expect(payload.publicCode).toBe('VEN-0001');
+      expect(payload.totals.grandTotal).toBe('119000');
+      expect(payload.amountDue).toBe('69000');
+      expect(payload.paymentSummary.totalPaid).toBe('50000');
+      expect(payload.lines[0]!.totals.lineTotal).toBe('119000');
+      // Limpió los intentos tras éxito.
+      expect(prisma.clientPortalAttempt.deleteMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('rechaza con error genérico una OT que no pertenece a la cuenta', async () => {
+      const { service, prisma, receipts } = await createService({
+        vehicleFindMany: () => [
+          { id: 'v1', plate: 'EKP112', brand: null, model: null, year: null, color: null },
+        ],
+        workOrderFindMany: (args: WorkOrderFindManyArgs) => {
+          if (args.select) return [{ customerPhone: '3005550199' }];
+          return [makeWorkOrder()];
+        },
+        workOrderFindFirst: () => null,
+      });
+
+      await expect(
+        service.renderReceipt({ ...DTO, orderCode: 'VEN-AJENA' }),
+      ).rejects.toThrow(CLIENT_PORTAL_NOT_FOUND);
+      expect(receipts.renderWorkOrderReceipt).not.toHaveBeenCalled();
+      expect(prisma.clientPortalAttempt.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('aplica el rate limit de la misma huella antes de renderizar', async () => {
+      const { service, prisma } = await createService({
+        attemptFindUnique: () => ({
+          id: 'a1',
+          fingerprint: 'x',
+          attempts: CLIENT_PORTAL_RATE.maxAttempts,
+          windowStartAt: new Date(),
+          blockedUntil: null,
+        }),
+      });
+
+      await expect(
+        service.renderReceipt({ ...DTO, orderCode: 'VEN-0001' }),
+      ).rejects.toThrow(CLIENT_PORTAL_RATE_LIMITED);
+      expect(prisma.clientPortalAttempt.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ blockedUntil: expect.any(Date) }),
+        }),
+      );
     });
   });
 

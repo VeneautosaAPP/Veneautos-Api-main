@@ -54,11 +54,10 @@ export function ClientAccountLookupPage() {
     }
   }
 
-  async function onDownload(vehicle: PortalVehicle, order: PortalOrder) {
-    if (!result) return;
+  async function onDownload(_vehicle: PortalVehicle, order: PortalOrder) {
     setDownloadingKey(order.publicCode);
     try {
-      await downloadPortalPdf(result, vehicle, order);
+      await downloadPortalPdf(plate.trim(), phone.trim(), order);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "No se pudo generar el PDF.");
     } finally {
