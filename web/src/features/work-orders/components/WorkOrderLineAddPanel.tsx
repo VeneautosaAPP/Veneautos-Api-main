@@ -29,9 +29,10 @@ export type WorkOrderLineAddPanelProps = {
 }
 
 /**
- * Panel de alta de repuestos de la OT: busca en el catálogo (o texto libre) y agrega la línea con
- * Enter. La mano de obra nace automáticamente al crear la orden (“MANO DE OBRA”) y se ajusta en la
- * tabla; acá solo se cargan repuestos. Al agregar, la fila nueva se abre en edición abajo.
+ * Panel de alta de líneas de la OT: busca repuestos en el catálogo (o texto libre) y los agrega con
+ * Enter; el botón “+ Mano de obra” re-agrega la línea LABOR por defecto, útil si se borró la que nació
+ * al crear la orden. La mano de obra y los repuestos se ajustan después directo en la tabla. Al agregar
+ * un repuesto, la fila nueva se abre en edición abajo.
  */
 export function WorkOrderLineAddPanel({
   workOrder: wo,
@@ -54,6 +55,8 @@ export function WorkOrderLineAddPanel({
    * quedan repuestos duplicados de la misma descripción.
    */
   const partAddPendingRef = useRef(false)
+  /** Misma guarda para el botón de mano de obra: un clic = una línea LABOR. */
+  const laborAddPendingRef = useRef(false)
   const [partCatalogTerm, setPartCatalogTerm] = useState('')
   const [partComboOpen, setPartComboOpen] = useState(false)
   const [partComboIndex, setPartComboIndex] = useState(-1)
@@ -270,20 +273,44 @@ export function WorkOrderLineAddPanel({
     }
   }
 
+  /** Alta de mano de obra: un clic agrega la línea "MANO DE OBRA" (sin abrir edición ni avisos). */
+  async function addLaborLine() {
+    if (!id) return
+    if (laborAddPendingRef.current) return
+    laborAddPendingRef.current = true
+    setMsg(null)
+    try {
+      // El POST devuelve el snapshot completo (tabla + totales) en una sola llamada; sin GET.
+      const res = await postLine.mutateAsync({
+        lineType: 'LABOR',
+        description: 'MANO DE OBRA',
+        quantity: '1',
+      })
+      applySnapshot(res)
+    } catch (e) {
+      if (!(await onBlockingError(e))) {
+        setMsg(e instanceof Error ? e.message : 'Error al agregar mano de obra')
+      }
+    } finally {
+      laborAddPendingRef.current = false
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-5">
-      <label className="block text-sm">
-        <span className="va-label">Descripción del repuesto (catálogo o texto libre)</span>
-        <div className="relative mt-1">
-          <input
-            ref={partDescInputRef}
-            value={partDesc}
-            role="combobox"
-            aria-expanded={partComboOpen && partSuggestions.length > 0}
-            aria-controls="wo-parts-listbox"
-            aria-activedescendant={
-              partComboOpen && partComboIndex >= 0 ? `wo-part-opt-${partComboIndex}` : undefined
-            }
+      <div className="flex items-end gap-3">
+        <label className="block min-w-0 flex-1 text-sm">
+          <span className="va-label">Descripción del repuesto (catálogo o texto libre)</span>
+          <div className="relative mt-1">
+            <input
+              ref={partDescInputRef}
+              value={partDesc}
+              role="combobox"
+              aria-expanded={partComboOpen && partSuggestions.length > 0}
+              aria-controls="wo-parts-listbox"
+              aria-activedescendant={
+                partComboOpen && partComboIndex >= 0 ? `wo-part-opt-${partComboIndex}` : undefined
+              }
             autoComplete="off"
             onChange={(e) => {
               const v = e.target.value
@@ -391,6 +418,14 @@ export function WorkOrderLineAddPanel({
           ) : null}
         </div>
       </label>
+      <button
+        type="button"
+        onClick={() => void addLaborLine()}
+        className="mb-px inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-50 dark:border-teal-800 dark:bg-slate-800 dark:text-teal-300 dark:hover:bg-slate-700"
+      >
+        <span className="text-base leading-none">+</span> Mano de obra
+      </button>
+      </div>
     </div>
   )
 }
