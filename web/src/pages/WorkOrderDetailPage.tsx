@@ -1385,6 +1385,19 @@ export function WorkOrderDetailPage() {
             ) : (
               <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">{wo.description}</p>
             )}
+            {canMutateLines ? (
+              <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+                <WorkOrderLineAddPanel
+                  workOrder={wo}
+                  workOrderId={id}
+                  setWorkOrder={setWo}
+                  canCreateSparePart={can('repuestos:create')}
+                  setMsg={setMsg}
+                  onBlockingError={showBlockingConflictModal}
+                  onRequestOpenLine={(line) => linesTableRef.current?.openLineEditor(line)}
+                />
+              </div>
+            ) : null}
           </>
         }
         actions={
@@ -1477,17 +1490,6 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           </div>
         }
       />
-      {canMutateLines ? (
-        <WorkOrderLineAddPanel
-          workOrder={wo}
-          workOrderId={id}
-          setWorkOrder={setWo}
-          canCreateSparePart={can('repuestos:create')}
-          setMsg={setMsg}
-          onBlockingError={showBlockingConflictModal}
-          onRequestOpenLine={(line) => linesTableRef.current?.openLineEditor(line)}
-        />
-      ) : null}
       {msg && (
         <p className="va-card-muted" role="status" aria-live="polite">
           {msg}

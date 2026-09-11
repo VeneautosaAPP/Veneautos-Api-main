@@ -297,10 +297,9 @@ export function WorkOrderLineAddPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-5">
-      <div className="flex items-end gap-3">
-        <label className="block min-w-0 flex-1 text-sm">
-          <div className="relative mt-1">
+    <div className="flex items-end gap-3">
+      <label className="block min-w-0 flex-1 text-sm">
+        <div className="relative mt-1">
             <input
               ref={partDescInputRef}
               value={partDesc}
@@ -342,7 +341,7 @@ export function WorkOrderLineAddPanel({
                 setPartComboIndex(-1)
               }
             }}
-            className="va-field"
+            className="va-field va-field--dark-input"
             placeholder="ej. ACEITE-15W40 o filtro de aceite · Enter agrega"
           />
           {partComboOpen && debouncedPartTerm.trim().length >= 2 ? (
@@ -424,7 +423,6 @@ export function WorkOrderLineAddPanel({
       >
         <span className="text-base leading-none">+</span> Mano de obra
       </button>
-      </div>
     </div>
   )
 }

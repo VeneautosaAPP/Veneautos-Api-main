@@ -941,6 +941,28 @@ html.dark .va-app-shell-search:focus {
   outline: none;
 }
 
+/* --- Buscador de repuestos del banner de OT (`va-field--dark-input`):
+   más oscuro que la superficie para destacar sobre la cabecera, en claro y oscuro.
+   Sin @layer + !important para ganar a utilitarios y a la regla global `html.dark .va-field`. --- */
+.va-field--dark-input {
+  background-color: #e2e8f0 !important;
+  border-color: #b6c6d6 !important;
+}
+.va-field--dark-input:focus,
+.va-field--dark-input:focus-visible {
+  background-color: #ffffff !important;
+  border-color: var(--brand, #2563eb) !important;
+}
+html.dark .va-field--dark-input {
+  background-color: #13151c !important;
+  border-color: #2a2e3a !important;
+}
+html.dark .va-field--dark-input:focus,
+html.dark .va-field--dark-input:focus-visible {
+  background-color: #22262f !important;
+  border-color: #ff7a33 !important;
+}
+
 /* --- Botones primarios en oscuro: naranja profundo + glow (autopiezas `[data-theme="pro"]`) --- */
 html.dark .va-btn-primary:not(:disabled):hover,
 html.dark .va-saas-tab-success-btn:hover {
