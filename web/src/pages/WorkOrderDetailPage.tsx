@@ -195,15 +195,6 @@ export function WorkOrderDetailPage() {
   const [showVehicleDetails, setShowVehicleDetails] = useState(false)
   /** Móvil: menú de acciones (overflow “…”) */
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  /** Móvil: pantalla completa oculta la navbar inferior; la barra de alta se apoya en el borde inferior. */
-  const [mobileFullscreen, setMobileFullscreen] = useState(() => typeof document !== 'undefined' && Boolean(document.fullscreenElement))
-
-  useEffect(() => {
-    const sync = () => setMobileFullscreen(Boolean(document.fullscreenElement))
-    document.addEventListener('fullscreenchange', sync)
-    return () => document.removeEventListener('fullscreenchange', sync)
-  }, [])
-
 
   // Catálogo de Impuestos: se usa al editar una línea (la OT se agrega directo, foco autopiezas).
   const [taxRatesCatalog, setTaxRatesCatalog] = useState<TaxRateCatalogRow[]>([])
@@ -556,8 +547,11 @@ export function WorkOrderDetailPage() {
     woIntakeKm,
   ])
 
+  /** Móvil SaaS: pantalla fija tipo app (100dvh). El banner queda al tope a ancho completo y las
+   * líneas llenan el resto con scroll interno; en lg+ vuelve al flujo normal del shell (`top-0` = borde
+   * superior del viewport porque en SaaS móvil no hay barra superior; `--va-app-header-h` es 0). */
   const detailRootClass = isSaas
-    ? `space-y-7 ${canMutateLines ? 'pb-20 sm:pb-20 lg:pb-0' : ''}`
+    ? `va-wo-mobile-app fixed inset-x-0 top-0 flex h-dvh flex-col overflow-hidden lg:static lg:inset-auto lg:h-auto lg:block lg:overflow-visible lg:space-y-7`
     : 'space-y-8'
   /**
    * Cabecera fija al hacer scroll: se pega debajo de la barra superior del panel
@@ -566,13 +560,17 @@ export function WorkOrderDetailPage() {
    * coincide con su posición en reposo: el banner no se desplaza al scrollear.
    */
   const stickyHeaderClass = isSaas
-    ? `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 shadow-sm`
+    ? `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 shrink-0 shadow-sm`
     : `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900`
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
   const sectionCardClass = isSaas ? 'va-saas-page-section' : 'va-card'
-  const sectionFlushClass = isSaas ? 'va-saas-page-section va-saas-page-section--flush' : 'va-card-flush overflow-hidden'
+  const sectionFlushClass = isSaas
+    ? `va-wo-lines va-saas-page-section va-saas-page-section--flush flex-1 min-h-0 overflow-y-auto lg:flex-none lg:overflow-visible ${
+        canMutateLines ? 'va-wo-lines--bar' : ''
+      }`
+    : 'va-card-flush overflow-hidden'
 
   const canReopenDelivered =
     wo?.status === 'DELIVERED' && can('work_orders:reopen_delivered') && !cashierOnly
@@ -1672,7 +1670,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
         </div>
       ) : null}
       {msg && (
-        <p className="va-card-muted" role="status" aria-live="polite">
+        <p className="va-card-muted shrink-0" role="status" aria-live="polite">
           {msg}
         </p>
       )}
@@ -2396,9 +2394,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
       {isSaas && canMutateLines ? (
         <div
           id="va-wo-mobile-add-bar"
-          className={`fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-2 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden ${
-            mobileFullscreen ? 'bottom-0' : 'bottom-2'
-          }`}
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-2 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
         >
           <WorkOrderLineAddPanel
             workOrder={wo}
