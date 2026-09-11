@@ -200,7 +200,7 @@ export function ClientAccountLookupPage() {
                           placeholder="300 555 0199"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          className="w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-4 text-base text-slate-900 transition placeholder:text-slate-400 hover:border-slate-400 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-500/15 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-slate-500 dark:focus:border-red-400 dark:focus:ring-red-500/25"
+                          className="w-full rounded-xl border-[3px] border-brand-900 bg-white py-3 pl-10 pr-4 text-center font-mono text-lg font-bold uppercase tracking-[0.32em] text-brand-950 shadow-[0_3px_0_rgba(20,31,74,0.14)] transition placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300 focus:border-red-500 focus:outline-none focus:ring-4 focus:ring-red-500/20 dark:border-zinc-500 dark:bg-zinc-800 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-slate-500 dark:focus:border-red-400 dark:focus:ring-red-500/25"
                         />
                       </div>
                     </div>
