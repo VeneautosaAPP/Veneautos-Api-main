@@ -218,6 +218,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         if (active.type === 'confirm') finish(false)
         else if (active.type === 'alert') finish('alert-ok')
         else resolvePrompt(null)
+      } else if (e.key === 'Enter' && active.type === 'alert') {
+        // La alerta informativa se cierra con Enter igual que con click en el botón.
+        finish('alert-ok')
       }
     }
     window.addEventListener('keydown', onKey)
