@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../../api/client'
-import type { WorkOrderLine, WorkOrderPatchResult } from '../../../api/types'
+import type { WorkOrderLinesMutationResult, WorkOrderPatchResult } from '../../../api/types'
 import { queryKeys } from '../../../lib/queryKeys'
 import { emitWorkOrderChanged } from '../../../services/workOrderEvents'
 import type { WorkOrderPaymentRow } from '../services/workOrdersListApi'
@@ -25,6 +25,16 @@ export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
   const notify = useCallback(() => {
     void invalidateWorkOrderCaches()
   }, [invalidateWorkOrderCaches])
+
+  /**
+   * Mutaciones de líneas: el snapshot viene en la propia respuesta, así que solo se refresca la
+   * lista y se avisa al resto de ventanas (sin GET extra del detalle).
+   */
+  const notifyLines = useCallback(() => {
+    if (!workOrderId) return
+    void queryClient.invalidateQueries({ queryKey: [...queryKeys.workOrders.root, 'list'] })
+    emitWorkOrderChanged(workOrderId)
+  }, [queryClient, workOrderId])
 
   const patchWorkOrder = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -52,33 +62,33 @@ export function useWorkOrderDetailMutations(workOrderId: string | undefined) {
   const postLine = useMutation({
     mutationFn: (payload: Record<string, unknown>) => {
       if (!workOrderId) throw new Error('Falta id de orden')
-      return api(`/work-orders/${workOrderId}/lines`, {
+      return api<WorkOrderLinesMutationResult>(`/work-orders/${workOrderId}/lines`, {
         method: 'POST',
         body: JSON.stringify(payload),
       })
     },
-    onSuccess: notify,
+    onSuccess: notifyLines,
   })
 
   const deleteLine = useMutation({
     mutationFn: ({ lineId }: { lineId: string }) => {
       if (!workOrderId) throw new Error('Falta id de orden')
-      return api<WorkOrderLine[]>(`/work-orders/${workOrderId}/lines/${lineId}`, {
+      return api<WorkOrderLinesMutationResult>(`/work-orders/${workOrderId}/lines/${lineId}`, {
         method: 'DELETE',
       })
     },
-    onSuccess: notify,
+    onSuccess: notifyLines,
   })
 
   const patchLine = useMutation({
     mutationFn: ({ lineId, body }: { lineId: string; body: Record<string, unknown> }) => {
       if (!workOrderId) throw new Error('Falta id de orden')
-      return api(`/work-orders/${workOrderId}/lines/${lineId}`, {
+      return api<WorkOrderLinesMutationResult>(`/work-orders/${workOrderId}/lines/${lineId}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       })
     },
-    onSuccess: notify,
+    onSuccess: notifyLines,
   })
 
   const reopenDelivered = useMutation({

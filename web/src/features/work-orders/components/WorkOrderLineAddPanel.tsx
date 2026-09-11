@@ -6,6 +6,7 @@ import { useAlert } from '../../../components/confirm/ConfirmProvider'
 import { formatCopFromString, normalizeMoneyDecimalStringForApi } from '../../../utils/copFormat'
 import type { SparePart, WorkOrderDetail, WorkOrderLine, WorkOrderLineType } from '../../../api/types'
 import { useWorkOrderDetailMutations } from '../hooks/useWorkOrderDetailMutations'
+import { useApplyLinesSnapshot } from '../hooks/useApplyLinesSnapshot'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 /**
@@ -22,8 +23,6 @@ export type WorkOrderLineAddPanelProps = {
   setWorkOrder: Dispatch<SetStateAction<WorkOrderDetail | null>>
   canCreateSparePart: boolean
   setMsg: (m: string | null) => void
-  onLinesChanged: () => Promise<void>
-  onReload: () => Promise<void>
   onBlockingError: (e: unknown) => Promise<boolean>
   /** Línea recién agregada/duplicada: la fila de la tabla queda editable (la tabla la enfoca al recibir el pedido). */
   onRequestOpenLine: (line: WorkOrderLine) => void
@@ -40,14 +39,13 @@ export function WorkOrderLineAddPanel({
   setWorkOrder: setWo,
   canCreateSparePart,
   setMsg,
-  onLinesChanged,
-  onReload,
   onBlockingError,
   onRequestOpenLine,
 }: WorkOrderLineAddPanelProps) {
   const blockingAlert = useAlert()
   const queryClient = useQueryClient()
   const { postLine } = useWorkOrderDetailMutations(id)
+  const applySnapshot = useApplyLinesSnapshot(id, setWo)
   const [addKind, setAddKind] = useState<WorkOrderLineType>('PART')
   const [partDesc, setPartDesc] = useState('')
   const [laborDesc, setLaborDesc] = useState('')
@@ -200,19 +198,11 @@ export function WorkOrderLineAddPanel({
       }
       if (targetSku) payload.sparePartSku = targetSku
       if (opts.unitPrice) payload.unitPrice = opts.unitPrice
-      const created = (await postLine.mutateAsync(payload)) as WorkOrderLine
-
-      /**
-       * Alta optimista: la línea se pinta de inmediato con lo que devolvió el POST (la tabla la
-       * reordena y el renglón queda editable al instante). La reconciliación (subtotales y totales
-       * que calcula el servidor) se dispara en segundo plano, sin bloquear la escritura del usuario.
-       */
-      if (created?.id) {
-        setWo((prev) => (prev ? { ...prev, lines: [...prev.lines, created] } : prev))
-      }
-      void onLinesChanged().catch(() => {
-        void onReload()
-      })
+      // El POST devuelve el estado completo (tabla + totales) en una sola llamada; sin GET de refresco.
+      const res = await postLine.mutateAsync(payload)
+      applySnapshot(res)
+      const created = res.lines.find((ln) => ln.id === res.addedLineId) ?? null
+      // La línea nueva se pinta al instante y la tabla la deja en edición (para ajustar cantidad/valor).
       if (created?.id) onRequestOpenLine(created)
       return 'added'
     } catch (e) {
@@ -292,18 +282,13 @@ export function WorkOrderLineAddPanel({
     laborAddPendingRef.current = true
     setMsg(null)
     try {
-      const created = (await postLine.mutateAsync({
+      const res = await postLine.mutateAsync({
         lineType: 'LABOR',
         description,
         quantity: '1',
-      })) as WorkOrderLine
-      // Igual que con repuestos: pintar la línea ya y reconciliar en segundo plano.
-      if (created?.id) {
-        setWo((prev) => (prev ? { ...prev, lines: [...prev.lines, created] } : prev))
-      }
-      void onLinesChanged().catch(() => {
-        void onReload()
       })
+      // Remata en una sola llamada: tabla + subtotales + totales + saldo (sin GET de refresco).
+      applySnapshot(res)
       setLaborDesc('')
       laborDescInputRef.current?.focus()
       // Sin aviso: la línea nueva ya aparece en la tabla.

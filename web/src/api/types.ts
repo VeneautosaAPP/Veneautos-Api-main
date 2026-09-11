@@ -279,6 +279,21 @@ export type WorkOrderDetail = WorkOrderSummary & {
 
 /** Cotización / presupuesto (sin consumo de inventario). */
 
+/** Estado tras una mutación de líneas (POST/PATCH/DELETE): el front actualiza tabla y totales sin un segundo GET. */
+export type WorkOrderLinesMutationResult = {
+  lines: WorkOrderLine[]
+  linesSubtotal: string | null
+  totals: WorkOrderTotals | null
+  amountDue: string | null
+  paymentSummary: {
+    paymentCount: number
+    totalPaid: string | null
+    remaining: string | null
+  }
+  /** En POST: id de la línea recién creada (para abrirla en edición). null en PATCH/DELETE. */
+  addedLineId?: string | null
+}
+
 /** Respuesta de PATCH `/work-orders/:id` (fila actualizada; sin líneas ni paymentSummary del GET detalle). */
 export type WorkOrderPatchResult = {
   status: WorkOrderStatus

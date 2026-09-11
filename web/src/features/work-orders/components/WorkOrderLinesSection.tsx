@@ -16,8 +16,9 @@ import {
   normalizeMoneyDecimalStringForApi,
 } from '../../../utils/copFormat'
 import type { WorkOrderDetail, WorkOrderLine } from '../../../api/types'
-import { lineMoney, linesSubtotalFromLines } from '../services/workOrderLinesPresentation'
+import { lineMoney, linesSubtotalFromLines, projectLineEdit } from '../services/workOrderLinesPresentation'
 import { useWorkOrderDetailMutations } from '../hooks/useWorkOrderDetailMutations'
+import { useApplyLinesSnapshot } from '../hooks/useApplyLinesSnapshot'
 
 type TaxRateCatalogRow = { id: string; name: string; kind: string }
 
@@ -34,8 +35,6 @@ export type WorkOrderLinesSectionProps = {
   taxRatesCatalog: TaxRateCatalogRow[]
   sectionClassName: string
   setMsg: (m: string | null) => void
-  onLinesChanged: () => Promise<void>
-  onReload: () => Promise<void>
   onBlockingError: (e: unknown) => Promise<boolean>
   /** Pedido del panel de alta para abrir la fila recién agregada en edición. */
   ref?: Ref<WorkOrderLinesHandle>
@@ -62,15 +61,12 @@ export function WorkOrderLinesSection({
   taxRatesCatalog,
   sectionClassName,
   setMsg,
-  onLinesChanged,
-  onReload,
   onBlockingError,
   ref,
 }: WorkOrderLinesSectionProps) {
   const confirm = useConfirm()
   const { patchLine, deleteLine } = useWorkOrderDetailMutations(id)
-  const refreshLinesOnWorkOrder = onLinesChanged
-  const load = onReload
+  const applySnapshot = useApplyLinesSnapshot(id, setWo)
   const showBlockingConflictModal = onBlockingError
 
   const [editLine, setEditLine] = useState<WorkOrderLine | null>(null)
@@ -140,32 +136,15 @@ export function WorkOrderLinesSection({
     })
     if (!ok) return
     setMsg(null)
-    let lines: WorkOrderLine[]
     try {
-      lines = await deleteLine.mutateAsync({ lineId })
+      // El DELETE devuelve el estado completo (tabla + totales): una sola llamada, sin GET.
+      const res = await deleteLine.mutateAsync({ lineId })
+      applySnapshot(res)
     } catch (e) {
       if (!(await showBlockingConflictModal(e))) {
         setMsg(e instanceof Error ? e.message : 'Error al eliminar')
       }
       return
-    }
-    if (!Array.isArray(lines)) {
-      try {
-        await refreshLinesOnWorkOrder()
-      } catch {
-        await load()
-      }
-    } else {
-      const linesSubtotal =
-        can('work_orders:view_financials') ||
-        can('work_order_lines:set_unit_price') ||
-        can('work_orders:record_payment')
-          ? linesSubtotalFromLines(lines)
-          : null
-      setWo((prev) => {
-        if (!prev) return prev
-        return { ...prev, lines, linesSubtotal }
-      })
     }
     setEditLine((el) => (el?.id === lineId ? null : el))
     // Sin aviso: la fila ya desaparece de la tabla.
@@ -224,16 +203,49 @@ export function WorkOrderLinesSection({
       if (canViewWoCosts) body.costSnapshot = cost || null
       // Solo emitimos taxRateId cuando cambió respecto al valor actual (evita escribir por nada).
       if ((editLine.taxRateId ?? null) !== taxRatePatch) body.taxRateId = taxRatePatch
-      await patchLine.mutateAsync({
-        lineId: editLine.id,
-        body,
+
+      const prevLines = wo.lines
+      const maySeeSubtotal =
+        can('work_orders:view_financials') ||
+        can('work_order_lines:set_unit_price') ||
+        can('work_orders:record_payment')
+      const projected = projectLineEdit(editLine, {
+        quantity: qty,
+        description: editDesc.trim(),
+        unitPrice: canViewWoFinancials ? up || null : editLine.unitPrice,
+        discountAmount: canViewWoFinancials ? disc || null : editLine.discountAmount,
+        costSnapshot: canViewWoCosts ? cost || null : editLine.costSnapshot,
+        taxRateId: taxRatePatch,
       })
-      setEditLine((cur) => (cur?.id === editingId ? null : cur))
-      setAutoEditFocus((cur) => (cur?.id === editingId ? null : cur))
+      // Optimista: pinta la línea con lo que se está guardando mientras responde el server.
+      setWo((prev) => {
+        if (!prev) return prev
+        const lines = prev.lines.map((l) => (l.id === editLine.id ? projected : l))
+        return { ...prev, lines, linesSubtotal: maySeeSubtotal ? linesSubtotalFromLines(lines) : null }
+      })
       try {
-        await refreshLinesOnWorkOrder()
-      } catch {
-        await load()
+        const res = await patchLine.mutateAsync({
+          lineId: editLine.id,
+          body,
+        })
+        // Reconciliación en una sola llamada: el PATCH devuelve tabla + totales + saldo (sin GET).
+        applySnapshot(res)
+        setEditLine((cur) => (cur?.id === editingId ? null : cur))
+        setAutoEditFocus((cur) => (cur?.id === editingId ? null : cur))
+      } catch (e) {
+        // Revertir la proyección optimista dejando los totales previos del servidor.
+        setWo((prev) =>
+          prev
+            ? {
+                ...prev,
+                lines: prevLines,
+                linesSubtotal: maySeeSubtotal ? linesSubtotalFromLines(prevLines) : null,
+              }
+            : prev,
+        )
+        if (!(await showBlockingConflictModal(e))) {
+          setMsg(e instanceof Error ? e.message : 'Error al guardar')
+        }
       }
       /**
        * Sin avisos al guardar: el cambio ya se ve en la tabla y los mensajes sólo ensucian la

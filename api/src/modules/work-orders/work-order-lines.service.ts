@@ -127,6 +127,78 @@ export class WorkOrderLinesService {
   }
 
   /**
+   * Estado posterior a una mutación de líneas: tabla + subtotal + totales + saldo.
+   * Las mutaciones de línea devuelven esto (un solo request) para que el cliente re-renderice
+   * sin un segundo GET del detalle. `addedLineId` orienta al front para abrir la fila recién
+   * creada en edición.
+   */
+  async snapshot(
+    workOrderId: string,
+    actor: JwtUserPayload,
+    addedLineId?: string,
+  ) {
+    await this.workOrders.assertWorkOrderVisible(actor, workOrderId);
+    const rows = await this.prisma.workOrderLine.findMany({
+      where: { workOrderId },
+      orderBy: { sortOrder: 'asc' },
+      include: lineInclude,
+    });
+    const mayFin = actorMayViewWorkOrderFinancials(actor);
+    const mayCosts = actorMayViewWorkOrderCosts(actor);
+    const linesForTotals: LineForTotals[] = rows.map((ln) => ({
+      id: ln.id,
+      lineType: ln.lineType,
+      quantity: ln.quantity,
+      unitPrice: ln.unitPrice,
+      discountAmount: ln.discountAmount,
+      costSnapshot: ln.costSnapshot,
+      taxRateId: ln.taxRateId,
+      taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
+      taxRate: ln.taxRate ? { kind: ln.taxRate.kind } : null,
+    }));
+    const totals = computeWorkOrderTotals(linesForTotals);
+    const serialized = serializeWorkOrderTotals(totals);
+    const lines = rows.map((ln, idx) =>
+      this.redactLineForActor(actor, {
+        ...ln,
+        totals: serializeLineTotals(computeLineTotals(linesForTotals[idx])),
+      }),
+    );
+    const paymentCount = await this.prisma.workOrderPayment.count({
+      where: { workOrderId },
+    });
+
+    if (!mayFin) {
+      const redacted = lines.map((ln) => ({ ...ln, unitPrice: null, totals: null, costSnapshot: null }));
+      return {
+        lines: redacted,
+        linesSubtotal: null,
+        totals: null,
+        amountDue: null,
+        paymentSummary: { paymentCount, totalPaid: null, remaining: null },
+        addedLineId: addedLineId ?? null,
+      };
+    }
+
+    const paid = await this.prisma.workOrderPayment.aggregate({
+      where: { workOrderId },
+      _sum: { amount: true },
+    });
+    const totalPaid = paid._sum.amount ?? new Prisma.Decimal(0);
+    const due = ceilWholeCop(totals.grandTotal).minus(totalPaid);
+    const amountDue = due.lt(0) ? '0' : ceilWholeCop(due).toString();
+
+    return {
+      lines,
+      linesSubtotal: ceilWholeCop(totals.linesSubtotal).toString(),
+      totals: mayCosts ? serialized : { ...serialized, totalCost: null, totalProfit: null },
+      amountDue,
+      paymentSummary: { paymentCount, totalPaid: totalPaid.toString(), remaining: amountDue },
+      addedLineId: addedLineId ?? null,
+    };
+  }
+
+  /**
    * Devuelve el desglose oficial de la OT (Fase 2): subtotal bruto, descuento, IVA/INC,
    * total a cobrar, costo y utilidad si corresponde. Mantiene el campo `subtotal` por
    * compatibilidad con los consumidores actuales (suma bruta antes de impuestos).
@@ -279,7 +351,7 @@ export class WorkOrderLinesService {
       userAgent: meta.userAgent ?? null,
     });
 
-    return this.redactLineForActor(actor, line);
+    return this.snapshot(workOrderId, actor, line.id);
   }
 
   async update(
@@ -353,7 +425,7 @@ export class WorkOrderLinesService {
           : null;
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       await this.lockWorkOrder(tx, workOrderId);
       await this.assertWorkOrderEditable(tx, workOrderId);
 
@@ -417,7 +489,7 @@ export class WorkOrderLinesService {
       userAgent: meta.userAgent ?? null,
     });
 
-    return this.redactLineForActor(actor, updated);
+    return this.snapshot(workOrderId, actor, lineId);
   }
 
   async remove(workOrderId: string, lineId: string, actor: JwtUserPayload, meta: { ip?: string; userAgent?: string }) {
@@ -449,6 +521,8 @@ export class WorkOrderLinesService {
       ipAddress: meta.ip ?? null,
       userAgent: meta.userAgent ?? null,
     });
+
+    return this.snapshot(workOrderId, actor);
   }
 
   private async lockWorkOrder(tx: Prisma.TransactionClient, workOrderId: string): Promise<void> {

@@ -235,18 +235,16 @@ export class WorkOrdersController {
 
   @Delete(':id/lines/:lineId')
   @RequirePermissions('work_orders:update', 'work_order_lines:delete')
-  async removeLine(
+  removeLine(
     @Param('id') id: string,
     @Param('lineId') lineId: string,
     @CurrentUser() actor: JwtUserPayload,
     @Req() req: Request,
   ) {
-    await this.workOrderLines.remove(id, lineId, actor, {
+    return this.workOrderLines.remove(id, lineId, actor, {
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
     });
-    /** Misma respuesta que GET …/lines: el cliente actualiza la tabla sin un segundo GET que pueda verse “antes” del commit. */
-    return this.workOrderLines.list(id, actor);
   }
 
   @Get(':id')

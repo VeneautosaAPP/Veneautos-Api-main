@@ -9,7 +9,6 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, openAuthenticatedHtml } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
@@ -33,7 +32,6 @@ import { useWorkOrderDetailCache } from '../features/work-orders/hooks/useWorkOr
 import type { WorkOrderPaymentRow } from '../features/work-orders/services/workOrdersListApi'
 import { panelUsesModernShell } from '../config/operationalNotes'
 import { usePanelTheme } from '../theme/PanelThemeProvider'
-import { queryKeys } from '../lib/queryKeys'
 import type { ParsedTransitLicenseFields } from '../utils/parseTransitLicenseOcr'
 import {
   API_MONEY_DECIMAL_REGEX,
@@ -57,7 +55,6 @@ import { WorkOrderLinesSection, type WorkOrderLinesHandle } from '../features/wo
 import { WorkOrderLineAddPanel } from '../features/work-orders/components/WorkOrderLineAddPanel'
 import { WhatsAppSendModal } from '../features/work-orders/components/WhatsAppSendModal'
 import { normalizeWhatsAppPhone } from '../lib/whatsappPhone'
-import { linesSubtotalFromLines } from '../features/work-orders/services/workOrderLinesPresentation'
 
 type CashCat = { slug: string; name: string; direction: string }
 
@@ -328,7 +325,6 @@ export function WorkOrderDetailPage() {
   )
 
   const canReadWoPayments = useMemo(() => can('work_orders:read'), [can])
-  const queryClient = useQueryClient()
   const { detailQuery, paymentsQuery, refetchBundle } = useWorkOrderDetailCache(id, {
     hideCashUi: hideWorkOrderCashUi,
     canReadPayments: canReadWoPayments,
@@ -369,36 +365,6 @@ export function WorkOrderDetailPage() {
       setErr(null)
     }
   }, [detailQuery.isError, detailQuery.error])
-
-  /**
-   * Tras mutar líneas: lista (tabla) + resumen del servidor (subtotal, totales y saldo del
-   * encabezado). Se actualiza el detalle a mano y no con `load()` para no pisar el formulario
-   * de datos de la orden si el usuario tiene cambios sin guardar.
-   */
-  const refreshLinesOnWorkOrder = useCallback(async () => {
-    if (!id) return
-    // Una sola petición: el detalle ya trae líneas, subtotal, totales y saldo (micro-proceso:
-    // antes se pedían /lines y /work-orders/:id por cada alta/edición de línea).
-    const detail = await api<WorkOrderDetail>(`/work-orders/${id}`)
-    const lines = detail.lines ?? []
-    const linesSubtotal = canRef.current('work_orders:view_financials') ||
-      canRef.current('work_order_lines:set_unit_price') ||
-      canRef.current('work_orders:record_payment')
-      ? (detail.linesSubtotal ?? linesSubtotalFromLines(lines))
-      : null
-    const patch = (prev: WorkOrderDetail): WorkOrderDetail => ({
-      ...prev,
-      lines,
-      linesSubtotal: linesSubtotal ?? prev.linesSubtotal,
-      totals: detail.totals ?? prev.totals,
-      amountDue: detail.amountDue ?? prev.amountDue,
-      paymentSummary: detail.paymentSummary ?? prev.paymentSummary,
-    })
-    setWo((prev) => (prev ? patch(prev) : prev))
-    queryClient.setQueryData<WorkOrderDetail>(queryKeys.workOrders.detail(id), (prev) =>
-      prev ? patch(prev) : prev,
-    )
-  }, [id, queryClient])
 
   useEffect(() => {
     setConsentModal(null)
@@ -1517,8 +1483,6 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           setWorkOrder={setWo}
           canCreateSparePart={can('repuestos:create')}
           setMsg={setMsg}
-          onLinesChanged={refreshLinesOnWorkOrder}
-          onReload={load}
           onBlockingError={showBlockingConflictModal}
           onRequestOpenLine={(line) => linesTableRef.current?.openLineEditor(line)}
         />
@@ -2241,8 +2205,6 @@ ${formatCopFromString(wo.amountDue ?? '0')}
         taxRatesCatalog={taxRatesCatalog}
         sectionClassName={sectionFlushClass}
         setMsg={setMsg}
-        onLinesChanged={refreshLinesOnWorkOrder}
-        onReload={load}
         onBlockingError={showBlockingConflictModal}
       />
       {consentModal === 'view' && wo.clientConsentSignedAt && wo.clientSignaturePngBase64 ? (
