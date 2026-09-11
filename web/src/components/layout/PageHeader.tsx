@@ -10,6 +10,8 @@ type Props = {
   title: ReactNode
   description?: ReactNode
   actions?: ReactNode
+  /** Alinea las acciones arriba (nivel del enlace “volver”) en vez de abajo, junto a la descripción. */
+  actionsTop?: boolean
   /** Clases extra en el contenedor raíz (clásico: borde inferior de cabecera, etc.). */
   rootClassName?: string
 }
@@ -18,7 +20,15 @@ type Props = {
  * Cabecera de página: `va-page-title` / `va-page-desc` / `va-page-eyebrow` centralizan tipografía;
  * en `saas_light` el contenedor usa `va-saas-page-hero`.
  */
-export function PageHeader({ beforeTitle, eyebrow, title, description, actions, rootClassName }: Props) {
+export function PageHeader({
+  beforeTitle,
+  eyebrow,
+  title,
+  description,
+  actions,
+  actionsTop,
+  rootClassName,
+}: Props) {
   const isSaas = panelUsesModernShell(usePanelTheme())
 
   const titleClassName = beforeTitle ? 'mt-2 va-page-title' : 'va-page-title'
@@ -35,7 +45,9 @@ export function PageHeader({ beforeTitle, eyebrow, title, description, actions, 
   const inner = (
     <>
       {leftColumn}
-      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className={`flex shrink-0 flex-wrap gap-2${actionsTop ? ' sm:self-start' : ''}`}>{actions}</div>
+      ) : null}
     </>
   )
 

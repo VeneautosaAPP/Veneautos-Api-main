@@ -1323,6 +1323,7 @@ export function WorkOrderDetailPage() {
     <div className={detailRootClass}>
       <PageHeader
         rootClassName={stickyHeaderClass}
+        actionsTop
         beforeTitle={
           <Link to={portalPath('/ordenes')} className={backLinkClass}>
             ← Órdenes
