@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, Car, History, Loader2, Phone, ShieldCheck } from "lucide-react";
 import { ApiError, api } from "../api/client";
 import { portalPath } from "../constants/portalPath";
 import { downloadPortalPdf } from "../lib/portalPdf";
@@ -98,64 +99,144 @@ export function ClientAccountLookupPage() {
               </div>
             </nav>
 
-            <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
-              <div className="rounded-2xl border border-slate-200/85 bg-white px-5 py-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:px-7">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-700 dark:text-brand-500">Cliente</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-brand-700 dark:text-brand-500 sm:text-4xl">
-                  Consultar estado de cuenta
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                  Ingresá la placa de uno de tus vehículos y el celular con el que lo registraste en el taller. Verás tus
-                  órdenes de trabajo y facturas (consulta de solo lectura). No necesitás cuenta.
-                </p>
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-slate-200/85 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8">
-                <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
-                  <div>
-                    <label htmlFor="cc-plate" className="va-label text-xs">
-                      Placa del vehículo
-                    </label>
-                    <input
-                      id="cc-plate"
-                      autoComplete="off"
-                      spellCheck={false}
-                      placeholder="Ej. ABC 123"
-                      value={plate}
-                      onChange={(e) => setPlate(e.target.value.toUpperCase())}
-                      className="va-field mt-2 w-full py-2.5 text-sm"
-                    />
+            <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+              <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_70px_-28px_rgba(13,27,62,0.35)] dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[1.05fr_1fr]">
+                {/* Panel de marca */}
+                <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1c2f66] via-[#141f4a] to-[#0c1436] p-7 text-white dark:from-[#121c40] dark:via-[#0e1736] dark:to-[#0a102b] sm:p-9">
+                  {/* Textura sutil de taller */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 opacity-[0.05]"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(45deg, #ffffff 0, #ffffff 1px, transparent 1px, transparent 16px)",
+                    }}
+                  />
+                  <div className="relative">
+                    <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-red-200 ring-1 ring-white/20">
+                      <Car className="h-3.5 w-3.5" aria-hidden />
+                      Portal del cliente · Vene Autos
+                    </p>
+                    <h1 className="mt-6 font-black leading-tight tracking-tight">
+                      <span className="block text-3xl sm:text-4xl">La placa es</span>
+                      <span className="block text-3xl italic text-red-400 sm:text-4xl">tu llave.</span>
+                    </h1>
+                    <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-200 dark:text-slate-300">
+                      Ingresá la placa de tu vehículo y el celular con el que lo registraste en el taller: vas a ver el
+                      estado de cada orden de trabajo al instante, con sus valores y pagos. Consulta de solo lectura, sin
+                      crear cuenta.
+                    </p>
+                    <ul className="mt-7 space-y-3 text-sm">
+                      {[
+                        { Icon: Car, text: "Vehículos y el estado de cada orden." },
+                        { Icon: History, text: "Historial de trabajos y pagos de tu cuenta." },
+                        { Icon: ShieldCheck, text: "Solo lectura: nadie puede modificar tus datos." },
+                      ].map(({ Icon, text }) => (
+                        <li key={text} className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white shadow-sm">
+                            <Icon className="h-3.5 w-3.5" aria-hidden />
+                          </span>
+                          <span className="text-slate-100">{text}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div>
-                    <label htmlFor="cc-phone" className="va-label text-xs">
-                      Celular / WhatsApp
-                    </label>
-                    <input
-                      id="cc-phone"
-                      autoComplete="off"
-                      inputMode="tel"
-                      spellCheck={false}
-                      placeholder="Ej. 300 555 0199"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="va-field mt-2 w-full py-2.5 text-sm"
-                    />
+                  <div className="relative mt-10">
+                    <div className="h-px w-full bg-white/15" aria-hidden />
+                    <p className="mt-4 text-xs leading-relaxed text-slate-300">
+                      ¿Necesitás ayuda? Escribinos por{" "}
+                      <span className="font-semibold text-white">WhatsApp</span>: te respondemos en el horario del taller.
+                    </p>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="va-btn-primary w-full rounded-lg py-3 text-sm font-semibold tracking-tight disabled:opacity-50 sm:w-auto sm:px-10"
-                  >
-                    {loading ? "Buscando…" : "Consultar mi cuenta"}
-                  </button>
-                </form>
+                </div>
 
-                {err ? (
-                  <p className="mt-6 va-alert-error" role="alert">
-                    {err}
+                {/* Formulario */}
+                <div className="bg-white p-7 sm:p-9 dark:bg-[#161a26]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-700 dark:text-brand-400">
+                    Consulta de cuenta
                   </p>
-                ) : null}
+                  <h2 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                    Identificá tu vehículo
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                    Placa y celular: los mismos datos con los que atendés tu vehículo en el taller.
+                  </p>
+
+                  <form onSubmit={(e) => void onSubmit(e)} className="mt-7 space-y-5">
+                    <div>
+                      <label htmlFor="cc-plate" className="va-label text-xs">
+                        Placa del vehículo
+                      </label>
+                      <div className="relative mt-2">
+                        <input
+                          id="cc-plate"
+                          autoComplete="off"
+                          spellCheck={false}
+                          placeholder="ABC 123"
+                          value={plate}
+                          onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                          className="w-full rounded-xl border-[3px] border-brand-900 bg-white px-4 py-3 text-center font-mono text-lg font-bold uppercase tracking-[0.32em] text-brand-950 shadow-[0_3px_0_rgba(20,31,74,0.14)] transition placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300 focus:border-red-500 focus:outline-none focus:ring-4 focus:ring-red-500/20 dark:border-zinc-500 dark:bg-zinc-800 dark:text-zinc-100 dark:shadow-none dark:placeholder:text-slate-500 dark:focus:border-red-400 dark:focus:ring-red-500/25"
+                        />
+                        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 font-sans text-[10px] font-bold uppercase tracking-widest text-slate-300 dark:text-slate-500">
+                          Colombia
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="cc-phone" className="va-label text-xs">
+                        Celular / WhatsApp
+                      </label>
+                      <div className="relative mt-2">
+                        <Phone
+                          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                          aria-hidden
+                        />
+                        <input
+                          id="cc-phone"
+                          type="tel"
+                          autoComplete="off"
+                          inputMode="tel"
+                          spellCheck={false}
+                          placeholder="300 555 0199"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-4 text-base text-slate-900 transition placeholder:text-slate-400 hover:border-slate-400 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-500/15 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-slate-500 dark:focus:border-red-400 dark:focus:ring-red-500/25"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-6 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_-8px_rgba(185,28,28,0.7)] transition hover:bg-brand-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-500/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 dark:shadow-none dark:focus-visible:ring-offset-[#161a26]"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          Buscando…
+                        </>
+                      ) : (
+                        <>
+                          Consultar mi cuenta
+                          <ArrowRight
+                            className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                            aria-hidden
+                          />
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {err ? (
+                    <p className="mt-6 va-alert-error" role="alert">
+                      {err}
+                    </p>
+                  ) : null}
+                </div>
               </div>
+
+              <p className="mt-5 text-center text-xs text-slate-400 dark:text-slate-500">
+                Tu consulta es privada: identifica la cuenta solo con la placa y el celular registrados en el taller.
+              </p>
             </main>
           </>
         )}
