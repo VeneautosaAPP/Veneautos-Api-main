@@ -567,7 +567,7 @@ export function WorkOrderDetailPage() {
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
   const sectionCardClass = isSaas ? 'va-saas-page-section' : 'va-card'
   const sectionFlushClass = isSaas
-    ? `va-wo-lines va-saas-page-section va-saas-page-section--flush flex-1 min-h-0 overflow-y-auto lg:flex-none lg:overflow-visible ${
+    ? `va-wo-lines va-saas-page-section va-saas-page-section--flush flex-1 min-h-0 overflow-auto lg:flex-none lg:overflow-visible ${
         canMutateLines ? 'va-wo-lines--bar' : ''
       }`
     : 'va-card-flush overflow-hidden'
@@ -1463,6 +1463,49 @@ export function WorkOrderDetailPage() {
               </span>
             </span>
             {statusPill()}
+            {isSaas ? (
+              <span className="relative ml-auto lg:hidden">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={actionsMenuOpen}
+                  aria-label="Más acciones"
+                  onClick={() => setActionsMenuOpen((v) => !v)}
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white/80 text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  <MoreVertical className="h-5 w-5" aria-hidden />
+                </button>
+                {actionsMenuOpen ? (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setActionsMenuOpen(false)} />
+                    <div
+                      role="menu"
+                      aria-label="Acciones de la orden"
+                      className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+                    >
+                      {woActions.filter((a) => a.show).map((a) => {
+                        const Icon = a.icon
+                        return (
+                          <button
+                            key={a.key}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setActionsMenuOpen(false)
+                              a.onClick()
+                            }}
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            <Icon className="size-4 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
+                            {a.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                ) : null}
+              </span>
+            ) : null}
           </span>
         }
         description={
@@ -1626,49 +1669,6 @@ ${formatCopFromString(wo.amountDue ?? '0')}
           </div>
         }
       />
-      {isSaas ? (
-        <div className="fixed right-3 top-2 z-[80] lg:hidden">
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={actionsMenuOpen}
-            aria-label="Más acciones"
-            onClick={() => setActionsMenuOpen((v) => !v)}
-            className="inline-flex size-10 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-lg backdrop-blur transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <MoreVertical className="h-5 w-5" aria-hidden />
-          </button>
-          {actionsMenuOpen ? (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setActionsMenuOpen(false)} />
-              <div
-                role="menu"
-                aria-label="Acciones de la orden"
-                className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900"
-              >
-                {woActions.filter((a) => a.show).map((a) => {
-                  const Icon = a.icon
-                  return (
-                    <button
-                      key={a.key}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setActionsMenuOpen(false)
-                        a.onClick()
-                      }}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      <Icon className="size-4 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
-                      {a.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
-          ) : null}
-        </div>
-      ) : null}
       {msg && (
         <p className="va-card-muted shrink-0" role="status" aria-live="polite">
           {msg}

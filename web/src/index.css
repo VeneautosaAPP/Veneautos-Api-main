@@ -1158,6 +1158,23 @@ html.dark .va-landing-commercial-brand :is(.rounded-2xl, [class*='rounded-2xl'])
     border: 0;
     box-shadow: none;
   }
+  /* Cabecera de columnas (Tipo/Detalle/Cant./…) fija justo debajo del banner en móvil:
+     el scroll vertical mueve solo las filas; el scroll horizontal corre en la propia sección. */
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-lines .va-table-scroll {
+    overflow: visible !important;
+  }
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-lines thead th {
+    position: sticky !important;
+    top: 0;
+    z-index: 5;
+    background-color: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 6px 12px -6px rgba(15, 23, 42, 0.35);
+  }
+  html.va-panel-theme-saas-light.dark .va-wo-mobile-app .va-wo-lines thead th {
+    background-color: #1e293b;
+    border-bottom-color: #334155;
+  }
   /* Colchón al final de la lista para que la última línea no quede bajo la barra fija de alta. */
   html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-lines--bar {
     padding-bottom: 6rem !important;
