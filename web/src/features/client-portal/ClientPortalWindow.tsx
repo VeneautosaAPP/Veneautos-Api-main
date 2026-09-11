@@ -521,7 +521,7 @@ export function ClientPortalWindow({
     }`;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         {/* Cabecera del portal */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-zinc-800">
