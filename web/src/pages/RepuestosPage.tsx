@@ -16,14 +16,9 @@ const PAGE_LIMIT = 200
 
 type ImportSummary = { created: number; updated: number; skipped: number; invalid: number }
 
-type Draft = { sku: string; name: string; precio: string }
+type Draft = { name: string; precio: string }
 
-const emptyDraft: Draft = { sku: '', name: '', precio: '' }
-
-/** Normalización live del SKU (coincide con el backend: mayúsculas alfanumérico). */
-function normalizeSkuInput(v: string): string {
-  return v.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-}
+const emptyDraft: Draft = { name: '', precio: '' }
 
 export function RepuestosPage() {
   const { can } = useAuth()
@@ -77,12 +72,6 @@ export function RepuestosPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
 
-  const validateSku = (sku: string): string | null => {
-    if (!sku) return 'El SKU no puede quedar vacío.'
-    if (sku.length > 80) return 'El SKU supera los 80 caracteres.'
-    return null
-  }
-
   const validateNombre = (name: string): string | null => {
     if (!name.trim()) return 'La descripción no puede quedar vacía.'
     if (name.trim().length > 500) return 'La descripción supera los 500 caracteres.'
@@ -100,27 +89,24 @@ export function RepuestosPage() {
     e.preventDefault()
     if (!mayCreate) return
     setMsg(null)
-    const sku = normalizeSkuInput(createDraft.sku)
-    const skuIssue = validateSku(sku)
     const nombreIssue = validateNombre(createDraft.name)
     const precioIssue = validatePrecio(createDraft.precio)
-    if (skuIssue || nombreIssue || precioIssue) {
-      setMsg([skuIssue, nombreIssue, precioIssue].filter(Boolean).join(' '))
+    if (nombreIssue || precioIssue) {
+      setMsg([nombreIssue, precioIssue].filter(Boolean).join(' '))
       return
     }
     setCreateBusy(true)
     try {
-      await api('/spare-parts', {
+      const r = await api<SparePart>('/spare-parts', {
         method: 'POST',
         body: JSON.stringify({
-          sku,
           name: createDraft.name.trim().toUpperCase(),
           price: createDraft.precio.trim() ? normalizeMoneyDecimalStringForApi(createDraft.precio) : '0',
         }),
       })
       setCreateOpen(false)
       setCreateDraft(emptyDraft)
-      setMsg(`Repuesto ${sku} creado`)
+      setMsg(`Repuesto ${r.sku} (${r.name}) creado`)
       await reload()
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : 'Error al crear el repuesto')
@@ -132,7 +118,6 @@ export function RepuestosPage() {
   function startEdit(row: SparePart) {
     setEditingId(row.id)
     setEditDraft({
-      sku: row.sku,
       name: row.name.toUpperCase(),
       precio: String(row.price),
     })
@@ -141,12 +126,10 @@ export function RepuestosPage() {
   async function saveEdit(row: SparePart) {
     if (!mayUpdate) return
     setMsg(null)
-    const sku = normalizeSkuInput(editDraft.sku)
-    const skuIssue = validateSku(sku)
     const nombreIssue = validateNombre(editDraft.name)
     const precioIssue = validatePrecio(editDraft.precio)
-    if (skuIssue || nombreIssue || precioIssue) {
-      setMsg([skuIssue, nombreIssue, precioIssue].filter(Boolean).join(' '))
+    if (nombreIssue || precioIssue) {
+      setMsg([nombreIssue, precioIssue].filter(Boolean).join(' '))
       return
     }
     setBusyId(row.id)
@@ -154,7 +137,6 @@ export function RepuestosPage() {
       await api(`/spare-parts/${row.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          sku,
           name: editDraft.name.trim().toUpperCase(),
           price: editDraft.precio.trim() ? normalizeMoneyDecimalStringForApi(editDraft.precio) : '0',
         }),
@@ -299,17 +281,6 @@ export function RepuestosPage() {
       {createOpen && mayCreate && (
         <form onSubmit={onCreate} className="va-card space-y-3 border-slate-200 p-4 dark:border-slate-700">
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="text-sm">
-              <span className="va-label">SKU (código)</span>
-              <input
-                required
-                autoComplete="off"
-                className="va-field mt-1 font-mono uppercase"
-                value={createDraft.sku}
-                placeholder="ACEITE-15W40"
-                onChange={(e) => setCreateDraft((d) => ({ ...d, sku: normalizeSkuInput(e.target.value) }))}
-              />
-            </label>
             <label className="text-sm sm:col-span-2">
               <span className="va-label">Descripción</span>
               <input
@@ -320,6 +291,12 @@ export function RepuestosPage() {
                 onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value.toUpperCase() }))}
               />
             </label>
+            <div className="text-sm sm:col-span-1">
+              <span className="va-label">SKU (código)</span>
+              <p className="mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 py-0.5 text-xs text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">
+                Se asigna automáticamente (R0001, R0002…)
+              </p>
+            </div>
             <label className="text-sm">
               <span className="va-label">Precio al cliente (0 = variable)</span>
               <input
@@ -393,16 +370,7 @@ export function RepuestosPage() {
                 return (
                   <tr key={row.id} className="align-middle">
                     <td className="px-3 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
-                      {editing ? (
-                        <input
-                          autoComplete="off"
-                          className="va-field w-40 font-mono uppercase"
-                          value={editDraft.sku}
-                          onChange={(e) => setEditDraft((d) => ({ ...d, sku: normalizeSkuInput(e.target.value) }))}
-                        />
-                      ) : (
-                        row.sku
-                      )}
+                      {row.sku}
                     </td>
                     <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
                       {editing ? (

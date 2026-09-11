@@ -4,11 +4,15 @@ import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-valid
 export const PRICE_DECIMAL_REGEX = /^\d{1,10}(\.\d{1,2})?$/;
 
 export class CreateSparePartDto {
-  /** Referencia/código de barras. Se normaliza a MAYÚSCULAS alfanumérico antes de guardar. */
+  /**
+   * Referencia/código de barras. Si se omite, se asigna automáticamente el siguiente
+   * consecutivo (R####). Se normaliza a MAYÚSCULAS alfanumérico antes de guardar.
+   */
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(80)
-  sku!: string;
+  sku?: string;
 
   @IsString()
   @MinLength(2)

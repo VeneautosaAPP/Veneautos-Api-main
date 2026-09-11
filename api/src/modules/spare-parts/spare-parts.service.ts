@@ -157,25 +157,36 @@ export class SparePartsService {
     dto: CreateSparePartDto,
     meta: { ip?: string; userAgent?: string },
   ) {
-    const sku = normalizeSparePartSku(dto.sku);
-    if (!sku) throw new BadRequestException('El SKU no puede quedar vacío');
-    if (sku.length > SKU_MAX) {
-      throw new BadRequestException(`El SKU supera los ${SKU_MAX} caracteres`);
-    }
     const name = normalizeSparePartName(dto.name);
     if (!name) throw new BadRequestException('La descripción no puede quedar vacía');
     if (name.length > NAME_MAX) {
       throw new BadRequestException(`La descripción supera los ${NAME_MAX} caracteres`);
     }
 
-    const existing = await this.prisma.sparePart.findUnique({ where: { sku } });
-    if (existing) {
-      throw new ConflictException('Ya existe un repuesto con ese SKU.');
+    const sameName = await this.prisma.sparePart.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+    });
+    if (sameName) {
+      throw new ConflictException(`Ya existe un repuesto con esa descripción (SKU ${sameName.sku}).`);
     }
 
-    const row = await this.prisma.sparePart.create({
-      data: { sku, name, price: this.parsePrice(dto.price) },
-    });
+    let row: SparePart;
+    if (dto.sku !== undefined && dto.sku.trim() !== '') {
+      const sku = normalizeSparePartSku(dto.sku);
+      if (!sku) throw new BadRequestException('El SKU no puede quedar vacío');
+      if (sku.length > SKU_MAX) {
+        throw new BadRequestException(`El SKU supera los ${SKU_MAX} caracteres`);
+      }
+      const existing = await this.prisma.sparePart.findUnique({ where: { sku } });
+      if (existing) {
+        throw new ConflictException('Ya existe un repuesto con ese SKU.');
+      }
+      row = await this.prisma.sparePart.create({
+        data: { sku, name, price: this.parsePrice(dto.price) },
+      });
+    } else {
+      row = await this.insertWithAutoSku({ name, price: this.parsePrice(dto.price) });
+    }
 
     await this.audit.recordDomain({
       actorUserId,
@@ -190,6 +201,30 @@ export class SparePartsService {
 
     this.invalidateCache();
     return row;
+  }
+
+  /**
+   * Crea el repuesto con el siguiente SKU automático consecutivo (R####), reintentando
+   * ante colisiones de SKU (concurrencia). Comparte la lógica del alta por texto libre.
+   */
+  private async insertWithAutoSku(data: { name: string; price: Prisma.Decimal }): Promise<SparePart> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const existingSkus = (
+        await this.prisma.sparePart.findMany({ select: { sku: true } })
+      ).map((r) => r.sku);
+      const candidate = computeNextSku(existingSkus);
+      try {
+        return await this.prisma.sparePart.create({
+          data: { sku: candidate, name: data.name, price: data.price },
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new ConflictException('No se pudo asignar un SKU automático único. Intentá de nuevo.');
   }
 
   /**
@@ -219,26 +254,7 @@ export class SparePartsService {
     });
     if (byName) return byName;
 
-    let row: SparePart | null = null;
-    for (let attempt = 0; attempt < 5 && !row; attempt += 1) {
-      const existingSkus = (
-        await this.prisma.sparePart.findMany({ select: { sku: true } })
-      ).map((r) => r.sku);
-      const candidate = computeNextSku(existingSkus);
-      try {
-        row = await this.prisma.sparePart.create({
-          data: { sku: candidate, name, price: new Prisma.Decimal(0) },
-        });
-      } catch (e) {
-        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-          continue;
-        }
-        throw e;
-      }
-    }
-    if (!row) {
-      throw new ConflictException('No se pudo asignar un SKU automático único. Intentá de nuevo.');
-    }
+    const row = await this.insertWithAutoSku({ name, price: new Prisma.Decimal(0) });
 
     await this.audit.recordDomain({
       actorUserId,
@@ -293,6 +309,12 @@ export class SparePartsService {
       if (!name) throw new BadRequestException('La descripción no puede quedar vacía');
       if (name.length > NAME_MAX) {
         throw new BadRequestException(`La descripción supera los ${NAME_MAX} caracteres`);
+      }
+      const sameName = await this.prisma.sparePart.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' }, id: { not: id } },
+      });
+      if (sameName) {
+        throw new ConflictException(`Ya existe un repuesto con esa descripción (SKU ${sameName.sku}).`);
       }
     }
 
