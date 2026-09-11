@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ClipboardList,
   Download,
-  FileText,
   LayoutDashboard,
   Search,
   type LucideIcon,
@@ -505,7 +504,6 @@ export function ClientPortalWindow({
     { id: "resumen", label: "Resumen", Icon: LayoutDashboard, badge: null },
     { id: "vehiculos", label: "Mis vehículos", Icon: Car, badge: account.resumen.vehiclesCount },
     { id: "ordenes", label: "Órdenes", Icon: ClipboardList, badge: orders.length },
-    { id: "facturas", label: "Facturas", Icon: FileText, badge: account.resumen.invoicesCount },
   ];
 
   const navBtn = (id: ViewId) =>
