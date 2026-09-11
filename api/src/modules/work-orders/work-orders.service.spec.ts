@@ -29,6 +29,9 @@ describe('WorkOrdersService', () => {
       findUnique: jest.Mock;
       update: jest.Mock;
     };
+    workOrderLine: {
+      create: jest.Mock;
+    };
     workOrderPayment: { aggregate: jest.Mock };
   };
   let audit: { recordDomain: jest.Mock };
@@ -69,6 +72,9 @@ describe('WorkOrdersService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+      },
+      workOrderLine: {
+        create: jest.fn().mockResolvedValue({ id: 'seeded-labor' }),
       },
       workOrderPayment: { aggregate: jest.fn() },
     };
@@ -187,6 +193,21 @@ describe('WorkOrdersService', () => {
           where: { id: 'wo1' },
           data: { publicCode: 'VEN-0005' },
         }),
+      );
+      // Línea inicial de mano de obra automática al crear la OT.
+      expect(prisma.workOrderLine.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workOrderId: 'wo1',
+            lineType: 'LABOR',
+            description: 'MANO DE OBRA',
+            quantity: expect.any(Object),
+            sortOrder: 0,
+          }),
+        }),
+      );
+      expect(audit.recordDomain).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'work_order_lines.created', entityId: 'seeded-labor' }),
       );
     });
   });

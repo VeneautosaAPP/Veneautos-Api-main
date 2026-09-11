@@ -4,7 +4,7 @@ import { api } from '../../../api/client'
 import { queryKeys } from '../../../lib/queryKeys'
 import { useAlert } from '../../../components/confirm/ConfirmProvider'
 import { formatCopFromString, normalizeMoneyDecimalStringForApi } from '../../../utils/copFormat'
-import type { SparePart, WorkOrderDetail, WorkOrderLine, WorkOrderLineType } from '../../../api/types'
+import type { SparePart, WorkOrderDetail, WorkOrderLine } from '../../../api/types'
 import { useWorkOrderDetailMutations } from '../hooks/useWorkOrderDetailMutations'
 import { useApplyLinesSnapshot } from '../hooks/useApplyLinesSnapshot'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -29,9 +29,9 @@ export type WorkOrderLineAddPanelProps = {
 }
 
 /**
- * Panel de alta de líneas (repuestos y mano de obra) de la OT: pestañas Repuesto / Mano de obra con
- * autocompletado del catálogo para repuestos y texto libre para trabajo. Vive junto al banner
- * principal (separado del listado de líneas); al agregar, la fila nueva se abre en edición abajo.
+ * Panel de alta de repuestos de la OT: busca en el catálogo (o texto libre) y agrega la línea con
+ * Enter. La mano de obra nace automáticamente al crear la orden (“MANO DE OBRA”) y se ajusta en la
+ * tabla; acá solo se cargan repuestos. Al agregar, la fila nueva se abre en edición abajo.
  */
 export function WorkOrderLineAddPanel({
   workOrder: wo,
@@ -46,18 +46,14 @@ export function WorkOrderLineAddPanel({
   const queryClient = useQueryClient()
   const { postLine } = useWorkOrderDetailMutations(id)
   const applySnapshot = useApplyLinesSnapshot(id, setWo)
-  const [addKind, setAddKind] = useState<WorkOrderLineType>('PART')
   const [partDesc, setPartDesc] = useState('')
-  const [laborDesc, setLaborDesc] = useState('')
   const partDescInputRef = useRef<HTMLInputElement | null>(null)
-  const laborDescInputRef = useRef<HTMLInputElement | null>(null)
   /**
    * Bloqueo de alta en vuelo: un solo Enter agrega la línea. Sin esto, mantener el Enter
    * presionado (repetición de tecla) o apretarlo dos veces en ráfaga dispara dos POST y
-   * quedan repuestos/trabajos duplicados de la misma descripción.
+   * quedan repuestos duplicados de la misma descripción.
    */
   const partAddPendingRef = useRef(false)
-  const laborAddPendingRef = useRef(false)
   const [partCatalogTerm, setPartCatalogTerm] = useState('')
   const [partComboOpen, setPartComboOpen] = useState(false)
   const [partComboIndex, setPartComboIndex] = useState(-1)
@@ -274,198 +270,127 @@ export function WorkOrderLineAddPanel({
     }
   }
 
-  async function addLaborLine() {
-    if (!id) return
-    const description = laborDesc.trim()
-    if (!description) return
-    if (laborAddPendingRef.current) return
-    laborAddPendingRef.current = true
-    setMsg(null)
-    try {
-      const res = await postLine.mutateAsync({
-        lineType: 'LABOR',
-        description,
-        quantity: '1',
-      })
-      // Remata en una sola llamada: tabla + subtotales + totales + saldo (sin GET de refresco).
-      applySnapshot(res)
-      setLaborDesc('')
-      laborDescInputRef.current?.focus()
-      // Sin aviso: la línea nueva ya aparece en la tabla.
-    } catch (e) {
-      if (!(await onBlockingError(e))) {
-        setMsg(e instanceof Error ? e.message : 'Error al agregar trabajo')
-      }
-    } finally {
-      laborAddPendingRef.current = false
-    }
-  }
-
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-5">
-      <div className="va-tabstrip max-w-md">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={addKind === 'PART'}
-          onClick={() => setAddKind('PART')}
-          className={`va-tab ${addKind === 'PART' ? 'va-tab-active' : 'va-tab-inactive'}`}
-        >
-          Repuesto
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={addKind === 'LABOR'}
-          onClick={() => setAddKind('LABOR')}
-          className={`va-tab ${addKind === 'LABOR' ? 'va-tab-active' : 'va-tab-inactive'}`}
-        >
-          Mano de obra
-        </button>
-      </div>
-
-      {addKind === 'PART' ? (
-        <div className="mt-3">
-          <label className="block text-sm">
-            <span className="va-label">Descripción del repuesto (catálogo o texto libre)</span>
-            <div className="relative mt-1">
-              <input
-                ref={partDescInputRef}
-                value={partDesc}
-                role="combobox"
-                aria-expanded={partComboOpen && partSuggestions.length > 0}
-                aria-controls="wo-parts-listbox"
-                aria-activedescendant={
-                  partComboOpen && partComboIndex >= 0 ? `wo-part-opt-${partComboIndex}` : undefined
+      <label className="block text-sm">
+        <span className="va-label">Descripción del repuesto (catálogo o texto libre)</span>
+        <div className="relative mt-1">
+          <input
+            ref={partDescInputRef}
+            value={partDesc}
+            role="combobox"
+            aria-expanded={partComboOpen && partSuggestions.length > 0}
+            aria-controls="wo-parts-listbox"
+            aria-activedescendant={
+              partComboOpen && partComboIndex >= 0 ? `wo-part-opt-${partComboIndex}` : undefined
+            }
+            autoComplete="off"
+            onChange={(e) => {
+              const v = e.target.value
+              setPartDesc(v)
+              setPartCatalogTerm(v)
+              setPartComboIndex(-1)
+              setPartComboOpen(true)
+            }}
+            onBlur={() => setPartComboOpen(false)}
+            onFocus={() => {
+              if (debouncedPartTerm.trim().length >= 2) setPartComboOpen(true)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                if (!partComboOpen) setPartComboOpen(true)
+                setPartComboIndex((i) => Math.min(i + 1, partSuggestions.length - 1))
+              } else if (e.key === 'ArrowUp') {
+                setPartComboIndex((i) => Math.max(i - 1, 0))
+              } else if (e.key === 'Enter') {
+                e.preventDefault()
+                if (partComboOpen && partComboIndex >= 0 && partSuggestions[partComboIndex]) {
+                  void selectPart(partSuggestions[partComboIndex]!)
+                } else if (partExactCandidate) {
+                  void selectPart(partExactCandidate)
+                } else if (partDesc.trim().length >= 2) {
+                  void addPartFromFreeText()
                 }
-                autoComplete="off"
-                onChange={(e) => {
-                  const v = e.target.value
-                  setPartDesc(v)
-                  setPartCatalogTerm(v)
-                  setPartComboIndex(-1)
-                  setPartComboOpen(true)
-                }}
-                onBlur={() => setPartComboOpen(false)}
-                onFocus={() => {
-                  if (debouncedPartTerm.trim().length >= 2) setPartComboOpen(true)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowDown') {
-                    if (!partComboOpen) setPartComboOpen(true)
-                    setPartComboIndex((i) => Math.min(i + 1, partSuggestions.length - 1))
-                  } else if (e.key === 'ArrowUp') {
-                    setPartComboIndex((i) => Math.max(i - 1, 0))
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault()
-                    if (partComboOpen && partComboIndex >= 0 && partSuggestions[partComboIndex]) {
-                      void selectPart(partSuggestions[partComboIndex]!)
-                    } else if (partExactCandidate) {
-                      void selectPart(partExactCandidate)
-                    } else if (partDesc.trim().length >= 2) {
-                      void addPartFromFreeText()
-                    }
-                  } else if (e.key === 'Escape') {
-                    setPartComboOpen(false)
-                    setPartComboIndex(-1)
-                  }
-                }}
-                className="va-field"
-                placeholder="ej. ACEITE-15W40 o filtro de aceite · Enter agrega"
-              />
-              {partComboOpen && debouncedPartTerm.trim().length >= 2 ? (
-                <div
-                  id="wo-parts-listbox"
-                  role="listbox"
-                  aria-label="Sugerencias del catálogo de repuestos"
-                  className="absolute left-0 right-0 z-30 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-                >
-                  {partSearchQuery.isFetching || (catalogQuery.isPending && !catalogIsComplete) ? (
-                    <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Buscando en el catálogo…</p>
-                  ) : partSuggestions.length === 0 ? (
-                    <>
-                      <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
-                        Sin coincidencias en el catálogo.
-                      </p>
-                      {canCreateSparePart ? (
-                        <button
-                          type="button"
-                          role="option"
-                          id="wo-part-create"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => void addPartFromFreeText()}
-                          className="block w-full px-3 py-1.5 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-slate-800"
-                        >
-                          + Agregar «{debouncedPartTerm.trim()}» al catálogo y a la orden
-                        </button>
-                      ) : null}
-                    </>
-                  ) : (
-                    <>
-                      {partSuggestions.map((s, i) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          role="option"
-                          id={`wo-part-opt-${i}`}
-                          aria-selected={partComboIndex === i}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => void selectPart(s)}
-                          onMouseMove={() => setPartComboIndex(i)}
-                          className={`block w-full px-3 py-1.5 text-left text-sm ${
-                            partComboIndex === i
-                              ? 'bg-brand-50 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                              : 'text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            {s.sku}
-                          </span>{' '}
-                          · {s.name}{' '}
-                          <span className="tabular-nums text-slate-500 dark:text-slate-400">
-                            {Number(s.price) > 0 ? `· $${formatCopFromString(String(s.price))}` : '· precio variable'}
-                          </span>
-                        </button>
-                      ))}
-                      {!partExactCandidate && canCreateSparePart ? (
-                        <button
-                          type="button"
-                          role="option"
-                          id="wo-part-create-bottom"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => void addPartFromFreeText()}
-                          className="mt-1 block w-full border-t border-slate-200 px-3 py-1.5 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-slate-700 dark:text-brand-300 dark:hover:bg-slate-800"
-                        >
-                          + Agregar «{debouncedPartTerm.trim()}» al catálogo y a la orden
-                        </button>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              ) : null}
+              } else if (e.key === 'Escape') {
+                setPartComboOpen(false)
+                setPartComboIndex(-1)
+              }
+            }}
+            className="va-field"
+            placeholder="ej. ACEITE-15W40 o filtro de aceite · Enter agrega"
+          />
+          {partComboOpen && debouncedPartTerm.trim().length >= 2 ? (
+            <div
+              id="wo-parts-listbox"
+              role="listbox"
+              aria-label="Sugerencias del catálogo de repuestos"
+              className="absolute left-0 right-0 z-30 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+            >
+              {partSearchQuery.isFetching || (catalogQuery.isPending && !catalogIsComplete) ? (
+                <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Buscando en el catálogo…</p>
+              ) : partSuggestions.length === 0 ? (
+                <>
+                  <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                    Sin coincidencias en el catálogo.
+                  </p>
+                  {canCreateSparePart ? (
+                    <button
+                      type="button"
+                      role="option"
+                      id="wo-part-create"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void addPartFromFreeText()}
+                      className="block w-full px-3 py-1.5 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-slate-800"
+                    >
+                      + Agregar «{debouncedPartTerm.trim()}» al catálogo y a la orden
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {partSuggestions.map((s, i) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      role="option"
+                      id={`wo-part-opt-${i}`}
+                      aria-selected={partComboIndex === i}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void selectPart(s)}
+                      onMouseMove={() => setPartComboIndex(i)}
+                      className={`block w-full px-3 py-1.5 text-left text-sm ${
+                        partComboIndex === i
+                          ? 'bg-brand-50 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                          : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {s.sku}
+                      </span>{' '}
+                      · {s.name}{' '}
+                      <span className="tabular-nums text-slate-500 dark:text-slate-400">
+                        {Number(s.price) > 0 ? `· $${formatCopFromString(String(s.price))}` : '· precio variable'}
+                      </span>
+                    </button>
+                  ))}
+                  {!partExactCandidate && canCreateSparePart ? (
+                    <button
+                      type="button"
+                      role="option"
+                      id="wo-part-create-bottom"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void addPartFromFreeText()}
+                      className="mt-1 block w-full border-t border-slate-200 px-3 py-1.5 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-slate-700 dark:text-brand-300 dark:hover:bg-slate-800"
+                    >
+                      + Agregar «{debouncedPartTerm.trim()}» al catálogo y a la orden
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
-          </label>
+          ) : null}
         </div>
-      ) : (
-        <div className="mt-3">
-          <label className="block text-sm">
-            <span className="va-label">Descripción del trabajo</span>
-            <input
-              ref={laborDescInputRef}
-              value={laborDesc}
-              onChange={(e) => setLaborDesc(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && laborDesc.trim() && !e.shiftKey) {
-                  e.preventDefault()
-                  void addLaborLine()
-                }
-              }}
-              className="va-field mt-1"
-              placeholder="ej. Cambio de aceite y filtro · Enter agrega"
-            />
-          </label>
-        </div>
-      )}
+      </label>
     </div>
   )
 }

@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { Prisma, WorkOrderStatus } from '@prisma/client';
+import { Prisma, WorkOrderLineType, WorkOrderStatus } from '@prisma/client';
 import { ceilWholeCop } from '../../common/money/cop-money';
 import { NotesPolicyService } from '../../common/notes-policy/notes-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -179,11 +179,24 @@ export class WorkOrdersService {
     /** Valor único temporal: `public_code` es NOT NULL y se reemplaza en el mismo commit por `VEN-…`. */
     const pendingPublicCode = `T${randomBytes(10).toString('hex')}`;
 
+    let seededLaborLineId: string | null = null;
+
     const row = await this.prisma.$transaction(async (tx) => {
       const created = await tx.workOrder.create({
         data: { ...data, publicCode: pendingPublicCode },
         include: includeAfterCreate,
       });
+      // Línea inicial de mano de obra: se edita directo en la tabla (descripción, precio, impuesto).
+      const laborLine = await tx.workOrderLine.create({
+        data: {
+          workOrderId: created.id,
+          lineType: WorkOrderLineType.LABOR,
+          description: 'MANO DE OBRA',
+          quantity: new Prisma.Decimal(1),
+          sortOrder: 0,
+        },
+      });
+      seededLaborLineId = laborLine.id;
       const publicCode = formatWorkOrderPublicCode(created.orderNumber);
       return tx.workOrder.update({
         where: { id: created.id },
@@ -209,6 +222,24 @@ export class WorkOrdersService {
       ipAddress: meta.ip ?? null,
       userAgent: meta.userAgent ?? null,
     });
+
+    if (seededLaborLineId) {
+      await this.audit.recordDomain({
+        actorUserId,
+        action: 'work_order_lines.created',
+        entityType: 'WorkOrderLine',
+        entityId: seededLaborLineId,
+        previousPayload: null,
+        nextPayload: {
+          workOrderId: row.id,
+          lineType: WorkOrderLineType.LABOR,
+          description: 'MANO DE OBRA',
+          quantity: '1',
+        },
+        ipAddress: meta.ip ?? null,
+        userAgent: meta.userAgent ?? null,
+      });
+    }
 
     return this.stripWorkOrderSnapshotFinancials(actor, row);
   }
