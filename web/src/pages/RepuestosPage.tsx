@@ -114,8 +114,8 @@ export function RepuestosPage() {
         method: 'POST',
         body: JSON.stringify({
           sku,
-          name: createDraft.name.trim(),
-          precio: createDraft.precio.trim() ? normalizeMoneyDecimalStringForApi(createDraft.precio) : '0',
+          name: createDraft.name.trim().toUpperCase(),
+          price: createDraft.precio.trim() ? normalizeMoneyDecimalStringForApi(createDraft.precio) : '0',
         }),
       })
       setCreateOpen(false)
@@ -133,7 +133,7 @@ export function RepuestosPage() {
     setEditingId(row.id)
     setEditDraft({
       sku: row.sku,
-      name: row.name,
+      name: row.name.toUpperCase(),
       precio: String(row.price),
     })
   }
@@ -155,8 +155,8 @@ export function RepuestosPage() {
         method: 'PATCH',
         body: JSON.stringify({
           sku,
-          name: editDraft.name.trim(),
-          precio: editDraft.precio.trim() ? normalizeMoneyDecimalStringForApi(editDraft.precio) : '0',
+          name: editDraft.name.trim().toUpperCase(),
+          price: editDraft.precio.trim() ? normalizeMoneyDecimalStringForApi(editDraft.precio) : '0',
         }),
       })
       setEditingId(null)
@@ -314,10 +314,10 @@ export function RepuestosPage() {
               <span className="va-label">Descripción</span>
               <input
                 required
-                className="va-field mt-1"
+                className="va-field mt-1 uppercase"
                 value={createDraft.name}
                 placeholder="ej. Aceite motor 15W-40 cuñete"
-                onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
+                onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value.toUpperCase() }))}
               />
             </label>
             <label className="text-sm">
@@ -407,9 +407,9 @@ export function RepuestosPage() {
                     <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
                       {editing ? (
                         <input
-                          className="va-field"
+                          className="va-field uppercase"
                           value={editDraft.name}
-                          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value.toUpperCase() }))}
                         />
                       ) : (
                         row.name

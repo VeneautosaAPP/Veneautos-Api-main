@@ -14,6 +14,11 @@ export function normalizeSparePartSku(raw: string): string {
   return raw.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '');
 }
 
+/** Nombre/descripción normalizado: se guarda siempre en mayúsculas (consistente con búsquedas y comprobantes). */
+export function normalizeSparePartName(raw: string): string {
+  return raw.trim().toUpperCase();
+}
+
 /**
  * Siguiente SKU automático consecutivo con formato R#### (R0001, R0002, …).
  * Solo cuenta SKUs autogenerados (patrón R y dígitos); el resto se ignora.
@@ -157,7 +162,7 @@ export class SparePartsService {
     if (sku.length > SKU_MAX) {
       throw new BadRequestException(`El SKU supera los ${SKU_MAX} caracteres`);
     }
-    const name = dto.name.trim();
+    const name = normalizeSparePartName(dto.name);
     if (!name) throw new BadRequestException('La descripción no puede quedar vacía');
     if (name.length > NAME_MAX) {
       throw new BadRequestException(`La descripción supera los ${NAME_MAX} caracteres`);
@@ -197,7 +202,7 @@ export class SparePartsService {
     dto: FreeTextSparePartDto,
     meta: { ip?: string; userAgent?: string },
   ) {
-    const name = dto.name.trim();
+    const name = normalizeSparePartName(dto.name);
     if (!name) throw new BadRequestException('La descripción no puede quedar vacía');
     if (name.length > NAME_MAX) {
       throw new BadRequestException(`La descripción supera los ${NAME_MAX} caracteres`);
@@ -284,7 +289,7 @@ export class SparePartsService {
 
     let name: string | undefined;
     if (dto.name !== undefined) {
-      name = dto.name.trim();
+      name = normalizeSparePartName(dto.name);
       if (!name) throw new BadRequestException('La descripción no puede quedar vacía');
       if (name.length > NAME_MAX) {
         throw new BadRequestException(`La descripción supera los ${NAME_MAX} caracteres`);
@@ -409,7 +414,7 @@ export class SparePartsService {
           continue;
         }
 
-        const name = String(cells[1] ?? '').trim();
+        const name = normalizeSparePartName(String(cells[1] ?? ''));
         const priceRaw = String(cells[2] ?? '').replace(/[^\d.,-]/g, '');
         let price = new Prisma.Decimal(0);
         if (priceRaw) {

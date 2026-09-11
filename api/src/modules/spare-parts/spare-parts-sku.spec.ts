@@ -1,4 +1,4 @@
-import { computeNextSku, normalizeSparePartSku } from './spare-parts.service';
+import { computeNextSku, normalizeSparePartName, normalizeSparePartSku } from './spare-parts.service';
 
 describe('normalizeSparePartSku', () => {
   it('mayúsculas y elimina los no alfanuméricos', () => {
@@ -7,6 +7,12 @@ describe('normalizeSparePartSku', () => {
 
   it('resuelve a vacío si no quedan caracteres', () => {
     expect(normalizeSparePartSku('   -_ ')).toBe('');
+  });
+});
+
+describe('normalizeSparePartName', () => {
+  it('recorta y pasa a mayúsculas', () => {
+    expect(normalizeSparePartName('  Aceite motor 15W-40 cuñete ')).toBe('ACEITE MOTOR 15W-40 CUÑETE');
   });
 });
 
