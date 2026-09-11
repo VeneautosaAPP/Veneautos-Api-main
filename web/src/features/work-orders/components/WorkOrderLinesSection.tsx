@@ -277,8 +277,7 @@ export function WorkOrderLinesSection({
           >
             <thead>
               <tr className="va-table-head-row">
-                <th className="va-table-th w-28">Tipo</th>
-                <th className="va-table-th">Detalle</th>
+                <th className="va-table-th w-40">Tipo</th>
                 <th className="va-table-th w-20">Cant.</th>
                 {canViewWoFinancials ? (
                   <>
@@ -288,6 +287,7 @@ export function WorkOrderLinesSection({
                 ) : null}
                 {canViewWoCosts ? <th className="va-table-th w-32">P. proveedor</th> : null}
                 {canViewWoFinancials ? <th className="va-table-th w-32">Importe</th> : null}
+                <th className="va-table-th">Detalle</th>
                 {showLineActionsColumn ? <th className="va-table-th w-24" /> : null}
               </tr>
             </thead>
@@ -344,54 +344,12 @@ export function WorkOrderLinesSection({
                     <span
                       className={
                         ln.lineType === 'PART'
-                          ? 'rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-50'
-                          : 'rounded-md bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-50'
+                          ? 'whitespace-nowrap rounded-md bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-50'
+                          : 'whitespace-nowrap rounded-md bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-50'
                       }
                     >
                       {ln.lineType === 'PART' ? 'Repuesto' : 'Mano de obra'}
                     </span>
-                  </td>
-                  <td className="va-table-td min-w-0 max-w-xs text-slate-700 dark:text-slate-300">
-                    {editing ? (
-                      <>
-                        <input
-                          value={editDesc}
-                          onChange={(e) => setEditDesc(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              void saveEdit()
-                            }
-                          }}
-                          className={lineDescInputClass}
-                          aria-label="Descripción de la línea"
-                        />
-                        {ln.lineType === 'LABOR' && canViewWoFinancials && taxRatesCatalog.length > 0 ? (
-                          <select
-                            value={editTaxRateId}
-                            onChange={(e) => setEditTaxRateId(e.target.value)}
-                            className={`${lineDescInputClass} mt-1`}
-                            aria-label="Impuesto de la línea"
-                          >
-                            <option value="">— Sin impuesto —</option>
-                            {taxRatesCatalog.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name} ({t.kind})
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        <span className="line-clamp-2">{ln.description ?? '—'}</span>
-                        {ln.sparePartSku ? (
-                          <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-100">
-                            {ln.sparePartSku}
-                          </span>
-                        ) : null}
-                      </>
-                    )}
                   </td>
                   <td className="va-table-td font-mono text-slate-800 dark:text-slate-200">
                     {editing ? (
@@ -506,6 +464,48 @@ export function WorkOrderLinesSection({
                           : `$${formatCopFromString(lineMoney(ln))}`}
                     </td>
                   ) : null}
+                  <td className="va-table-td min-w-0 max-w-xs text-slate-700 dark:text-slate-300">
+                    {editing ? (
+                      <>
+                        <input
+                          value={editDesc}
+                          onChange={(e) => setEditDesc(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              void saveEdit()
+                            }
+                          }}
+                          className={lineDescInputClass}
+                          aria-label="Descripción de la línea"
+                        />
+                        {ln.lineType === 'LABOR' && canViewWoFinancials && taxRatesCatalog.length > 0 ? (
+                          <select
+                            value={editTaxRateId}
+                            onChange={(e) => setEditTaxRateId(e.target.value)}
+                            className={`${lineDescInputClass} mt-1`}
+                            aria-label="Impuesto de la línea"
+                          >
+                            <option value="">— Sin impuesto —</option>
+                            {taxRatesCatalog.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.kind})
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <span className="line-clamp-2">{ln.description ?? '—'}</span>
+                        {ln.sparePartSku ? (
+                          <span className="mt-0.5 inline-flex rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-100">
+                            {ln.sparePartSku}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </td>
                   {showLineActionsColumn ? (
                     <td className="va-table-td">
                       <div className="flex flex-wrap items-center gap-1">
