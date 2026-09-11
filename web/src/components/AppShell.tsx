@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
 import {
   BarChart3,
   ChevronLeft,
@@ -32,6 +32,7 @@ import { prefetchCashShellQueries } from '../features/cash/cashPrefetch'
 import { prefetchSettingsAdminPanel } from '../features/settings/prefetchSettingsNav'
 import { prefetchDefaultWorkOrdersList } from '../features/work-orders/prefetch/workOrdersNavPrefetch'
 import { WorkOrderStatusAlertsBell } from '../features/work-orders'
+import { FullscreenToggle } from './FullscreenToggle'
 
 type PreviewRoleRow = { id: string; name: string; slug: string; isSystem: boolean }
 
@@ -154,6 +155,47 @@ function AppShellInner() {
   /** Menú lateral móvil: oculto por defecto, se desliza desde la izquierda al abrirse. */
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const mobileMenuClose = useCallback(() => setMobileMenuOpen(false), [])
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  /** Gestos táctiles (patrón autopiezas-tegui): abrir deslizando desde el borde izq., cerrar deslizando a la izq. */
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+  const isTouchViewport = useCallback(() => {
+    if (typeof window === 'undefined') return false
+    return !window.matchMedia('(min-width: 1024px)').matches
+  }, [])
+  const onShellTouchStart = useCallback(
+    (e: TouchEvent) => {
+      if (!isTouchViewport()) return
+      const touch = e.touches[0]
+      if (!touch) return
+      swipeStart.current = { x: touch.clientX, y: touch.clientY }
+    },
+    [isTouchViewport],
+  )
+  const onShellTouchEnd = useCallback(
+    (e: TouchEvent) => {
+      if (!isTouchViewport()) return
+      const start = swipeStart.current
+      swipeStart.current = null
+      const touch = e.changedTouches[0]
+      if (!start || !touch) return
+      const dx = touch.clientX - start.x
+      const dy = touch.clientY - start.y
+      if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.2) return
+      if (mobileMenuOpen) {
+        if (dx < 0) setMobileMenuOpen(false)
+      } else if (start.x <= 24 && dx > 0) {
+        setMobileMenuOpen(true)
+      }
+    },
+    [isTouchViewport, mobileMenuOpen],
+  )
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -288,6 +330,14 @@ function AppShellInner() {
 
   const linkTos = useMemo(() => links.map((l) => l.to), [links])
 
+  const mobileBottomLinks = useMemo(
+    () =>
+      [portalPath('/'), portalPath('/ordenes'), portalPath('/caja'), portalPath('/clientes')]
+        .map((to) => links.find((l) => l.to === to))
+        .filter((l): l is NavLinkItem => Boolean(l)),
+    [links],
+  )
+
   const horizontalLinkClass = isSaas ? navLinkHorizontalSaasClass : navLinkClass
 
   const syncPill = useCallback(() => {
@@ -421,17 +471,11 @@ function AppShellInner() {
   )
 
   const saasToolbar = user && (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+    <div className="flex shrink-0 items-center gap-1.5">
       {SHOW_WORK_ORDER_ALERTS_BELL ? (
         <WorkOrderStatusAlertsBell iconButtonClassName={saasIconButtonClass()} />
       ) : null}
-      {renderRolePreviewSelect({
-        id: 'header-role-preview-saas',
-        placeholder: 'Mis permisos',
-        wrapperClass: 'max-w-[9.5rem] sm:max-w-[12rem]',
-        selectClass:
-          'va-field max-w-full cursor-pointer rounded-lg border-slate-200 py-1.5 pr-6 text-xs font-medium dark:border-slate-600 sm:text-sm',
-      })}
+      <FullscreenToggle className={saasIconButtonClass()} />
       <button
         type="button"
         onClick={handleLogout}
@@ -496,6 +540,8 @@ function AppShellInner() {
   return (
     <div
       className={`va-app-shell flex min-h-dvh flex-col bg-slate-100 dark:bg-slate-950 ${isSaas ? 'lg:flex-row lg:items-stretch' : ''}`}
+      onTouchStart={onShellTouchStart}
+      onTouchEnd={onShellTouchEnd}
     >
       <a
         href="#app-main-content"
@@ -638,11 +684,15 @@ function AppShellInner() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header
           ref={appShellHeaderRef}
-          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200 bg-white dark:bg-slate-900 lg:hidden' : 'bg-white dark:bg-slate-900'}`}
+          className={`va-app-shell-header sticky top-0 z-30 border-b border-slate-300 backdrop-blur-md dark:border-slate-800 ${isSaas ? 'border-slate-200 bg-white dark:bg-slate-900 lg:hidden' : 'bg-white dark:bg-slate-900'} ${isFullscreen ? 'hidden' : ''}`}
         >
           {isSaas && user ? (
-            <div className={`mx-auto flex w-full flex-col gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 xl:px-5 xl:py-3.5 ${shellMaxClass}`}>
-              <div className="flex items-center gap-2 lg:hidden">
+            <div
+              className={`mx-auto flex w-full items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5 xl:px-5 ${shellMaxClass} ${
+                isFullscreen ? 'hidden' : ''
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(true)}
@@ -659,12 +709,10 @@ function AppShellInner() {
                   className="va-app-shell-brand flex min-w-0 items-center overflow-hidden rounded-md outline-offset-2"
                   end
                 >
-                  <PanelBrandLogo className="h-7 w-auto max-w-[min(78vw,15rem)] object-contain object-left sm:h-8 sm:max-w-[16rem]" />
+                  <PanelBrandLogo className="h-7 w-auto max-w-[min(52vw,13rem)] object-contain object-left sm:h-8 sm:max-w-[14rem]" />
                 </NavLink>
               </div>
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-                {saasToolbar}
-              </div>
+              {saasToolbar}
             </div>
           ) : (
             <div
@@ -685,7 +733,7 @@ function AppShellInner() {
 
         <main
           id="app-main-content"
-          className={`va-app-shell-main mx-auto w-full flex-1 px-3 py-4 sm:px-4 sm:py-6 xl:px-5 xl:py-7 ${shellMaxClass}`}
+          className={`va-app-shell-main mx-auto w-full flex-1 px-3 pt-4 sm:px-4 sm:pt-6 ${isFullscreen ? 'pb-4 sm:pb-6' : 'pb-16 sm:pb-16'} lg:pb-7 xl:px-5 xl:py-7 ${shellMaxClass}`}
         >
           <Outlet />
         </main>
@@ -694,6 +742,48 @@ function AppShellInner() {
           <div className={`mx-auto text-left ${shellMaxClass}`}>Vene Autos — panel del taller</div>
         </footer>
       </div>
+
+      {isSaas && (
+        <nav
+          aria-label="Barra inferior móvil"
+          className={`fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-0.5 border-t border-slate-200 bg-white px-1 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1 lg:hidden dark:border-slate-800 dark:bg-slate-900 ${
+            isFullscreen ? 'hidden' : ''
+          }`}
+        >
+          {mobileBottomLinks.map(({ to, label, Icon }) => {
+            const active = location.pathname === to || location.pathname.startsWith(`${to}/`)
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                aria-current={active ? 'page' : undefined}
+                onClick={mobileMenuClose}
+                className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-semibold ${
+                  active
+                    ? 'text-brand-700 dark:text-brand-300'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                <Icon size={19} strokeWidth={active ? 2.5 : 2} aria-hidden />
+                <span className="truncate">{label}</span>
+              </NavLink>
+            )
+          })}
+          <button
+            type="button"
+            aria-label="Abrir más opciones"
+            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-semibold ${
+              mobileMenuOpen
+                ? 'text-brand-700 dark:text-brand-300'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <Menu size={19} strokeWidth={2} aria-hidden />
+            <span>Más</span>
+          </button>
+        </nav>
+      )}
 
       {isSaas && (
         <>
