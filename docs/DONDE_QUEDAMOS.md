@@ -1,9 +1,24 @@
-# DONDE QUEDAMOS — Sesión de trabajo (actualizada: 2026-09-09)
+# DONDE QUEDAMOS — Sesión de trabajo (actualizada: 2026-09-11)
 
 > Fichero de continuidad. Cuando el usuario diga **"revisa DOCS para ver por donde quedamos"**,
 > leer este archivo y retomar desde "Siguiente paso".
 
 ## Foco actual (pendiente en curso)
+
+### Banner del detalle de OT en escritorio — SESIÓN 2026-09-11 (commiteado y pusheado)
+
+Commit **`cfedd2a`** → push `7916c6c..cfedd2a` a `origin/master`. Archivos: `web/src/pages/WorkOrderDetailPage.tsx`, `web/src/index.css`, `web/src/features/work-orders/components/WorkOrderLineAddPanel.tsx`.
+
+- **Píldoras del banner:** una sola fila en escritorio ratón (≥1280 `and (hover:hover)`), orden `OT → técnico → estado → marca → modelo → km ingreso → ingreso → cierre`; más altas (25px), esquinas 9px, gap 9.5px, texto ~9.5px; la columna izquierda se alinea a **la altura de los subtotales** (`align-items: flex-start` → top 16 = top 16).
+- **Hueco invisible eliminado:** en desktop el `<h1>` del título se oculta (`display:none; margin:0`) y se anulan los márgenes `mt`/`pt` internos → el input queda pegado justo bajo las píldoras (gap 0).
+- **Input + botón "+ Mano de obra":** el ancho del conjunto iguala el **ancho total de todas las píldoras juntas**, medido dinámicamente en JS (`pillsRowRef` + `useEffect with deps [wo, isDesktop]` + `ResizeObserver` + re-medida en `resize` — el `ResizeObserver` solo no alcanza porque la fila no cambia de caja al llegar los chips con `wo`). El botón queda pegado al extremo derecho, **justo bajo la píldora de fecha**. Input = 50% del conjunto; altura −5% (13.3px / padding 7.6px). Corregido dos veces (350px base hardcodeada → medición dinámica; medición pre-`wo` → deps `[wo]`).
+- **Botones de acciones:** labels cortos (Comprobante · WhatsApp · Datos de la orden · Cobrar) y ~10% más pequeños en desktop (`0.78rem`/`1.1rem`, padding `.3125/.625`; `btn-sm` `0.72rem`).
+- **Financieros:** montos `1.5rem → 1.35rem` y etiquetas `11px → 9.9px` (solo ≥1280).
+- **Sin marco:** banner y listado de líneas sin borde/sombra (global); banner pegado al tope (sticky anclado a `--va-app-header-h`); sin línea divisoria bajo el título del panel.
+- **Nodo muerto eliminado:** el bloque `va-wo-pills-desktop` (que nunca era visible en ningún ancho) y su helper `vehicleInfoPillsDesktop()` + reglas CSS.
+- **Limpieza por dispositivo** (hook `useMediaQuery` nuevo en la página, `isDesktop`/`isLg`): las píldoras `va-wo-desktop-pills` ahora **solo se renderizan en desktop ratón**; `fin-big` y botones de acciones **solo ≥1024**; resumen compacto `fin-compact` y menú "⋯" **solo <1024**. El DOM ya no monta bloques invisibles de otros rangos.
+- **Verificado:** `tsc` + `vite build` limpios; probes de Playwright con réplicas estáticas en 1440/1280/1024/<1024 (alineaciones y ausencia de nodos ocultos). Sin acceso al panel real → falta revisión visual con Ctrl+F5.
+- `api-dev.log` y `test-results/` ahora en `.gitignore`.
 
 ### Sección «Nómina» (implementada localmente — pendiente de push y deploy)
 
@@ -93,14 +108,11 @@ Commit **`e559979`** (push `9493e40..e559979`). Incluye:
 
 ## Siguiente paso (al retomar)
 
-0. **Commits + push + deploy de la sección «Nómina»** (ver "Foco actual"): los 2 commits originales ya están pusheados (`b356d43`, `9b6bca2`); quedan por commitear y pushear los cambios de **% de comisión por OT** (migración `20260910022505_work_order_labor_commission_pct`, `PUT /payroll/weekly-summary/ratios/:id`, calculadora libre única, % editable por fila). Luego desplegar API (Railway: **`prisma migrate deploy` a mano** + re-seed de permisos `payroll:*`) y web (Vercel) según `DEPLOY-CHECKLIST.md`.
-1. **Volver a preguntar** al usuario la decisión WhatsApp Desktop vs Web (ver "Pendiente de decisión"); no asumir.
-2. Según la elección:
-   - **Deep link desktop:** modificar `modal`/`background` para abrir `whatsapp://send?phone=<dígitos>&text=<msg codificado>` (sin PDF automático; instrucción de adjuntar manual y dar Enter). Quitar/adaptar el flujo CDP para ese caso. Validar ventana de confirmación de Chrome ("Abrir esta aplicación externa"). Agregar aviso en el modal.
-   - **Puente nativo:** crear native messaging host en Windows (registry + script Node/PowerShell) que lance Desktop y simule adjuntar/pegar/enviar; actualizar `whatsappBridge` + modal; script de instalación. Mayor fragilidad.
-   - **Mantener web:** sin cambios (ya funciona y está pusheado).
+0. **Banner OT en escritorio — quedó verificado en réplicas locales y pusheado (`cfedd2a`).** Falta: revisar en el **panel real tras Ctrl+F5** (cambió el hash de CSS/JS) la alineación píldoras↔subtotales, ancho input=ancho de píldoras, botón bajo la píldora de fecha y que en tablet/móvil no aparezca nada de lo de escritorio. Si el usuario pide más ajustes, iterar en `web/src/index.css` (media ≥1280) + flags `isDesktop`/`isLg` en `WorkOrderDetailPage.tsx`.
+1. **Pendiente de la sesión anterior (sin commitear ni pushear):** sección **Nómina** — % de comisión por OT + calculadora libre (migración `20260910022505_work_order_labor_commission_pct`, `PUT /payroll/weekly-summary/ratios/:id`, calculadora única, % editable por fila). Desplegar API (Railway: `prisma migrate deploy` a mano + re-seed permisos `payroll:*`) y web (Vercel) según `DEPLOY-CHECKLIST.md`.
+2. **Volver a preguntar** al usuario la decisión WhatsApp Desktop vs Web (ver "Pendiente de decisión"); no asumir.
 3. Aplicar cambios, correr `tsc`/eslint/tests/build, **commit y push** solo si el usuario lo pide.
-4. Nunca tocar BD ni pedir nuevas migraciones para esto.
+4. Nunca tocar BD ni pedir nuevas migraciones para ello.
 
 ## Archivos clave
 

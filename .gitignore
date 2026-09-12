@@ -29,3 +29,9 @@ dmeraksauriojagalosaurio6963.txt
 
 # Auditoría interna (contiene planeación de producción; no versionar)
 docs/AUDITORIA_VENE_AUTOS.md
+
+# Log de desarrollo de la API (ruido local)
+/api-dev.log
+
+# Resultados de pruebas locales (Playwright)
+/test-results/
