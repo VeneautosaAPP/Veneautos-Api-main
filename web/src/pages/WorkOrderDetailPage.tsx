@@ -163,6 +163,22 @@ function mergeWorkOrderPatchIntoState(
 
 type AssignableUserRow = { id: string; fullName: string; email: string }
 
+/** Reacciona a una media query (p. ej. "escritorio ratón ≥1280px" o "lg ≥1024px"). Usada
+ * para no renderizar en el DOM los bloques que solo corresponden a otros rangos de ancho. */
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const update = () => setMatches(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [query])
+  return matches
+}
+
 export function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const {
@@ -178,6 +194,10 @@ export function WorkOrderDetailPage() {
   const [invoiceMsg, setInvoiceMsg] = useState<string | null>(null)
   const panelTheme = usePanelTheme()
   const isSaas = panelUsesModernShell(panelTheme)
+  /** Rango de render limpiado: los bloques solo-escritorio no existen en el DOM de los demás
+   * dispositivos (desktop-pills: solo ≥1280 ratón; fin-big, acciones, ⋯: según lg ≥1024). */
+  const isDesktop = useMediaQuery('(min-width: 1280px) and (hover: hover)')
+  const isLg = useMediaQuery('(min-width: 1024px)')
   /** Evita que `load` cambie de identidad cada render si el contexto recrea `can`; sin esto el `useEffect` puede spamear `load()` y pisar el estado. */
   const canRef = useRef(can)
   canRef.current = can
@@ -565,6 +585,31 @@ export function WorkOrderDetailPage() {
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
+  /** Ancho real que ocupan todas las píldoras juntas (suma de chips + gaps); el conjunto
+   * input + Mano de obra del banner adopta ese ancho en escritorio. */
+  const pillsRowRef = useRef<HTMLDivElement | null>(null)
+  const [pillsWidth, setPillsWidth] = useState<number | null>(null)
+  useEffect(() => {
+    const el = pillsRowRef.current
+    if (!el) return
+    const update = () => {
+      const chips = Array.from(el.children)
+      if (chips.length === 0) return
+      const gap = parseFloat(getComputedStyle(el).columnGap || '4') || 4
+      const w =
+        chips.reduce((acc, chip) => acc + chip.getBoundingClientRect().width, 0) +
+        (chips.length - 1) * gap
+      if (w > 0) setPillsWidth(w)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener('resize', update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [wo, isDesktop])
   const sectionCardClass = isSaas ? 'va-saas-page-section' : 'va-card'
   const sectionFlushClass = isSaas
     ? `va-wo-lines va-saas-page-section va-saas-page-section--flush flex-1 min-h-0 overflow-auto lg:flex-none lg:overflow-visible ${
@@ -1342,44 +1387,51 @@ export function WorkOrderDetailPage() {
     )
   }
 
-  const vehicleInfoPills = () => {
+  const woPill = 'rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
+
+  const vehicleOtPill = () =>
+    wo ? <span className={`${woPill} tabular-nums`}>OT: {wo.publicCode.replace(/^VEN-/, '')}</span> : null
+
+  const vehicleBrandPill = () => {
     if (!wo) return null
-    return (
-      <>
-        {(() => {
-          const b = (wo.vehicleBrand ?? wo.vehicle?.brand ?? '').trim()
-          if (!b) return null
-          return (
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-              Marca: {b}
-            </span>
-          )
-        })()}
-        {(() => {
-          const m = (wo.vehicleModel ?? wo.vehicle?.model ?? '').trim()
-          if (!m) return null
-          return (
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-              Modelo: {m}
-            </span>
-          )
-        })()}
-        {wo.intakeOdometerKm != null ? (
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-            Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}
-          </span>
-        ) : null}
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-          Ingreso: {new Date(wo.createdAt).toLocaleDateString('es-CO')}
-        </span>
-        {(wo.status === 'DELIVERED' || wo.status === 'CANCELLED') && (
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium tabular-nums text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-            Cierre: {new Date(wo.deliveredAt ?? wo.cancelledAt ?? wo.createdAt ?? '').toLocaleDateString('es-CO')}
-          </span>
-        )}
-      </>
-    )
+    const b = (wo.vehicleBrand ?? wo.vehicle?.brand ?? '').trim()
+    return b ? <span className={woPill}>Marca: {b}</span> : null
   }
+
+  const vehicleModelPill = () => {
+    if (!wo) return null
+    const m = (wo.vehicleModel ?? wo.vehicle?.model ?? '').trim()
+    return m ? <span className={woPill}>Modelo: {m}</span> : null
+  }
+
+  const vehicleKmPill = () =>
+    wo && wo.intakeOdometerKm != null ? (
+      <span className={`${woPill} tabular-nums`}>Km ingreso: {wo.intakeOdometerKm.toLocaleString('es-CO')}</span>
+    ) : null
+
+  const vehicleIngresoPill = () =>
+    wo ? (
+      <span className={`${woPill} tabular-nums`}>
+        Ingreso: {new Date(wo.createdAt).toLocaleDateString('es-CO')}
+      </span>
+    ) : null
+
+  const vehicleCierrePill = () =>
+    wo && (wo.status === 'DELIVERED' || wo.status === 'CANCELLED') ? (
+      <span className={`${woPill} tabular-nums`}>
+        Cierre: {new Date(wo.deliveredAt ?? wo.cancelledAt ?? wo.createdAt ?? '').toLocaleDateString('es-CO')}
+      </span>
+    ) : null
+
+  const vehicleInfoPills = () => (
+    <>
+      {vehicleBrandPill()}
+      {vehicleModelPill()}
+      {vehicleKmPill()}
+      {vehicleIngresoPill()}
+      {vehicleCierrePill()}
+    </>
+  )
 
   const openReceipt = () => {
     if (!wo) return
@@ -1404,43 +1456,43 @@ export function WorkOrderDetailPage() {
   }> = [
     {
       key: 'print',
-      label: 'Imprimir comprobante',
+      label: 'Comprobante',
       title: 'Abrir comprobante interno imprimible (no es factura electrónica)',
       icon: Printer,
       show: true,
       onClick: openReceipt,
       buttonClass:
-        'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800',
+        'va-wo-action-btn-sm border-slate-700 bg-slate-700 text-white hover:bg-slate-800 dark:border-slate-700 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600',
     },
     {
       key: 'wa',
-      label: 'Enviar por WhatsApp',
+      label: 'WhatsApp',
       title: 'Enviar el comprobante de esta orden por WhatsApp',
       icon: MessageCircle,
       show: Boolean(woWaPhone),
       onClick: () => setWaSendOpen(true),
       buttonClass:
-        'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900',
+        'border-green-600 bg-green-600 text-white hover:bg-green-700 dark:border-green-600 dark:bg-green-600 dark:text-white dark:hover:bg-green-700',
     },
     {
       key: 'edit',
-      label: 'Editar datos de la orden',
+      label: 'Datos de la orden',
       title: 'Editar datos de la orden (descripción, cliente, vehículo y kilometraje)',
       icon: Pencil,
       show: Boolean(canPatchWo),
       onClick: () => setOrderDataModalOpen(true),
       buttonClass:
-        'border-brand-300 bg-brand-50 text-brand-800 hover:bg-brand-100 dark:border-brand-600 dark:bg-brand-950 dark:text-brand-200 dark:hover:bg-brand-900',
+        'va-wo-action-btn-sm border-amber-500 bg-amber-500 text-white hover:bg-amber-600 dark:border-amber-500 dark:bg-amber-500 dark:text-white dark:hover:bg-amber-600',
     },
     {
       key: 'cash',
-      label: 'Cobros en caja',
+      label: 'Cobrar',
       title: 'Ver cobros de esta orden y registrar abonos o pago total',
       icon: Banknote,
       show: !hideWorkOrderCashUi,
       onClick: () => setCashModalOpen(true),
       buttonClass:
-        'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900',
+        'va-wo-action-btn-sm border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 dark:border-emerald-600 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-700',
     },
   ]
 
@@ -1450,21 +1502,35 @@ export function WorkOrderDetailPage() {
         rootClassName={stickyHeaderClass}
         actionsTop
         beforeTitle={
-          <Link to={portalPath('/ordenes')} className={backLinkClass}>
-            ← Órdenes
-          </Link>
+          <>
+            <Link to={portalPath('/ordenes')} className={`${backLinkClass} va-wo-back-link`}>
+              ← Órdenes
+            </Link>
+            {isSaas && isDesktop ? (
+              <div ref={pillsRowRef} className="va-wo-desktop-pills">
+                {vehicleOtPill()}
+                {workshopAssignmentPill()}
+                {statusPill()}
+                {vehicleBrandPill()}
+                {vehicleModelPill()}
+                {vehicleKmPill()}
+                {vehicleIngresoPill()}
+                {vehicleCierrePill()}
+              </div>
+            ) : null}
+          </>
         }
         title={
           <span className="inline-flex flex-wrap items-center gap-2">
-            <span>
+            <span className="va-wo-title-full">
               Orden {wo.publicCode}{' '}
               <span className="font-mono text-xs font-normal text-slate-400 dark:text-slate-500">
                 #{wo.orderNumber}
               </span>
             </span>
-            {statusPill()}
-            {isSaas ? (
-              <span className="relative ml-auto lg:hidden">
+            <span className="va-wo-pill-inline">{statusPill()}</span>
+            {isSaas && !isLg ? (
+              <span className="va-wo-inline-more relative ml-auto lg:hidden">
                 <button
                   type="button"
                   aria-haspopup="menu"
@@ -1510,10 +1576,12 @@ export function WorkOrderDetailPage() {
         }
         description={
           <>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <div className="va-wo-pills-area flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
               {workshopAssignmentPill()}
               {isSaas ? (
-                <div className="hidden md:contents">{vehicleInfoPills()}</div>
+                <>
+                  <div className="va-wo-pills-media hidden md:contents">{vehicleInfoPills()}</div>
+                </>
               ) : (
                 vehicleInfoPills()
               )}
@@ -1543,13 +1611,14 @@ export function WorkOrderDetailPage() {
                 </p>
               ) : null
             ) : (
-              <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">{wo.description}</p>
+              <p className="va-wo-notes mt-2 max-w-3xl text-slate-600 dark:text-slate-300">{wo.description}</p>
             )}
             {canMutateLines ? (
               <div
-                className={`mt-3 border-t border-slate-200 pt-3 dark:border-slate-700 ${
+                className={`va-wo-add-hero mt-3 pt-3 ${
                   isSaas ? 'hidden lg:block' : ''
                 }`}
+                style={pillsWidth ? { maxWidth: pillsWidth } : undefined}
               >
                 <WorkOrderLineAddPanel
                   workOrder={wo}
@@ -1566,36 +1635,36 @@ export function WorkOrderDetailPage() {
         }
         actions={
           <div className="flex flex-col items-end gap-3">
-            {!hideWorkOrderCashUi && canViewWoFinancials ? (
+            {(isLg || !isSaas) && !hideWorkOrderCashUi && canViewWoFinancials ? (
               <div
                 className={
                   isSaas
-                    ? 'hidden lg:flex lg:flex-wrap lg:items-start lg:justify-end lg:gap-x-6 lg:gap-y-2'
+                    ? 'va-wo-fin-big hidden lg:flex lg:flex-wrap lg:items-start lg:justify-end lg:gap-x-6 lg:gap-y-2'
                     : 'flex flex-wrap items-start justify-end gap-x-6 gap-y-2'
                 }
               >
-                <div className="text-right">
+                <div className="text-left">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Subtotal líneas
                   </p>
-                  <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50 sm:text-3xl">
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50 sm:text-3xl">
                     ${formatCopFromString(wo.linesSubtotal ?? '0')}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-left">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Cobrado
                   </p>
-                  <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50 sm:text-3xl">
+                  <p className="font-mono text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50 sm:text-3xl">
                     ${formatCopFromString(wo.paymentSummary.totalPaid ?? '0')}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-left">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Saldo pendiente
                   </p>
                   <p
-                    className={`mt-1 font-mono text-2xl font-semibold tabular-nums sm:text-3xl ${
+                    className={`font-mono text-2xl font-semibold tabular-nums sm:text-3xl ${
                       woAmountDueNum > 0
                         ? 'text-amber-700 dark:text-amber-300'
                         : 'text-emerald-700 dark:text-emerald-400'
@@ -1607,7 +1676,7 @@ ${formatCopFromString(wo.amountDue ?? '0')}
               </div>
             ) : null}
 
-            {isSaas && !hideWorkOrderCashUi && canViewWoFinancials ? (
+            {isSaas && !isLg && !hideWorkOrderCashUi && canViewWoFinancials ? (
               <div
                   id="va-wo-fin-compact"
                   className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:w-auto lg:hidden dark:border-slate-700 dark:bg-slate-800"
@@ -1646,25 +1715,27 @@ ${formatCopFromString(wo.amountDue ?? '0')}
             ) : null}
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <div
-                className={
-                  isSaas
-                    ? 'hidden lg:flex lg:flex-wrap lg:items-center lg:justify-end lg:gap-2'
-                    : 'flex flex-wrap items-center justify-end gap-2'
-                }
-              >
-                {woActions.filter((a) => a.show).map((a) => (
-                  <button
-                    key={a.key}
-                    type="button"
-                    onClick={a.onClick}
-                    title={a.title}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm ${a.buttonClass}`}
-                  >
-                    {a.label}
-                  </button>
-                ))}
-              </div>
+              {isSaas && !isLg ? null : (
+                <div
+                  className={
+                    isSaas
+                      ? 'va-wo-actions-desktop hidden lg:flex lg:flex-wrap lg:items-center lg:justify-end lg:gap-2'
+                      : 'flex flex-wrap items-center justify-end gap-2'
+                  }
+                >
+                  {woActions.filter((a) => a.show).map((a) => (
+                    <button
+                      key={a.key}
+                      type="button"
+                      onClick={a.onClick}
+                      title={a.title}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm ${a.buttonClass}`}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         }

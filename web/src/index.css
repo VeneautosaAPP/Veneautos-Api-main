@@ -1152,6 +1152,9 @@ html.dark .va-landing-commercial-brand :is(.rounded-2xl, [class*='rounded-2xl'])
     border-right: 0;
     border-top: 0;
     box-shadow: none;
+    /* El banner no debe quedar "sticky" en el modo app (el scroll es interno de la sección):
+       su offset top lo desplazaba 16/24px hacia abajo y su caja cubría la cabecera de columnas. */
+    position: static !important;
   }
   html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-lines {
     border-radius: 0;
@@ -1179,4 +1182,158 @@ html.dark .va-landing-commercial-brand :is(.rounded-2xl, [class*='rounded-2xl'])
   html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-lines--bar {
     padding-bottom: 6rem !important;
   }
+}
+
+/* Sin marco del banner ni de las líneas de repuestos/mano de obra en ningún dispositivo. */
+html.va-panel-theme-saas-light .va-wo-mobile-app .va-saas-page-hero,
+html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-lines {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Banner pegado al borde superior: en la página de la OT el `main` no aporta padding
+   superior y el banner se ancla justo debajo de la barra superior del panel (0 en SaaS
+   escritorio, donde el header está oculto). No se pierde información: el scroll de las
+   líneas pasa por debajo del banner (z-20 con fondo propio). */
+html.va-panel-theme-saas-light .va-app-shell-main:has(> .va-wo-mobile-app) {
+  padding-top: 0;
+}
+html.va-panel-theme-saas-light .va-hero-sticky {
+  top: var(--va-app-header-h, 0px);
+}
+
+/* Tablets táctiles en vertical (ancho lg–xl): el `va-saas-page-header-row` se apila en columna y los
+   valores de la factura (Subtotal/Cobrado/Saldo) caían debajo del input de repuestos/mano de obra.
+   En vertical se replica la disposición deseada: información izquierda, valores de factura al tope
+   derecho del banner y el input de repuestos/mano de obra al pie (dentro del banner). El menú "⋯"
+   de acciones se mantiene visible; los botones grandes viven en ese menú (como en celular). */
+@media (min-width: 1024px) and (max-width: 1279.98px) and (orientation: portrait) and (hover: none) {
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-saas-page-header-row {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    row-gap: 0.75rem;
+    column-gap: 1rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-inline-more {
+    display: inline-flex !important;
+  }
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-actions-desktop {
+    display: none !important;
+  }
+}
+
+/* Título del banner: en escritorio con ratón (≥1280px) el número de la OT vive en la píldora de la
+   fila superior, así que el título completo "Orden VEN-0120 #120" se oculta y solo se muestra en
+   móvil/tableta. */
+html.va-panel-theme-saas-light .va-wo-desktop-pills {
+  display: none;
+}
+html.va-panel-theme-saas-light .va-wo-pill-inline {
+  display: inline-flex;
+}
+@media (min-width: 1280px) and (hover: hover) {
+  html.va-panel-theme-saas-light .va-wo-title-full {
+    display: none;
+  }
+  html.va-panel-theme-saas-light .va-wo-actions-desktop button {
+    font-size: 0.78rem;
+    line-height: 1.1rem;
+    padding: 0.3125rem 0.625rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-actions-desktop .va-wo-action-btn-sm {
+    font-size: 0.72rem;
+    line-height: 1.1rem;
+    padding: 0.2rem 0.525rem;
+  }
+  /* El conjunto input + Mano de obra se ajusta al ancho que ocupan todas las píldoras juntas
+     (medido dinámicamente por JS) y su altura baja un 5% solo en el banner. */
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-add-hero > div {
+    width: 100%;
+  }
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-add-hero input.va-field,
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-add-hero button {
+    font-size: 13.3px;
+    padding-top: 7.6px;
+    padding-bottom: 7.6px;
+  }
+  html.va-panel-theme-saas-light .va-wo-fin-big p.tabular-nums {
+    font-size: 1.35rem;
+    line-height: 1.8rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-fin-big p:not(.tabular-nums) {
+    font-size: 0.61875rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-desktop-pills {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.59375rem;
+    line-height: 0.8125rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-desktop-pills * {
+    font-size: inherit;
+    white-space: nowrap;
+    border-radius: 0.5625rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-desktop-pills button {
+    padding: 0.3125rem 0.4375rem;
+  }
+  html.va-panel-theme-saas-light .va-wo-desktop-pills > span:not(.relative) {
+    padding: 0.3125rem 0.3125rem;
+  }
+  /* En escritorio todas las píldoras viven en la fila superior; la fila de píldoras del
+     vehículo dentro de la descripción se oculta (móvil/tableta la conservan). */
+  html.va-panel-theme-saas-light .va-wo-pills-area {
+    display: none;
+  }
+  html.va-panel-theme-saas-light .va-wo-pills-media {
+    display: none;
+  }
+  html.va-panel-theme-saas-light .va-wo-back-link {
+    display: none;
+  }
+  html.va-panel-theme-saas-light .va-wo-pill-inline {
+    display: none;
+  }
+  /* El campo de notas del banner se elimina en escritorio; el panel de líneas
+     (input + Mano de obra) ocupa ese lugar. */
+  html.va-panel-theme-saas-light .va-wo-notes {
+    display: none;
+  }
+  /* Sin título en escritorio (el número de la OT vive en la píldora): el h1 quedaba vacío
+     pero su margen mt-2 creaba un campo invisible entre las píldoras y el input. */
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-page-title {
+    display: none;
+    margin: 0;
+  }
+  /* Alinea la columna izquierda arriba: como la derecha (subtotales + botones) es más alta,
+     `items-end` la empujaba hacia abajo y las píldoras quedaban 26px por debajo de los valores. */
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-saas-page-header-row {
+    align-items: flex-start;
+  }
+  /* Descripción y panel de líneas sin márgenes superiores: el input queda justo debajo
+     de las píldoras. */
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-page-desc {
+    margin-top: 0;
+  }
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-add-hero {
+    margin-top: 0;
+    padding-top: 0;
+  }
+  /* Con el conjunto input + Mano de obra ajustado al ancho de las píldoras, el botón queda
+     pegado al extremo derecho (justo bajo la píldora de fecha). El input pasa a ocupar el 50%
+     del ancho de las píldoras (mitad del conjunto). */
+  html.va-panel-theme-saas-light .va-wo-mobile-app .va-wo-add-hero .va-wo-line-add-desc {
+    flex: 0 0 50%;
+  }
+}
+
+/* Input de repuestos del panel de líneas del banner: 10% más angosto que el ancho del panel,
+   con el botón "+ Mano de obra" pegado a la derecha del input con un pequeño margen. */
+html.va-panel-theme-saas-light .va-wo-add-hero .va-wo-line-add-desc {
+  flex: 0 0 calc(90% - 8.15rem);
 }

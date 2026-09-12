@@ -301,7 +301,7 @@ export function WorkOrderLineAddPanel({
 
   return (
     <div className="flex items-end gap-3">
-      <label className="block min-w-0 flex-1 text-sm">
+      <label className="va-wo-line-add-desc block min-w-0 flex-1 text-sm">
         <div className="relative mt-1">
             <input
               ref={partDescInputRef}
