@@ -102,7 +102,7 @@ export function ClientAccountLookupPage() {
             <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
               <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_70px_-28px_rgba(13,27,62,0.35)] dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[1.05fr_1fr]">
                 {/* Panel de marca */}
-                <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1c2f66] via-[#141f4a] to-[#0c1436] p-7 text-white dark:from-[#121c40] dark:via-[#0e1736] dark:to-[#0a102b] sm:p-9">
+                <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#394b60] via-[#2c3b4e] to-[#1e2a38] p-7 text-white dark:from-[#2a394b] dark:via-[#21303f] dark:to-[#161f2b] sm:p-9">
                   {/* Textura sutil de taller */}
                   <div
                     aria-hidden="true"
