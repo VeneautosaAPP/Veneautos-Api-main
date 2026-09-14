@@ -1,0 +1,82 @@
+================================
+VENE AUTOS - DATOS FALTANTES EN LA LANDING
+================================
+Solo lo que hoy usa la landing (web/src/components/portal/ClientPortalLandingAside.tsx).
+Completar cada campo; si no aplica, escribir "N/A".
+
+---------------------------------------------------
+A. FRANJA DE INFORMACION (seccion "Ubicacion/Horario/Promo")
+---------------------------------------------------
+A.1. Horario real Lunes a Viernes:
+A.2. Horario real Sabado:
+A.3. Horario Domingos y festivos (cerrado / con cita):
+A.4. Texto corto de ubicacion (ej. "Sede norte - AV 15 #70-20"):
+A.5. Direccion exacta del local:
+A.6. Barrio / punto de referencia:
+A.7. Link exacto de Google Maps (compartir > copiar) o coordenadas GPS:
+A.8. Quieren boton "Como llegar" (abre Google Maps)? (SI/NO):
+A.9. Promocion real que quiere mostrar (si existe):
+A.10. Vigencia / condicion de la promo (ej. "hasta el 31/12, s/n en OT"):
+
+---------------------------------------------------
+B. SERVICIOS Y PRECIOS (10 items, hoy dicen "desde -")
+---------------------------------------------------
+Indicar precios en COP ("desde" o rango). Si un servicio no quiere
+precio publico, escribirlo y se define el texto alternativo.
+B.1. Cambio de aceite y filtros:
+B.2. Frenos (pastillas / discos):
+B.3. Alineacion y balanceo:
+B.4. Aire acondicionado:
+B.5. Bateria y electrico:
+B.6. Diagnostico computarizado:
+B.7. Motor y transmision:
+B.8. Suspension y direccion:
+B.9. Escaneo y borrado de fallas:
+B.10. Pre-compra / inspeccion:
+B.11. Servicios extra que falten en el listado:
+B.12. Garantia que ofrecen sobre las reparaciones:
+B.13. Formas de pago (para mencionar si se agrega):
+
+---------------------------------------------------
+C. NOSOTROS / UBICACION (seccion con mapa)
+---------------------------------------------------
+C.1. Texto real de "Quienes somos" (2-4 frases; hoy es generico):
+C.2. Ano / historia del taller (ej. "desde 2015"):
+C.3. Equipo: cuantos mecanicos, certificaciones:
+C.4. Diferenciales (ej. diagnostico computarizado, transparencia en OT,
+     garantia, atencion a flotas):
+C.5. Direccion exacta para reemplazar "Completar direccion":
+C.6. Link real del mapa (reemplaza https://www.openstreetmap.org/ raiz):
+C.7. QR o vinculo para "Ver en mapa":
+
+---------------------------------------------------
+D. FOOTER - CONTACTO
+---------------------------------------------------
+D.1. Email real de contacto (hoy info@veneautos.com):
+D.2. Telefono fijo real:
+D.3. Celular / WhatsApp real (formato +57...):
+D.4. Mensaje predefinido para el boton de WhatsApp
+     (ej. "Hola, quiero un turno en Vene Autos"):
+D.5. Facebook / Instagram / TikTok / YouTube (links):
+D.6. Otras vias (direccion fisica, apartado, horario en footer):
+
+---------------------------------------------------
+E. IMAGENES (reemplazar o complementar)
+---------------------------------------------------
+E.1. Logo en alta resolucion (hoy logo_landing.png):
+E.2. Logo para footer (hoy logo_landing_footer.png):
+E.3. Foto real para el hero (hoy es solo gradientes / no hay imagen):
+E.4. Fotos de servicios (aceite, frenos, diagnostico...) si se agregan:
+E.5. Foto de fachada para la seccion "Nosotros/Ubicacion":
+
+---------------------------------------------------
+F. SEOMETA (datos que alimentan titulo, JSON-LD y OG)
+---------------------------------------------------
+F.1. Dominio EXACTO de produccion: (ej. https://www.veneautos.com.co)
+F.2. Ciudad (para "Taller mecanico EN LA CIUDAD"): 
+F.3. Slogan / frase diferenciadora del negocio:
+F.4. Descripcion corta de la empresa (para meta description, hoy usan
+     texto generico):
+F.5. Telefono y email para el JSON-LD LocalBusiness (usar D.1 y D.3):
+F.6. Coordenadas GPS (para geo en JSON-LD y mapa):
+F.7. Url del logo en su formato publica (si cambiara el archivo):

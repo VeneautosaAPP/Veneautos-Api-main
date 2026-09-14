@@ -31,15 +31,18 @@ function landingJsonLd(origin: string, locality?: string) {
         '@id': `${origin}/#business`,
         name: SITE_BRAND,
         description:
-          'Taller mecánico en Colombia: mecánica automotriz, diagnóstico computarizado, mantenimiento preventivo y reparación de vehículos ligeros. Seguimiento por orden de trabajo (OT).',
+          'Taller de mecánica especializada multimarca en Colombia: diagnóstico computarizado, mantenimiento preventivo y reparación de vehículos, con más de 7 años de experiencia. Seguimiento por orden de trabajo (OT).',
         url: `${origin}/`,
         image: `${origin}/logo_landing.png`,
         priceRange: '$$',
+        telephone: '+57 322 516 7224',
+        email: 'Veneautos82@gmail.com',
         address,
         areaServed: { '@type': 'Country', name: 'Colombia' },
         knowsAbout: [
           'taller mecánico',
           'mecánica automotriz',
+          'mecánica especializada multimarca',
           'reparación de vehículos',
           'diagnóstico automotriz',
           'mantenimiento de vehículos',
@@ -49,9 +52,9 @@ function landingJsonLd(origin: string, locality?: string) {
         ],
         openingHoursSpecification: {
           '@type': 'OpeningHoursSpecification',
-          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
           opens: '08:00',
-          closes: '18:00',
+          closes: '17:00',
         },
       },
       {
@@ -91,10 +94,11 @@ export function SiteSeo() {
     const locSuffix = locality ? ` — ${locality}` : ''
 
     if (pathname === '/') {
-      const title = `${SITE_BRAND} | Taller mecánico, mecánica y reparación de vehículos${locSuffix || ' en Colombia'}`
+      const title = `${SITE_BRAND} | Taller mecánico multimarca y reparación de vehículos${locSuffix || ' en Colombia'}`
       const description =
-        `Taller mecánico${locality ? ` en ${locality}` : ' en Colombia'}: mecánica automotriz, diagnóstico, ` +
-        `mantenimiento y reparación de vehículos. Seguimiento por orden de trabajo (OT). Sitio oficial ${SITE_BRAND}.`
+        `Taller mecánico${locality ? ` en ${locality}` : ' en Colombia'}: mecánica especializada multimarca, ` +
+        `diagnóstico, mantenimiento y reparación de vehículos con más de 7 años de experiencia. ` +
+        `Seguimiento por orden de trabajo (OT). Sitio oficial ${SITE_BRAND}.`
       const tags: HeadTags = {
         title,
         description,

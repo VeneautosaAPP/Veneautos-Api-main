@@ -429,16 +429,16 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
       >
         <div className="mx-auto grid max-w-7xl divide-y divide-zinc-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
-            { t: 'Horario', d: 'Lun — Vie · 8:00 — 18:00', sub: 'Sábados con cita' },
-            { t: 'Ubicación', d: 'Sede principal', sub: 'Actualizar dirección y mapa' },
-            { t: 'Promo', d: 'Inspección y rotación', sub: 'Consultá disponibilidad' },
+            { t: 'Horario', d: 'Lun — Sáb · 8:00 — 17:00' },
+            { t: 'Especialidad', d: 'Mecánica especializada multimarca', sub: 'Más de 7 años de experiencia' },
+            { t: 'Contacto', d: '+57 322 516 7224', sub: 'Turnos y consultas' },
           ].map((item) => (
             <div key={item.t} className="flex gap-4 px-6 py-6">
               <span className="mt-0.5 h-2 w-2 shrink-0 bg-brand-600" aria-hidden />
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-500">{item.t}</p>
                 <p className="mt-1 font-medium text-white">{item.d}</p>
-                <p className="mt-1 text-sm text-zinc-500">{item.sub}</p>
+                {item.sub ? <p className="mt-1 text-sm text-zinc-500">{item.sub}</p> : null}
               </div>
             </div>
           ))}
@@ -468,8 +468,8 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
             <div className="lg:col-span-4">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Servicios</h2>
               <p className="mt-4 text-zinc-600">
-                Desde cambio de aceite hasta diagnóstico complejo. Listado orientativo; ajustá precios y ítems con el
-                taller.
+                Desde cambio de aceite hasta diagnóstico complejo en vehículos multimarca. Consultá precios y
+                disponibilidad con el taller.
               </p>
               <a
                 href="#contacto"
@@ -485,15 +485,14 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 </h3>
                 <ul className="mt-4 space-y-3 text-sm">
                   {[
-                    ['Cambio de aceite y filtros', 'desde —'],
-                    ['Frenos (pastillas / discos)', 'desde —'],
-                    ['Alineación y balanceo', 'desde —'],
-                    ['Aire acondicionado', 'desde —'],
-                    ['Batería y eléctrico', 'desde —'],
-                  ].map(([a, b]) => (
-                    <li key={a} className="flex justify-between gap-4 border-b border-zinc-200 py-2">
-                      <span className="font-medium text-zinc-800">{a}</span>
-                      <span className="shrink-0 tabular-nums text-zinc-500">{b}</span>
+                    'Cambio de aceite y filtros',
+                    'Frenos (pastillas / discos)',
+                    'Alineación y balanceo',
+                    'Aire acondicionado',
+                    'Batería y eléctrico',
+                  ].map((name) => (
+                    <li key={name} className="flex justify-between gap-4 border-b border-zinc-200 py-2">
+                      <span className="font-medium text-zinc-800">{name}</span>
                     </li>
                   ))}
                 </ul>
@@ -504,15 +503,14 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 </h3>
                 <ul className="mt-4 space-y-3 text-sm">
                   {[
-                    ['Diagnóstico computarizado', 'desde —'],
-                    ['Motor y transmisión', 'desde —'],
-                    ['Suspensión y dirección', 'desde —'],
-                    ['Escaneo y borrado de fallas', 'desde —'],
-                    ['Pre-compra / inspección', 'desde —'],
-                  ].map(([a, b]) => (
-                    <li key={a} className="flex justify-between gap-4 border-b border-zinc-200 py-2">
-                      <span className="font-medium text-zinc-800">{a}</span>
-                      <span className="shrink-0 tabular-nums text-zinc-500">{b}</span>
+                    'Diagnóstico computarizado',
+                    'Motor y transmisión',
+                    'Suspensión y dirección',
+                    'Escaneo y borrado de fallas',
+                    'Pre-compra / inspección',
+                  ].map((name) => (
+                    <li key={name} className="flex justify-between gap-4 border-b border-zinc-200 py-2">
+                      <span className="font-medium text-zinc-800">{name}</span>
                     </li>
                   ))}
                 </ul>
@@ -529,23 +527,24 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
               <div>
                 <h2 className="text-3xl font-bold text-white sm:text-4xl">Quiénes somos</h2>
                 <p className="mt-6 leading-relaxed text-zinc-400">
-                  Equipo de mecánica automotriz con foco en diagnóstico y transparencia. Cada orden de trabajo queda
-                  registrada para que clientes autorizados puedan consultar el avance cuando corresponda.
+                  Somos un taller de mecánica especializada multimarca, con más de 7 años de experiencia. Nos enfocamos
+                  en diagnóstico computarizado y transparencia: cada orden de trabajo queda registrada para que clientes
+                  autorizados puedan consultar el avance cuando corresponda.
                 </p>
               </div>
               <div className="border border-zinc-800 bg-black p-8">
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-brand-500">Ubicación</h3>
                 <p className="mt-4 text-zinc-300">
                   <span className="block font-semibold text-white">Sede principal</span>
-                  Completar dirección y horario reales del local.
+                  Atendemos de lunes a sábado, de 8:00 a 17:00. Pedí la ubicación exacta por WhatsApp.
                 </p>
                 <a
-                  href="https://www.openstreetmap.org/"
+                  href="https://wa.me/573225167224"
                   target="_blank"
                   rel="noreferrer"
                   className="mt-6 inline-block text-sm font-semibold text-brand-500 underline-offset-4 hover:text-brand-400 hover:underline"
                 >
-                  Ver en mapa
+                  Pedir ubicación por WhatsApp
                 </a>
               </div>
             </div>
@@ -564,26 +563,28 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 draggable={false}
               />
               <p className="mt-2 max-w-md text-sm text-zinc-600">
-                Consultas comerciales y turnos por los canales habituales del taller.
+                Consultas comerciales y turnos por WhatsApp o por los canales del taller.
               </p>
               <div className="mt-6 flex flex-col gap-3 border-t border-zinc-200 pt-6 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2">
                 <a
-                  href="mailto:info@veneautos.com"
+                  href="mailto:Veneautos82@gmail.com"
                   className="font-medium text-zinc-800 underline-offset-4 transition hover:text-brand-600 hover:underline"
                 >
-                  info@veneautos.com
+                  Veneautos82@gmail.com
                 </a>
                 <a
-                  href="tel:+573000000000"
+                  href="tel:+573225167224"
                   className="va-btn-primary !min-h-0 w-fit px-4 py-2 text-xs font-bold uppercase tracking-wider"
                 >
-                  +57 300 000 0000
+                  +57 322 516 7224
                 </a>
                 <a
-                  href="mailto:info@veneautos.com?subject=Turno%20Vene%20Autos"
+                  href="https://wa.me/573225167224?text=Hola%20Vene%20Autos%2C%20quiero%20solicitar%20un%20turno."
+                  target="_blank"
+                  rel="noreferrer"
                   className="text-xs font-semibold uppercase tracking-widest text-zinc-500 underline-offset-4 transition hover:text-black hover:underline"
                 >
-                  Pedir turno
+                  Pedir turno por WhatsApp
                 </a>
               </div>
             </div>

@@ -1,0 +1,137 @@
+========================================
+VENE AUTOS - INFORMACION REQUERIDA PARA SEO
+========================================
+Completa cada punto con datos reales (no placeholders).
+Los campos que no apliquen, escribi "N/A" para que quede claro.
+
+---------------------------------------------------
+1. DATOS DE LA EMPRESA (NAP: Name, Address, Phone)
+---------------------------------------------------
+1.1. Nombre legal / razon social:
+1.2. Nombre comercial (marca):
+1.3. NIT:
+1.4. Ano de fundacion:
+1.5. Slogan o frase que defina el negocio:
+1.6. Descripcion corta (1-2 frases) para Google:
+1.7. Descripcion larga (5-10 lineas) para la pagina / SEO:
+1.8. Ciudad y departamento:
+1.9. Barrio / sector:
+1.10. Direccion exacta:
+1.11. Punto de referencia (ej. "frente al centro comercial X"):
+1.12. Coordenadas GPS (se obtienen de Google Maps):
+1.13. Telefono fijo:
+1.14. Telefono movil / WhatsApp (formato internacional +57...):
+1.15. Email contacto:
+1.16. Horario Lunes a Viernes:
+1.17. Horario Sabado:
+1.18. Horario Domingos / Festivos (cerrado o con cita):
+1.19. Zonas / municipios que atiende (cobertura de servicio):
+
+---------------------------------------------------
+2. SERVICIOS (para marketing de contenidos y precios)
+---------------------------------------------------
+2.1. Lista de servicios principales (ej. cambio de aceite, frenos,
+     alineacion, diagnostico, motor, transmision, A/C, electrico):
+2.2. Precio real (o rango) por cada servicio, en pesos colombianos:
+2.3. Servicio mas demandado / estrella:
+2.4. Especialidad (marcas o tipos de vehiculo: ej. carros europeos,
+     japoneses, camionetas, vehiculos comerciales):
+2.5. Garantia ofrecida (tiempo / tipo de garanta sobre reparaciones):
+2.6. Certificaciones, cursos o avales (ej. tecnicos certificados,
+     membresias, proveedor autorizado):
+2.7. Tiempo promedio de una reparacion tipica:
+2.8. Formas de pago aceptadas:
+
+---------------------------------------------------
+3. SEO LOCAL (Google Business Profile)
+---------------------------------------------------
+3.1. Existe ficha en Google Maps / Google Business Profile? (SI/NO)
+3.2. Si existe: link de la ficha:
+3.3. Categorias de la ficha en Google:
+3.4. La ficha esta verificada? (SI/NO):
+3.5. Anos de experiencia del negocio (para la ficha):
+3.6. Fotos tambien se usan en la ficha (ver punto 5):
+
+---------------------------------------------------
+4. IMAGENES Y MARCA
+---------------------------------------------------
+4.1. Logo en alta resolucion (PNG con fondo transparente):
+4.2. Logo alternativo / isotipo (icono):
+4.3. Foto de fachada del local:
+4.4. Fotos del interior del taller (6-10):
+4.5. Fotos de trabajos realizados (antes/despues):
+4.6. Foto del equipo / mecanicos trabajando:
+4.7. Foto vertical / horizontal de vehiculos reparados:
+4.8. Material adicional (banner, flyer, brochure, menú de servicios):
+4.9. Paleta de colores y tipografias oficiales (si es distinta a la web):
+
+---------------------------------------------------
+5. REDES SOCIALES Y PERFILES (para sameAs en datos estructurados)
+---------------------------------------------------
+5.1. Facebook:
+5.2. Instagram:
+5.3. TikTok:
+5.4. YouTube:
+5.5. LinkedIn:
+5.6. Seccion "Publicaciones" en la ficha de Google:
+5.7. Otros directorios donde ya esten listados (ej. OLX, MercadoLibre,
+     directorios de talleres):
+
+---------------------------------------------------
+6. RESEÑAS Y PRUEBA SOCIAL (para markup AggregateRating)
+---------------------------------------------------
+6.1. Cantidad de reseñas actuales en Google:
+6.2. Puntaje promedio actual:
+6.3. Ejemplos de 5-10 reseñas destacadas (texto + nombre, con
+     autorizacion del cliente):
+6.4. Testimonio del cliente mas antiguo / fiel:
+6.5. Ejemplo de caso de exito (problema -> solucion -> resultado):
+6.6. Videos o reels de clientes (si los hay):
+
+---------------------------------------------------
+7. CONTENIDO PARA PAGINAS Y BLOG
+---------------------------------------------------
+7.1. Preguntas frecuentes REALES que hacen los clientes (5-10):
+7.2. Errores tipicos del vehiculo que mas atienden:
+7.3. Consejos de mantenimiento que ya le dan a sus clientes
+     (3-5 ejemplos):
+7.4. Historias o anecdotas del taller (para humanizar el contenido):
+7.5. Ciudades / barrios donde quieren posicionarse
+     (ej. "taller mecanico en Chipre / Laureles"):
+7.6. Competidores directos (nombres / web) en su zona:
+7.7. Palabras clave como las buscan los clientes (copie frases
+     reales que reciba por WhatsApp/llamada):
+
+---------------------------------------------------
+8. DOMINIO Y TECNOLOGIA
+---------------------------------------------------
+8.1. Dominio EXACTO de produccion (ej. https://www.veneautos.com.co):
+8.2. El dominio HTTPS esta funcionando con www y sin www?
+     (recomendado: solo una version):
+8.3. Existe correo corporativo en el dominio (hola@veneautos.com.co)?
+8.4. Anteriormente el dominio tuvo otra web? (SI/NO) cual:
+8.5. Ya esta publicada esta nueva web en produccion? (SI/NO) url:
+8.6. Tienen acceso a la cuenta de Vercel/Railway donde se despliega?:
+8.7. Email o cuenta Google para Search Console (verificacion):
+8.8. Email o cuenta para Google Analytics (GA4):
+
+---------------------------------------------------
+9. LEGAL / FISCAL (si aplica para contenido de confianza)
+---------------------------------------------------
+9.1. Registro mercantil / Camara de Comercio:
+9.2. Eres responsable de IVA / regimen simple? (para mencion en textos):
+9.3. Politicas: terminos de servicio y politica de privacidad de la web
+     (debe incluirse para confianza y SEO):
+
+---------------------------------------------------
+10. OBJETIVOS Y METRICAS
+---------------------------------------------------
+10.1. Que es lo PRIMERO que debe encontrarse en Google
+      (ej. "taller mecanico mas cercano / el nombre / un servicio"):
+10.2. Zona geografica prioritaria (3 km / barrio / ciudad / nacional):
+10.3. En un ano, cuantos clientes nuevos por semana quiere conseguir
+      desde la web?:
+10.4. Cual es el cliente ideal (carro particular, flotas, taxis,
+      reparto, empresas)?:
+10.5. Esta dispuesto a mantener un blog/publicaciones mensuales? (SI/NO):
+10.6. Presupuesto mensual aproximado para pauta (si aplica):
