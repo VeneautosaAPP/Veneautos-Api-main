@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { WorksGallery } from './WorksGallery'
 
 /**
  * Landing comercial (pantalla de acceso): parallax, capas y paleta negro / brand / blanco / gris.
@@ -232,6 +233,12 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 Nosotros
               </a>
               <a
+                href="#trabajos"
+                className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400 transition hover:text-brand-400"
+              >
+                Trabajos
+              </a>
+              <a
                 href="#contacto"
                 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400 transition hover:text-brand-400"
               >
@@ -310,6 +317,13 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 className="border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold uppercase tracking-[0.14em] text-zinc-700 transition hover:border-brand-600 hover:text-brand-700 dark:text-zinc-200 dark:hover:text-brand-300"
               >
                 Nosotros
+              </a>
+              <a
+                href="#trabajos"
+                onClick={closeMenu}
+                className="border-l-2 border-transparent px-3 py-2.5 text-sm font-semibold uppercase tracking-[0.14em] text-zinc-700 transition hover:border-brand-600 hover:text-brand-700 dark:text-zinc-200 dark:hover:text-brand-300"
+              >
+                Trabajos
               </a>
               <a
                 href="#contacto"
@@ -551,6 +565,8 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
           </Reveal>
         </div>
       </section>
+
+      <WorksGallery />
 
       <footer id="contacto" className="border-t-4 border-brand-600 bg-white py-10 text-black">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
