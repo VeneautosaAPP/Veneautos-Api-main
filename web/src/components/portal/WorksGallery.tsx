@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // ─── Datos editables ─────────────────────────────────────────────────────────
 // Modificá `label` y `alt` según el contenido real de cada foto.
@@ -19,7 +20,32 @@ const PHOTOS = [
 
 const INTERVAL_MS = 4500
 
-// ─── Lightbox ────────────────────────────────────────────────────────────────
+function Arrow({ dir, onClick, label }: { dir: 'prev' | 'next'; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute top-1/2 -translate-y-1/2 z-20 hidden sm:inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-zinc-300 ring-1 ring-white/15 backdrop-blur-md transition duration-300 hover:bg-brand-600 hover:text-white hover:ring-brand-500 hover:shadow-[0_0_24px_-4px_rgba(220,38,38,.7)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 motion-reduce:transition-none"
+      style={dir === 'prev' ? { left: '-14px' } : { right: '-14px' }}
+      aria-label={label}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {dir === 'prev' ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
+      </svg>
+    </button>
+  )
+}
+
 function Lightbox({
   current,
   onClose,
@@ -55,14 +81,14 @@ function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm p-3 sm:p-6"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 p-3 backdrop-blur-md sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label={`Foto ${num} de ${PHOTOS.length}`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
-        <p className="font-mono text-xs sm:text-sm text-brand-600 font-bold tracking-widest">
+      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
+        <p className="font-mono text-xs font-bold tracking-widest text-brand-600 sm:text-sm">
           {num} / {String(PHOTOS.length).padStart(2, '0')}
         </p>
         <button
@@ -82,55 +108,39 @@ function Lightbox({
         key={photo.id}
         src={photo.src}
         alt={photo.alt}
-        className="max-h-[78vh] sm:max-h-[82vh] max-w-full object-contain rounded-md shadow-2xl"
+        className="max-h-[78vh] max-w-full rounded-md object-contain shadow-2xl sm:max-h-[82vh]"
       />
 
-      <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-1 sm:px-3 pointer-events-none">
-        <button
-          type="button"
-          onClick={onPrev}
-          className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-700 bg-black/60 text-zinc-300 transition hover:border-brand-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-          aria-label="Foto anterior"
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-700 bg-black/60 text-zinc-300 transition hover:border-brand-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-          aria-label="Foto siguiente"
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
+      <p className="mt-4 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-300">
+        <span className="h-3 w-[3px] bg-brand-600" aria-hidden />
+        {photo.label}
+      </p>
+
+      <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between px-1 sm:px-3">
+        <Arrow dir="prev" onClick={onPrev} label="Foto anterior" />
+        <Arrow dir="next" onClick={onNext} label="Foto siguiente" />
       </div>
     </div>
   )
 }
 
-// ─── Carrusel ────────────────────────────────────────────────────────────────
-export function WorksGallery() {
+// ─── Carrusel compacto (para el hero) ────────────────────────────────────────
+export function WorksGallery({ className }: { className?: string }) {
   const [current, setCurrent] = useState(0)
   const [paused, setPaused] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
   const thumbRef = useRef<HTMLDivElement>(null)
 
-  // Auto-advance
   useEffect(() => {
     if (paused || lightbox !== null) return
     const id = setInterval(() => setCurrent((c) => (c + 1) % PHOTOS.length), INTERVAL_MS)
     return () => clearInterval(id)
   }, [paused, lightbox])
 
-  // Progress bar (requestAnimationFrame, no re-renders)
   useEffect(() => {
-    if (lightbox !== null) return
     const bar = barRef.current
-    if (!bar || paused) {
+    if (!bar || paused || lightbox !== null) {
       if (bar) bar.style.animationPlayState = 'paused'
       return
     }
@@ -140,7 +150,6 @@ export function WorksGallery() {
     bar.style.animationPlayState = 'running'
   }, [current, paused, lightbox])
 
-  // Scroll thumbnail into view
   useEffect(() => {
     const container = thumbRef.current
     if (!container) return
@@ -155,129 +164,128 @@ export function WorksGallery() {
   const prevLb = useCallback(() => setLightbox((c) => (c !== null ? (c - 1 + PHOTOS.length) % PHOTOS.length : null)), [])
   const nextLb = useCallback(() => setLightbox((c) => (c !== null ? (c + 1) % PHOTOS.length : null)), [])
 
+  const photo = PHOTOS[current]
+  const num = String(current + 1).padStart(2, '0')
+
   return (
     <>
-      {/* Keyframes inyectados */}
-      <style>{`@keyframes galleryProgress { from { width: 0% } to { width: 100% } }`}</style>
+      <style>{`@keyframes galleryProgress { from { width: 0% } to { width: 100% } } @keyframes gallerySweep { from { transform: translateX(-130%) skewX(-18deg) } to { transform: translateX(230%) skewX(-18deg) } }`}</style>
 
-      <section
+      <div
         id="trabajos"
-        className="relative bg-zinc-950 pt-4 pb-12 sm:pt-6 sm:pb-16"
+        className={`relative mx-auto w-full max-w-[min(400px,84vw)] select-none ${className ?? ''}`}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          {/* Cabecera */}
-          <div className="mb-6 sm:mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.28em] text-brand-600 font-mono mb-3">
-                Fotos del taller
-              </p>
-              <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-light leading-[1.08] tracking-tight text-white">
-                Nuestro trabajo,{' '}
-                <span className="font-semibold text-zinc-200">en el taller.</span>
-              </h2>
-            </div>
-            <p className="font-mono text-[10px] sm:text-xs font-bold uppercase tracking-[0.24em] text-zinc-500">
-              {current + 1} / {PHOTOS.length}
-            </p>
-          </div>
-
-          {/* Carrusel */}
-          <div className="relative mx-auto max-w-[min(80vw,560px)]">
-            {/* Stage */}
-            <div
-              className="relative aspect-[3/4] overflow-hidden rounded-lg bg-zinc-900 cursor-pointer"
-              onClick={() => setLightbox(current)}
-              role="button"
-              tabIndex={0}
-              aria-label="Ver foto en pantalla completa"
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox(current) } }}
-            >
-              {PHOTOS.map((photo, i) => (
-                <img
-                  key={photo.id}
-                  src={photo.src}
-                  alt={photo.alt}
-                  loading={i < 2 ? 'eager' : 'lazy'}
-                  decoding="async"
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out ${
-                    i === current ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  }`}
-                />
-              ))}
-
-              {/* Placa de inventario */}
-              <span className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-10 bg-black/80 border border-brand-600 text-brand-600 px-3 py-2 sm:px-4 sm:py-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-[0.22em] font-mono backdrop-blur-sm transition-colors duration-500 hover:bg-brand-600 hover:text-white motion-reduce:transition-none">
-                {PHOTOS[current].label}
-              </span>
-
-              {/* Marco rojo sutil */}
-              <span className="pointer-events-none absolute inset-0 z-[5] border border-brand-600/40 rounded-lg" />
-            </div>
-
-            {/* Flechas */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); prev() }}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-black/70 text-zinc-300 backdrop-blur-sm transition hover:border-brand-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              aria-label="Foto anterior"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); next() }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-black/70 text-zinc-300 backdrop-blur-sm transition hover:border-brand-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              aria-label="Foto siguiente"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Barra de progreso */}
-          <div className="mt-4 h-[2px] max-w-[min(80vw,560px)] mx-auto overflow-hidden rounded-full bg-zinc-800">
-            <div
-              ref={barRef}
-              className="h-full bg-brand-600 rounded-full"
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          {/* Thumbnails */}
-          <div
-            ref={thumbRef}
-            className="mt-4 flex gap-2 overflow-x-auto pb-1 max-w-[min(80vw,560px)] mx-auto scrollbar-none"
-            style={{ scrollbarWidth: 'none' }}
-          >
-            {PHOTOS.map((photo, i) => (
-              <button
-                key={photo.id}
-                type="button"
-                onClick={() => goTo(i)}
-                className={[
-                  'shrink-0 w-12 h-16 sm:w-14 sm:h-[72px] overflow-hidden rounded border-2 transition-all duration-300',
-                  i === current
-                    ? 'border-brand-600 opacity-100 scale-105'
-                    : 'border-zinc-700 opacity-50 hover:opacity-80 hover:border-zinc-500',
-                ].join(' ')}
-                aria-label={`Ir a foto ${i + 1}`}
-              >
-                <img src={photo.src} alt="" className="h-full w-full object-cover" loading="lazy" />
-              </button>
-            ))}
-          </div>
+        {/* Eyebrow compacto */}
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-mono text-[9px] font-bold uppercase tracking-[0.3em] text-brand-600 sm:text-[10px]">
+            Fotos del taller
+          </p>
+          <p className="font-mono text-[9px] font-bold uppercase tracking-[0.3em] text-zinc-500 sm:text-[10px]">
+            {num} / {String(PHOTOS.length).padStart(2, '0')}
+          </p>
         </div>
-      </section>
 
-      {/* Lightbox */}
-      {lightbox !== null ? (
-        <Lightbox current={lightbox} onClose={closeLb} onPrev={prevLb} onNext={nextLb} />
-      ) : null}
+        {/* Stage */}
+        <div
+          className="relative aspect-[3/4] cursor-pointer overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-white/10"
+          role="button"
+          tabIndex={0}
+          aria-label={`Ver foto ${num} en pantalla completa`}
+          onClick={() => setLightbox(current)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox(current) } }}
+        >
+          {/* Glow rojo de fondo */}
+          <span className="pointer-events-none absolute -inset-3 -z-10 rounded-[28px] bg-brand-600/20 blur-2xl motion-reduce:hidden" aria-hidden />
+
+          {PHOTOS.map((photo, i) => (
+            <img
+              key={photo.id}
+              src={photo.src}
+              alt={photo.alt}
+              loading={i < 2 ? 'eager' : 'lazy'}
+              decoding="async"
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out motion-reduce:transition-none ${
+                i === current ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            />
+          ))}
+
+          {/* Barrido de luz en cada cambio */}
+          <span
+            key={current}
+            className="pointer-events-none absolute inset-y-0 left-0 z-[4] w-2/5 bg-gradient-to-r from-transparent via-white/[0.13] to-transparent motion-reduce:animate-none"
+            style={{ animation: 'gallerySweep 1s ease-out' }}
+            aria-hidden
+          />
+
+          {/* Escuadras de esquina (industrial) */}
+          <span className="pointer-events-none absolute left-0 top-0 z-[5] h-5 w-5 border-l-2 border-t-2 border-brand-600/90" aria-hidden />
+          <span className="pointer-events-none absolute right-0 top-0 z-[5] h-5 w-5 border-r-2 border-t-2 border-brand-600/90" aria-hidden />
+          <span className="pointer-events-none absolute bottom-0 left-0 z-[5] h-5 w-5 border-b-2 border-l-2 border-brand-600/90" aria-hidden />
+          <span className="pointer-events-none absolute bottom-0 right-0 z-[5] h-5 w-5 border-b-2 border-r-2 border-brand-600/90" aria-hidden />
+
+          {/* Contador circular */}
+          <span className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/70 font-mono text-[10px] font-bold tracking-widest text-brand-500 ring-1 ring-brand-600/60 backdrop-blur-sm" aria-hidden>
+            {num}
+          </span>
+
+          {/* Degradado inferior para contraste de la placa */}
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[6] h-1/3 bg-gradient-to-t from-black/60 to-transparent" aria-hidden />
+
+          {/* Placa de inventario (glass) */}
+          <span className="absolute bottom-3 left-3 z-10 flex max-w-[72%] items-center gap-2 rounded-sm bg-black/70 px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-white ring-1 ring-white/10 backdrop-blur-md sm:text-[10px]">
+            <span className="h-3 w-[3px] shrink-0 bg-brand-600" aria-hidden />
+            <span className="truncate">{photo.label}</span>
+          </span>
+        </div>
+
+        {/* Flechas laterales */}
+        <Arrow dir="prev" onClick={prev} label="Foto anterior" />
+        <Arrow dir="next" onClick={next} label="Foto siguiente" />
+
+        {/* Barra de progreso con glow */}
+        <div className="mx-auto mt-3 h-[3px] w-full overflow-hidden rounded-full bg-zinc-800">
+          <div
+            ref={barRef}
+            className="h-full rounded-full bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 shadow-[0_0_10px_2px_rgba(220,38,38,0.55)]"
+            style={{ width: '100%' }}
+          />
+        </div>
+
+        {/* Thumbnails */}
+        <div
+          ref={thumbRef}
+          className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {PHOTOS.map((photo, i) => (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => goTo(i)}
+              className={[
+                'shrink-0 h-11 w-9 overflow-hidden rounded-md ring-1 transition-all duration-300 motion-reduce:transition-none',
+                i === current
+                  ? 'ring-2 ring-brand-600 opacity-100 scale-[1.04] shadow-[0_0_12px_-2px_rgba(220,38,38,.8)]'
+                  : 'ring-white/10 opacity-45 hover:opacity-85 hover:ring-brand-500/60',
+              ].join(' ')}
+              aria-label={`Ir a foto ${i + 1}`}
+            >
+              <img src={photo.src} alt="" loading="lazy" className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lightbox — portal al <body> para que fixed funcione dentro del parallax */}
+      {lightbox !== null
+        ? createPortal(
+            <Lightbox current={lightbox} onClose={closeLb} onPrev={prevLb} onNext={nextLb} />,
+            document.body,
+          )
+        : null}
     </>
   )
 }

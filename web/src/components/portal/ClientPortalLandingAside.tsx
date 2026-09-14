@@ -351,8 +351,6 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
         </div>
       ) : null}
 
-      <WorksGallery />
-
       {/* Hero parallax */}
       <header
         id="inicio"
@@ -403,27 +401,37 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 } as CSSProperties)
           }
         >
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-500">Taller certificado</p>
-          <h1 className="mt-4 max-w-4xl font-serif text-4xl font-light leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Precisión mecánica.
-            <span className="mt-2 block font-semibold text-zinc-200">Resultados que se notan al volante.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-zinc-400">
-            Diagnóstico, mantenimiento y reparación con seguimiento claro de cada orden de trabajo.
-          </p>
-          <div className="mt-10 flex flex-wrap gap-4">
-            <a
-              href="#contacto"
-              className="va-btn-primary !min-h-0 items-center justify-center px-8 py-3.5 text-sm font-bold uppercase tracking-widest"
-            >
-              Consultar
-            </a>
-            <a
-              href="#servicios"
-              className="inline-flex items-center justify-center border-2 border-white bg-transparent px-8 py-3.5 text-sm font-bold uppercase tracking-widest text-white transition hover:bg-white hover:text-black"
-            >
-              Servicios
-            </a>
+          <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-8">
+            {/* Columna texto */}
+            <div className="lg:col-span-6 xl:col-span-6">
+              <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-brand-500">Taller certificado</p>
+              <h1 className="mt-4 font-serif text-4xl font-light leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">
+                Precisión mecánica.
+                <span className="mt-2 block font-semibold text-zinc-200">Resultados que se notan al volante.</span>
+              </h1>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-zinc-400">
+                Diagnóstico, mantenimiento y reparación con seguimiento claro de cada orden de trabajo.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-4">
+                <a
+                  href="#contacto"
+                  className="va-btn-primary !min-h-0 items-center justify-center px-8 py-3.5 text-sm font-bold uppercase tracking-widest"
+                >
+                  Consultar
+                </a>
+                <a
+                  href="#servicios"
+                  className="inline-flex items-center justify-center border-2 border-white bg-transparent px-8 py-3.5 text-sm font-bold uppercase tracking-widest text-white transition hover:bg-white hover:text-black"
+                >
+                  Servicios
+                </a>
+              </div>
+            </div>
+
+            {/* Columna galería */}
+            <div className="lg:col-span-6 xl:col-span-6">
+              <WorksGallery />
+            </div>
           </div>
         </div>
 
