@@ -560,15 +560,31 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-brand-500">Ubicación</h3>
                 <p className="mt-4 text-zinc-300">
                   <span className="block font-semibold text-white">Sede principal</span>
-                  Atendemos de lunes a sábado, de 8:00 a 17:00. Pedí la ubicación exacta por WhatsApp.
+                  <span className="mt-1 block">Cll 47D # 83-07 · La América</span>
+                  <span className="block text-zinc-500">Medellín, Antioquia — Colombia</span>
+                  <span className="mt-2 block text-sm">Atendemos de lunes a sábado, de 8:00 a 17:00.</span>
                 </p>
+                <div className="mt-5 overflow-hidden rounded-md ring-1 ring-white/10">
+                  <iframe
+                    title="Mapa Vene Autos — Cll 47D #83-07, La América, Medellín"
+                    src="https://www.google.com/maps?q=Cl%2047D%20%2383-07%2C%20La%20Am%C3%A9rica%2C%20Medell%C3%ADn&output=embed&hl=es&z=17"
+                    className="h-52 w-full sm:h-64"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    allowFullScreen
+                    style={{ filter: 'invert(0.92) hue-rotate(180deg) contrast(0.92) saturate(0.8)' }}
+                  />
+                </div>
                 <a
-                  href="https://wa.me/573225167224"
+                  href="https://www.google.com/maps/dir/?api=1&destination=Cl%2047D%20%2383-07%2C%20La%20Am%C3%A9rica%2C%20Medell%C3%ADn"
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-6 inline-block text-sm font-semibold text-brand-500 underline-offset-4 hover:text-brand-400 hover:underline"
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-brand-600/60 bg-brand-600/10 px-4 py-3 text-xs font-bold uppercase tracking-widest text-brand-400 transition hover:border-brand-500 hover:bg-brand-600 hover:text-white"
                 >
-                  Pedir ubicación por WhatsApp
+                  Cómo llegar
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </a>
               </div>
             </div>

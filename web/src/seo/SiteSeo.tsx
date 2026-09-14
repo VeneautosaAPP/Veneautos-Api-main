@@ -15,8 +15,10 @@ function landingJsonLd(origin: string, locality?: string) {
   const address = locality
     ? {
         '@type': 'PostalAddress',
-        addressCountry: 'CO',
+        streetAddress: 'Cll 47D # 83-07, La América',
         addressLocality: locality,
+        addressRegion: 'Antioquia',
+        addressCountry: 'CO',
       }
     : {
         '@type': 'PostalAddress',
@@ -38,6 +40,9 @@ function landingJsonLd(origin: string, locality?: string) {
         telephone: '+57 322 516 7224',
         email: 'Veneautos82@gmail.com',
         address,
+        geo: locality
+          ? { '@type': 'GeoCoordinates', latitude: 6.25837, longitude: -75.6015 }
+          : undefined,
         areaServed: { '@type': 'Country', name: 'Colombia' },
         knowsAbout: [
           'taller mecánico',

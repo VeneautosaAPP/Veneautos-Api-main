@@ -189,7 +189,7 @@ export function WorksGallery({ className }: { className?: string }) {
 
         {/* Stage */}
         <div
-          className="relative aspect-[3/4] cursor-pointer overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-white/10"
+          className="relative aspect-[4/3] cursor-pointer overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-white/10"
           role="button"
           tabIndex={0}
           aria-label={`Ver foto ${num} en pantalla completa`}
