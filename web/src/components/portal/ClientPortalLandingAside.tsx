@@ -351,6 +351,8 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
         </div>
       ) : null}
 
+      <WorksGallery />
+
       {/* Hero parallax */}
       <header
         id="inicio"
@@ -565,8 +567,6 @@ export function ClientPortalLandingAside({ accessSlot }: ClientPortalLandingAsid
           </Reveal>
         </div>
       </section>
-
-      <WorksGallery />
 
       <footer id="contacto" className="border-t-4 border-brand-600 bg-white py-10 text-black">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
