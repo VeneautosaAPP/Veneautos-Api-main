@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, CalendarCheck } from 'lucide-react'
 import { useAuth } from '../../../auth/AuthContext'
 import { panelUsesModernShell } from '../../../config/operationalNotes'
-import { portalPath } from '../../../constants/portalPath'
 import { usePanelTheme } from '../../../theme/PanelThemeProvider'
 import { formatCopFromString } from '../../../utils/copFormat'
 import { useDashboardMonthlyDelivered } from '../hooks/useDashboardMonthlyDelivered'
+import { deliveredRangeOrdersLink } from '../services/deliveredRangeLink'
 import { formatMonthNumberLabel, formatMonthTitle } from '../services/monthCycle'
 
 const CARD_CLASS = (isSaas: boolean) =>
@@ -30,11 +30,11 @@ export function DashboardMonthlyDeliveredCard() {
 
   return (
     <Link
-      to={`${portalPath('/ordenes')}?status=DELIVERED`}
+      to={deliveredRangeOrdersLink(from, to)}
       className={CARD_CLASS(isSaas)}
       aria-label={`Órdenes entregadas este mes (${formatMonthTitle(from)}): ${countValue}${
         amountValue ? `, facturado ${amountValue}` : ''
-      }. Ver listado.`}
+      }. Ver listado del rango.`}
     >
       <div className="flex h-full flex-col justify-between gap-4">
         <div className="flex items-start justify-between gap-3">
@@ -68,7 +68,7 @@ export function DashboardMonthlyDeliveredCard() {
             </p>
           ) : null}
           <p className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-700 dark:text-brand-300">
-            Ver listado
+            Ver entregadas del rango
             <ArrowRight className="size-3.5" strokeWidth={2} aria-hidden />
           </p>
         </div>

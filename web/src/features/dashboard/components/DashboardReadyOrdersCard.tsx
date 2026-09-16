@@ -15,7 +15,7 @@ const CARD_CLASS = (isSaas: boolean) =>
 export function DashboardReadyOrdersCard() {
   const { can } = useAuth()
   const isSaas = panelUsesModernShell(usePanelTheme())
-  const { count, totalValue, isLoading, isError } = useDashboardReadyOrders()
+  const { count, balancePending, isLoading, isError } = useDashboardReadyOrders()
 
   if (!can('work_orders:read')) return null
 
@@ -23,16 +23,16 @@ export function DashboardReadyOrdersCard() {
   const amountValue =
     isLoading || count == null
       ? '…'
-      : isError || totalValue == null
+      : isError || balancePending == null
         ? null
-        : `$${formatCopFromString(totalValue)}`
+        : `$${formatCopFromString(balancePending)}`
 
   return (
     <Link
       to={`${portalPath('/ordenes')}?status=READY`}
       className={CARD_CLASS(isSaas)}
       aria-label={`Órdenes listas para entrega: ${countValue}${
-        amountValue ? `, valor total ${amountValue}` : ''
+        amountValue ? `, saldo pendiente ${amountValue}` : ''
       }. Ver listado.`}
     >
       <div className="flex h-full flex-col justify-between gap-4">
@@ -60,7 +60,7 @@ export function DashboardReadyOrdersCard() {
           {amountValue ? (
             <p className="mt-2 text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-300">
               {amountValue}{' '}
-              <span className="font-normal text-slate-500 dark:text-slate-400">valor total</span>
+              <span className="font-normal text-slate-500 dark:text-slate-400">saldo pendiente</span>
             </p>
           ) : null}
           <p className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-700 dark:text-brand-300">

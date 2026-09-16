@@ -118,9 +118,13 @@ export function WorkOrdersPage() {
         customerIdFilter={m.customerIdFilter}
         textSearch={m.textSearch}
         vehiclePlateLabel={m.vehiclePlateLabel}
+        deliveredFromIso={m.deliveredFromIso}
+        deliveredToIso={m.deliveredToIso}
         onClearListFilters={clearListFilters}
         onSetStatus={m.setStatus}
         onSetTextSearch={m.setTextSearch}
+        onSetDeliveredFrom={m.setDeliveredFrom}
+        onSetDeliveredTo={m.setDeliveredTo}
         canCreateWorkOrder={canCreateWorkOrder}
         onOpenNewOrder={m.openNewOrderModal}
         showPagination={m.rows !== null}

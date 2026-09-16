@@ -12,6 +12,10 @@ export type WorkOrdersListQuery = {
   vehicleId?: string
   customerId?: string
   search?: string
+  /** Entregadas desde (ISO): filtra por fecha de entrega (`deliveredAt`). */
+  from?: string
+  /** Entregadas hasta (ISO): filtra por fecha de entrega (`deliveredAt`). */
+  to?: string
   page: number
   pageSize: number
 }
@@ -25,6 +29,8 @@ export async function fetchWorkOrdersList(
   if (q.vehicleId) qs.set('vehicleId', q.vehicleId)
   if (q.customerId) qs.set('customerId', q.customerId)
   if (q.search) qs.set('search', q.search)
+  if (q.from) qs.set('from', q.from)
+  if (q.to) qs.set('to', q.to)
   qs.set('page', String(q.page))
   qs.set('pageSize', String(q.pageSize))
   return api<WorkOrderListResponse>(`/work-orders?${qs.toString()}`, { signal })
@@ -127,10 +133,14 @@ export async function fetchMonthlyDeliveredSummary(
   })
 }
 
-/** Resumen (panel) de OTs en un estado: cantidad + valor total a cobrar. `totalValue` null si el perfil no ve importes. */
+/**
+ * Resumen (panel) de OTs en un estado. `totalValue` = valor total a cobrar;
+ * `balancePending` = saldo pendiente (total − cobrado). Ambos null si el perfil no ve importes.
+ */
 export type WorkOrdersValueSummary = {
   count: number
   totalValue: string | null
+  balancePending: string | null
 }
 
 export type ReadyOrdersSummary = WorkOrdersValueSummary

@@ -18,11 +18,15 @@ export function useDashboardWorkshopCount() {
   const cached = useMemo(() => {
     const raw = workshopCounterCache.read(userId)
     if (!raw) return undefined
-    // Migración: entradas viejas guardaban solo `{ total }` (sin el valor total).
+    // Migración: entradas viejas guardaban solo `{ total }` (sin valor total ni saldo).
     const legacy = raw.value as WorkOrdersValueSummary & { total?: number }
     return {
       count: legacy.count ?? legacy.total ?? 0,
       totalValue: legacy.totalValue ?? null,
+      balancePending: legacy.balancePending ?? null,
+      // `null` es respuesta real del servidor (perfil sin visibilidad financiera);
+      // `undefined` es una entrada guardada antes de existir el saldo pendiente.
+      hasBalancePending: legacy.balancePending !== undefined,
       savedAt: raw.savedAt,
     }
   }, [userId])
@@ -43,16 +47,24 @@ export function useDashboardWorkshopCount() {
         workshopCounterCache.write(userId, data)
         return data
       }),
-    // Caché sin valor (entrada vieja `{total}` o un placeholder guardado sin el monto):
-    // forzamos refetch de fondo aunque la entrada sea reciente, para que el total aparezca.
-    staleTime: cached && cached.totalValue == null ? 0 : STALE_DASHBOARD_MS,
-    initialData: cached ? { count: cached.count, totalValue: cached.totalValue } : undefined,
+    // Caché sin valor (entrada vieja `{total}`, o guardada antes de existir el saldo):
+    // forzamos refetch de fondo aunque la entrada sea reciente, para que aparezca el monto.
+    staleTime:
+      cached && (!cached.hasBalancePending || cached.totalValue == null) ? 0 : STALE_DASHBOARD_MS,
+    initialData: cached
+      ? {
+          count: cached.count,
+          totalValue: cached.totalValue,
+          balancePending: cached.balancePending,
+        }
+      : undefined,
     initialDataUpdatedAt: cached?.savedAt,
   })
 
   return {
     count: query.data?.count ?? null,
     totalValue: query.data?.totalValue ?? null,
+    balancePending: query.data?.balancePending ?? null,
     isLoading: query.isPending,
     isError: query.isError,
   }

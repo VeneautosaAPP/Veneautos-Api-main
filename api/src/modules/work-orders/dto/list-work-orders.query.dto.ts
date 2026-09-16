@@ -1,6 +1,6 @@
 import { WorkOrderStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsDate, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { IsPrismaCuid } from '../../../common/decorators/is-prisma-cuid.decorator';
 
 const STATUSES = Object.values(WorkOrderStatus);
@@ -24,6 +24,18 @@ export class ListWorkOrdersQueryDto {
   @IsString()
   @MaxLength(120)
   search?: string;
+
+  /** Entregas desde (inclusive): filtra por fecha de entrega (`deliveredAt`). */
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  from?: Date;
+
+  /** Entregas hasta (inclusive): filtra por fecha de entrega (`deliveredAt`). */
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  to?: Date;
 
   @IsOptional()
   @Type(() => Number)

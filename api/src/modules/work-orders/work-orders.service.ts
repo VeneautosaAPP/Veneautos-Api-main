@@ -25,6 +25,7 @@ import { canonicalPublicCodeFromLookupInput, formatWorkOrderPublicCode } from '.
 import { actorMayViewWorkOrderCosts, actorMayViewWorkOrderFinancials } from './work-orders.visibility';
 import {
   computeWorkOrderTotals,
+  computeWorkshopProfit,
   serializeLineTotals,
   serializeWorkOrderTotals,
   computeLineTotals,
@@ -33,6 +34,17 @@ import {
 
 const LIST_PAGE_SIZE_DEFAULT = 50;
 const LIST_PAGE_SIZE_MAX = 100;
+
+/**
+ * Resumen (panel) de OTs en un estado: cantidad, valor total a cobrar y **saldo pendiente**
+ * (lo que aún nos deben = total − cobrado). `null` en los importes si el perfil no ve
+ * información financiera.
+ */
+export type WorkOrdersValueSummary = {
+  count: number;
+  totalValue: string | null;
+  balancePending: string | null;
+};
 
 const PUBLIC_WO_LOOKUP_NOT_FOUND =
   'No encontramos una orden con ese código y placa. Verificá los datos o consultá en recepción.';
@@ -364,6 +376,29 @@ export class WorkOrdersService {
     };
   }
 
+  /**
+   * Rango por fecha de entrega (`deliveredAt`, inclusivo en ambos extremos). Sin parámetros
+   * no filtra: el listado operativo sigue mostrando todo. Es el mismo campo que usan las
+   * tarjetas «Entregadas» del panel, así que los conteos coinciden al navegar desde ellas.
+   */
+  private deliveredAtRangeClause(
+    from: Date | undefined,
+    to: Date | undefined,
+  ): Prisma.WorkOrderWhereInput | null {
+    const validFrom = from instanceof Date && !Number.isNaN(from.getTime()) ? from : null;
+    const validTo = to instanceof Date && !Number.isNaN(to.getTime()) ? to : null;
+    if (!validFrom && !validTo) return null;
+    if (validFrom && validTo && validFrom.getTime() > validTo.getTime()) {
+      throw new BadRequestException('El rango de fechas de entrega es inválido.');
+    }
+    return {
+      deliveredAt: {
+        ...(validFrom ? { gte: validFrom } : {}),
+        ...(validTo ? { lte: validTo } : {}),
+      },
+    };
+  }
+
   async list(actor: JwtUserPayload, query: ListWorkOrdersQueryDto) {
     const visibility = this.workOrderVisibilityWhere(actor);
     const clauses: Prisma.WorkOrderWhereInput[] = [];
@@ -393,6 +428,10 @@ export class WorkOrdersService {
           { invoices: { some: { documentNumber: { contains: term, mode: 'insensitive' } } } },
         ],
       });
+    }
+    const deliveredRange = this.deliveredAtRangeClause(query.from, query.to);
+    if (deliveredRange) {
+      clauses.push(deliveredRange);
     }
     const where: Prisma.WorkOrderWhereInput = clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0]! : { AND: clauses };
     const page = query.page && query.page > 0 ? query.page : 1;
@@ -501,14 +540,15 @@ export class WorkOrdersService {
   }
 
   /**
-   * Resumen (panel) de órdenes en un estado operativo (READY/IN_WORKSHOP): cantidad + suma
-   * del total a cobrar (grandTotal, líneas + descuentos + IVA/INC) para perfiles con
-   * visibilidad financiera. Respeta la misma visibilidad de listado (`workOrderVisibilityWhere`).
+   * Resumen (panel) de órdenes en un estado operativo (READY/IN_WORKSHOP): cantidad, suma
+   * del total a cobrar (grandTotal, líneas + descuentos + IVA/INC) y **saldo pendiente**
+   * (total − cobrado) para perfiles con visibilidad financiera. Respeta la misma
+   * visibilidad de listado (`workOrderVisibilityWhere`).
    */
   private async ordersValueSummary(
     actor: JwtUserPayload,
     status: WorkOrderStatus,
-  ): Promise<{ count: number; totalValue: string | null }> {
+  ): Promise<WorkOrdersValueSummary> {
     const scope: Prisma.WorkOrderWhereInput = {
       ...this.workOrderVisibilityWhere(actor),
       status,
@@ -520,6 +560,7 @@ export class WorkOrdersService {
       this.prisma.workOrder.findMany({
         where: scope,
         select: {
+          id: true,
           lines: {
             select: {
               id: true,
@@ -539,10 +580,25 @@ export class WorkOrdersService {
 
     const mayViewFinancials = actorMayViewWorkOrderFinancials(actor);
     if (!mayViewFinancials) {
-      return { count, totalValue: null };
+      return { count, totalValue: null, balancePending: null };
+    }
+
+    // Cobrado por OT: se descuenta orden por orden para que las ya saldadas (o con
+    // sobrepago) no "presten" saldo a las demás.
+    const paidByOrder = new Map<string, Prisma.Decimal>();
+    if (rows.length > 0) {
+      const paid = await this.prisma.workOrderPayment.groupBy({
+        by: ['workOrderId'],
+        where: { workOrder: scope },
+        _sum: { amount: true },
+      });
+      for (const agg of paid) {
+        paidByOrder.set(agg.workOrderId, agg._sum.amount ?? new Prisma.Decimal(0));
+      }
     }
 
     let total = new Prisma.Decimal(0);
+    let pending = new Prisma.Decimal(0);
     for (const row of rows) {
       const linesForTotals: LineForTotals[] = row.lines.map((ln) => ({
         id: ln.id,
@@ -555,19 +611,22 @@ export class WorkOrdersService {
         taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
         taxRate: ln.taxRate ? { kind: ln.taxRate.kind } : null,
       }));
-      total = total.plus(ceilWholeCop(computeWorkOrderTotals(linesForTotals).grandTotal));
+      const due = ceilWholeCop(computeWorkOrderTotals(linesForTotals).grandTotal);
+      total = total.plus(due);
+      const rowPending = due.minus(paidByOrder.get(row.id) ?? new Prisma.Decimal(0));
+      pending = pending.plus(rowPending.lt(0) ? new Prisma.Decimal(0) : ceilWholeCop(rowPending));
     }
 
-    return { count, totalValue: total.toString() };
+    return { count, totalValue: total.toString(), balancePending: pending.toString() };
   }
 
   /** Resumen (panel) de órdenes «Lista» (READY). */
-  readyOrdersSummary(actor: JwtUserPayload): Promise<{ count: number; totalValue: string | null }> {
+  readyOrdersSummary(actor: JwtUserPayload): Promise<WorkOrdersValueSummary> {
     return this.ordersValueSummary(actor, WorkOrderStatus.READY);
   }
 
   /** Resumen (panel) de órdenes «En taller» (IN_WORKSHOP). */
-  inWorkshopSummary(actor: JwtUserPayload): Promise<{ count: number; totalValue: string | null }> {
+  inWorkshopSummary(actor: JwtUserPayload): Promise<WorkOrdersValueSummary> {
     return this.ordersValueSummary(actor, WorkOrderStatus.IN_WORKSHOP);
   }
 
@@ -651,9 +710,12 @@ export class WorkOrdersService {
     }));
     const totalsSerialized = serializeWorkOrderTotals(totals);
     // Costo / utilidad son sensibles; solo para `reports:read` (administración / dueño).
+    const workshopProfit = mayViewCosts
+      ? computeWorkshopProfit(linesForTotals, row.laborCommissionPct)
+      : null;
     const totalsForActor = mayViewCosts
-      ? totalsSerialized
-      : { ...totalsSerialized, totalCost: null, totalProfit: null };
+      ? { ...totalsSerialized, workshopProfit: workshopProfit ? workshopProfit.toString() : null }
+      : { ...totalsSerialized, totalCost: null, totalProfit: null, workshopProfit: null };
 
     const detail = {
       ...rest,

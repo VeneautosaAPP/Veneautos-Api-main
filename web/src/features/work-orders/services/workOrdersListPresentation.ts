@@ -1,4 +1,5 @@
 import type { WorkOrderStatus } from '../../../api/types'
+import { parseIsoDateParam } from './workOrdersDateRange'
 
 export const WORK_ORDER_LIST_STATUS: Record<
   WorkOrderStatus,
@@ -106,6 +107,10 @@ export type WorkOrderListFilterParams = {
   customerIdFilter: string
   vehiclePlateLabel: string
   textSearch: string
+  /** Entregadas desde (ISO). Filtra por fecha de entrega. */
+  deliveredFromIso: string
+  /** Entregadas hasta (ISO). Filtra por fecha de entrega. */
+  deliveredToIso: string
 }
 
 export function parseWorkOrderListFilters(searchParams: URLSearchParams): WorkOrderListFilterParams {
@@ -115,6 +120,8 @@ export function parseWorkOrderListFilters(searchParams: URLSearchParams): WorkOr
     customerIdFilter: (searchParams.get('customerId') ?? '').trim(),
     vehiclePlateLabel: (searchParams.get('plate') ?? '').trim(),
     textSearch: (searchParams.get('search') ?? '').trim(),
+    deliveredFromIso: parseIsoDateParam(searchParams.get('from')),
+    deliveredToIso: parseIsoDateParam(searchParams.get('to')),
   }
 }
 
@@ -123,12 +130,19 @@ export function parseWorkOrderListFilters(searchParams: URLSearchParams): WorkOr
  * Debe coincidir con la lógica de bump de página al cambiar filtros.
  */
 export function workOrderListFetchFilterKey(f: WorkOrderListFilterParams): string {
-  return `${f.statusFilter}|${f.vehicleIdFilter}|${f.customerIdFilter}|${f.textSearch}`
+  return `${f.statusFilter}|${f.vehicleIdFilter}|${f.customerIdFilter}|${f.textSearch}|${f.deliveredFromIso}|${f.deliveredToIso}`
 }
 
 /** True si hay filtros que afectan el resultado del listado (misma base que la petición). */
 export function workOrderListHasFetchFilters(f: WorkOrderListFilterParams): boolean {
-  return !!(f.statusFilter || f.vehicleIdFilter || f.customerIdFilter || f.textSearch)
+  return !!(
+    f.statusFilter ||
+    f.vehicleIdFilter ||
+    f.customerIdFilter ||
+    f.textSearch ||
+    f.deliveredFromIso ||
+    f.deliveredToIso
+  )
 }
 
 /**

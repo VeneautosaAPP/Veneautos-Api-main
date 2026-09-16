@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { panelUsesModernShell } from '../../config/operationalNotes'
 import { usePanelTheme } from '../../theme/PanelThemeProvider'
 
@@ -14,6 +14,8 @@ type Props = {
   actionsTop?: boolean
   /** Clases extra en el contenedor raíz (clásico: borde inferior de cabecera, etc.). */
   rootClassName?: string
+  /** Raíz real (sticky): el detalle de OT la mide para anclar la cabecera de líneas. */
+  ref?: Ref<HTMLDivElement>
 }
 
 /**
@@ -28,6 +30,7 @@ export function PageHeader({
   actions,
   actionsTop,
   rootClassName,
+  ref,
 }: Props) {
   const isSaas = panelUsesModernShell(usePanelTheme())
 
@@ -57,11 +60,15 @@ export function PageHeader({
 
   if (isSaas) {
     return (
-      <div className={saasRoot}>
+      <div ref={ref} className={saasRoot}>
         <div className="va-saas-page-header-row">{inner}</div>
       </div>
     )
   }
 
-  return <div className={classicRoot}>{inner}</div>
+  return (
+    <div ref={ref} className={classicRoot}>
+      {inner}
+    </div>
+  )
 }

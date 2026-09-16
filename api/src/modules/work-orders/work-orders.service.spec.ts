@@ -32,7 +32,7 @@ describe('WorkOrdersService', () => {
     workOrderLine: {
       create: jest.Mock;
     };
-    workOrderPayment: { aggregate: jest.Mock };
+    workOrderPayment: { aggregate: jest.Mock; groupBy: jest.Mock };
   };
   let audit: { recordDomain: jest.Mock };
   let notes: { requireOperationalNote: jest.Mock };
@@ -76,7 +76,7 @@ describe('WorkOrdersService', () => {
       workOrderLine: {
         create: jest.fn().mockResolvedValue({ id: 'seeded-labor' }),
       },
-      workOrderPayment: { aggregate: jest.fn() },
+      workOrderPayment: { aggregate: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -593,6 +593,75 @@ describe('WorkOrdersService', () => {
         }),
       );
       expect(res).toEqual({ items: [{ id: 'a', authorizedAmount: null }], total: 120 });
+    });
+
+    it('acota por rango de entrega (from/to) sobre deliveredAt', async () => {
+      const from = new Date('2026-09-14T05:00:00.000Z');
+      const to = new Date('2026-09-19T04:59:59.999Z');
+      await service.list(actorAll, {
+        status: WorkOrderStatus.DELIVERED,
+        from,
+        to,
+      } satisfies ListWorkOrdersQueryDto);
+      const arg = prisma.workOrder.findMany.mock.calls[0][0] as {
+        where: { AND?: Record<string, unknown>[] };
+      };
+      expect(arg.where.AND).toEqual(
+        expect.arrayContaining([{ deliveredAt: { gte: from, lte: to } }]),
+      );
+    });
+
+    it('sin rango no toca deliveredAt', async () => {
+      await service.list(actorAll, {} satisfies ListWorkOrdersQueryDto);
+      const arg = prisma.workOrder.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
+      expect(arg.where.deliveredAt).toBeUndefined();
+    });
+
+    it('rechaza rango de entrega con from posterior a to', async () => {
+      await expect(
+        service.list(actorAll, {
+          from: new Date('2026-09-20T00:00:00.000Z'),
+          to: new Date('2026-09-10T00:00:00.000Z'),
+        } satisfies ListWorkOrdersQueryDto),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('resúmenes del panel (saldo pendiente)', () => {
+    const laborLine = {
+      id: 'l-1',
+      lineType: WorkOrderLineType.LABOR,
+      quantity: new Prisma.Decimal(1),
+      unitPrice: new Prisma.Decimal(1000),
+      discountAmount: new Prisma.Decimal(0),
+      costSnapshot: null,
+      taxRateId: null,
+      taxRatePercentSnapshot: null,
+      taxRate: null,
+    };
+
+    it('inWorkshopSummary: resta lo cobrado orden por orden y nunca da saldo negativo', async () => {
+      prisma.workOrder.count.mockResolvedValue(2);
+      prisma.workOrder.findMany.mockResolvedValue([
+        { id: 'wo-1', lines: [laborLine] },
+        { id: 'wo-2', lines: [laborLine] },
+      ]);
+      prisma.workOrderPayment.groupBy.mockResolvedValue([
+        { workOrderId: 'wo-1', _sum: { amount: new Prisma.Decimal(400) } },
+        { workOrderId: 'wo-2', _sum: { amount: new Prisma.Decimal(1500) } },
+      ]);
+
+      const res = await service.inWorkshopSummary(actorAll);
+      expect(res).toEqual({ count: 2, totalValue: '2000', balancePending: '600' });
+    });
+
+    it('readyOrdersSummary: sin permisos financieros devuelve importes en null', async () => {
+      prisma.workOrder.count.mockResolvedValue(1);
+      prisma.workOrder.findMany.mockResolvedValue([{ id: 'wo-1', lines: [laborLine] }]);
+
+      const res = await service.readyOrdersSummary(actorOwn);
+      expect(res).toEqual({ count: 1, totalValue: null, balancePending: null });
+      expect(prisma.workOrderPayment.groupBy).not.toHaveBeenCalled();
     });
   });
 

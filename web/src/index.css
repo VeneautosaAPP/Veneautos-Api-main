@@ -1203,6 +1203,61 @@ html.va-panel-theme-saas-light .va-hero-sticky {
   top: var(--va-app-header-h, 0px);
 }
 
+/* --- Cabecera de líneas fija bajo el banner (escritorio) -----------------------------------
+   En lg+ la página (no la sección) es la que scrollea, así que la fila Tipo/Detalle/Cant./
+   P. unit. se ancla justo en el borde inferior del banner y las filas pasan por detrás.
+   `--va-wo-hero-h` lo mide el detalle de OT con ResizeObserver (el alto del banner cambia
+   según píldoras, acciones y ancho). */
+:root {
+  /* Separación del banner con el borde superior (= padding vertical de `main`: 4/6/7). */
+  --va-wo-hero-gap: 1rem;
+  --va-wo-hero-top: calc(var(--va-app-header-h, 0px) + var(--va-wo-hero-gap));
+}
+@media (min-width: 640px) {
+  :root {
+    --va-wo-hero-gap: 1.5rem;
+  }
+}
+@media (min-width: 1280px) {
+  :root {
+    --va-wo-hero-gap: 1.75rem;
+  }
+}
+/* En SaaS el banner se ancla al header sin separación (ver regla `.va-hero-sticky` de arriba). */
+html.va-panel-theme-saas-light {
+  --va-wo-hero-gap: 0px;
+}
+
+@media (min-width: 1024px) {
+  /* El banner y la sección que le sigue van pegados (0px): la cabecera de la tabla de
+     líneas nace justo en el borde inferior del banner y allí se queda al scrollear.
+     (`space-y-*` reparte el espacio como `margin-bottom` del banner y `margin-top` del
+     siguiente: hay que anular los dos.) */
+  .va-wo-mobile-app > .va-hero-sticky,
+  .space-y-8 > .va-hero-sticky {
+    margin-bottom: 0;
+  }
+  .va-wo-mobile-app > .va-hero-sticky + *,
+  .space-y-8 > .va-hero-sticky + * {
+    margin-top: 0;
+  }
+  /* Sin contenedor con scroll propio: `overflow-x: auto` envolvía la tabla y atrapaba el
+     `sticky` (las filas nunca pasaban por detrás del título). */
+  .va-wo-lines .va-table-scroll {
+    overflow: visible;
+  }
+  .va-wo-lines thead th {
+    position: sticky;
+    /* Lo publica el detalle de OT midiendo el borde inferior real del banner (0px de
+       separación): no depende de la aritmética de variables ni del alto estimado. */
+    top: var(--va-wo-lines-sticky-top, 0px);
+    z-index: 5;
+    /* Opaco: toma el fondo de `.va-table-head-row` (incluye variantes dark y de tema). */
+    background-color: inherit;
+    box-shadow: 0 6px 12px -8px rgb(15 23 42 / 0.45);
+  }
+}
+
 /* Tablets táctiles en vertical (ancho lg–xl): el `va-saas-page-header-row` se apila en columna y los
    valores de la factura (Subtotal/Cobrado/Saldo) caían debajo del input de repuestos/mano de obra.
    En vertical se replica la disposición deseada: información izquierda, valores de factura al tope

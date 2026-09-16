@@ -13,7 +13,12 @@ export function useDashboardReadyOrders() {
   const userId = user?.id ?? 'anon'
 
   const queryKey = queryKeys.dashboard.readyOrders()
-  const cached = useMemo(() => readyOrdersCache.read(userId), [userId])
+  // Entradas guardadas antes de existir el saldo pendiente: hay que refrescar para traerlo.
+  const cached = useMemo(() => {
+    const raw = readyOrdersCache.read(userId)
+    if (!raw) return null
+    return { ...raw, hasBalancePending: raw.value.balancePending !== undefined }
+  }, [userId])
 
   useEffect(() => {
     const onChanged = () => {
@@ -31,7 +36,7 @@ export function useDashboardReadyOrders() {
         readyOrdersCache.write(userId, data)
         return data
       }),
-    staleTime: STALE_DASHBOARD_MS,
+    staleTime: cached && !cached.hasBalancePending ? 0 : STALE_DASHBOARD_MS,
     initialData: cached?.value,
     initialDataUpdatedAt: cached?.savedAt,
   })
@@ -39,6 +44,7 @@ export function useDashboardReadyOrders() {
   return {
     count: query.data?.count ?? null,
     totalValue: query.data?.totalValue ?? null,
+    balancePending: query.data?.balancePending ?? null,
     isLoading: query.isPending,
     isError: query.isError,
   }

@@ -2,6 +2,7 @@ import { Prisma, TaxRateKind, WorkOrderLineType } from '@prisma/client';
 import {
   computeLineTotals,
   computeWorkOrderTotals,
+  computeWorkshopProfit,
   type LineForTotals,
 } from './work-order-totals';
 
@@ -136,5 +137,43 @@ describe('work-order-totals · persona jurídica (con IVA/INC)', () => {
       }),
     );
     expect(t.taxAmount.toString()).toBe('19000');
+  });
+});
+
+describe('computeWorkshopProfit (utilidad del taller)', () => {
+  it('Repuesto: precio unitario − precio proveedor, por cantidad', () => {
+    const profit = computeWorkshopProfit([
+      part({ quantity: d(1), unitPrice: d(100_000), costSnapshot: d(75_000) }),
+      part({ quantity: d(1), unitPrice: d(250_000), costSnapshot: d(200_000) }),
+    ]);
+    expect(profit?.toString()).toBe('75000');
+  });
+
+  it('Mano de obra: el 50% es utilidad (lo demás es comisión del mecánico)', () => {
+    const profit = computeWorkshopProfit([
+      labor({ quantity: d(1), unitPrice: d(180_000) }),
+      labor({ quantity: d(2), unitPrice: d(50_000) }),
+    ]);
+    expect(profit?.toString()).toBe('140000');
+  });
+
+  it('No resta descuentos de línea (a diferencia de `totalProfit`)', () => {
+    const lines = [labor({ quantity: d(1), unitPrice: d(150_000), discountAmount: d(20_000) })];
+    expect(computeWorkshopProfit(lines)?.toString()).toBe('75000');
+    expect(computeWorkOrderTotals(lines).totalProfit?.toString()).toBe('130000');
+  });
+
+  it('Respeta el % de comisión de la OT cuando está configurado', () => {
+    const lines = [labor({ quantity: d(1), unitPrice: d(200_000) })];
+    expect(computeWorkshopProfit(lines, d(60))?.toString()).toBe('80000');
+  });
+
+  it('null si algún repuesto no tiene precio proveedor cargado', () => {
+    expect(
+      computeWorkshopProfit([
+        part({ quantity: d(1), unitPrice: d(100_000), costSnapshot: d(75_000) }),
+        part({ quantity: d(1), unitPrice: d(50_000) }),
+      ]),
+    ).toBeNull();
   });
 });

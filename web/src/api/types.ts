@@ -190,6 +190,12 @@ export type WorkOrderTotals = {
   /** Solo con `reports:read`; `null` si la OT tiene líneas PART sin costo snapshot. */
   totalCost: string | null
   totalProfit: string | null
+  /**
+   * Utilidad del taller: repuestos (precio unitario − precio proveedor) + mano de obra
+   * (50% por defecto). No descuenta ni suma impuestos. `null` sin `reports:read` o si
+   * algún repuesto no tiene precio proveedor cargado.
+   */
+  workshopProfit?: string | null
 }
 
 export type WorkOrderParentBrief = {

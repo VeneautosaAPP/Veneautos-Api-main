@@ -29,6 +29,7 @@ import {
 import {
   computeLineTotals,
   computeWorkOrderTotals,
+  computeWorkshopProfit,
   serializeLineTotals,
   serializeWorkOrderTotals,
   type LineForTotals,
@@ -188,10 +189,21 @@ export class WorkOrderLinesService {
     const due = ceilWholeCop(totals.grandTotal).minus(totalPaid);
     const amountDue = due.lt(0) ? '0' : ceilWholeCop(due).toString();
 
+    // Utilidad del taller: repuestos (precio − proveedor) + mano de obra (50% por defecto).
+    const commission = await this.prisma.workOrder.findUnique({
+      where: { id: workOrderId },
+      select: { laborCommissionPct: true },
+    });
+    const workshopProfit = mayCosts
+      ? computeWorkshopProfit(linesForTotals, commission?.laborCommissionPct ?? null)
+      : null;
+
     return {
       lines,
       linesSubtotal: ceilWholeCop(totals.linesSubtotal).toString(),
-      totals: mayCosts ? serialized : { ...serialized, totalCost: null, totalProfit: null },
+      totals: mayCosts
+        ? { ...serialized, workshopProfit: workshopProfit ? workshopProfit.toString() : null }
+        : { ...serialized, totalCost: null, totalProfit: null, workshopProfit: null },
       amountDue,
       paymentSummary: { paymentCount, totalPaid: totalPaid.toString(), remaining: amountDue },
       addedLineId: addedLineId ?? null,
@@ -239,12 +251,28 @@ export class WorkOrderLinesService {
     );
     const serialized = serializeWorkOrderTotals(totals);
     const mayViewCosts = actorMayViewWorkOrderCosts(actor);
+    const workshopProfit = mayViewCosts
+      ? computeWorkshopProfit(
+          lines.map((ln) => ({
+            id: ln.id,
+            lineType: ln.lineType,
+            quantity: ln.quantity,
+            unitPrice: ln.unitPrice,
+            discountAmount: ln.discountAmount,
+            costSnapshot: ln.costSnapshot,
+            taxRateId: ln.taxRateId,
+            taxRatePercentSnapshot: ln.taxRatePercentSnapshot,
+            taxRate: ln.taxRate ? { kind: ln.taxRate.kind } : null,
+          })),
+        )
+      : null;
     return {
       workOrderId,
       subtotal: ceilWholeCop(totals.linesSubtotal).toString(),
       ...serialized,
       totalCost: mayViewCosts ? serialized.totalCost : null,
       totalProfit: mayViewCosts ? serialized.totalProfit : null,
+      workshopProfit: workshopProfit ? workshopProfit.toString() : null,
     };
   }
 

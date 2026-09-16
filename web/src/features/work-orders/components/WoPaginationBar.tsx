@@ -1,11 +1,15 @@
 import { memo, useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import type { WorkOrderStatus } from '../../../api/types'
 import {
   WO_PAGE_SIZE_OPTIONS,
   WORK_ORDER_LIST_STATUS as STATUS,
   WORK_ORDER_LIST_STATUS_KEYS as STATUS_KEYS,
 } from '../services/workOrdersListPresentation'
+import {
+  dateInputValueToIso,
+  isoToDateInputValue,
+} from '../services/workOrdersDateRange'
 
 export const WoPaginationBar = memo(function WoPaginationBar({
   page,
@@ -17,6 +21,10 @@ export const WoPaginationBar = memo(function WoPaginationBar({
   onStatusChange,
   textSearch,
   onSearchChange,
+  deliveredFromIso,
+  deliveredToIso,
+  onDeliveredFromChange,
+  onDeliveredToChange,
   canCreateWorkOrder,
   onOpenNewOrder,
   onPageChange,
@@ -31,6 +39,10 @@ export const WoPaginationBar = memo(function WoPaginationBar({
   onStatusChange: (s: WorkOrderStatus | '') => void
   textSearch: string
   onSearchChange: (next: string) => void
+  deliveredFromIso: string
+  deliveredToIso: string
+  onDeliveredFromChange: (iso: string) => void
+  onDeliveredToChange: (iso: string) => void
   canCreateWorkOrder: boolean
   onOpenNewOrder: () => void
   onPageChange: (next: number) => void
@@ -83,6 +95,47 @@ export const WoPaginationBar = memo(function WoPaginationBar({
             Nueva orden
           </button>
         ) : null}
+        <div className="inline-flex items-center gap-1.5">
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+            <span>Entrega</span>
+            <input
+              type="date"
+              value={isoToDateInputValue(deliveredFromIso)}
+              disabled={loading}
+              onChange={(e) => onDeliveredFromChange(dateInputValueToIso(e.target.value, 'from'))}
+              title="Filtra por fecha de entrega (desde)"
+              aria-label="Entregadas desde"
+              className={inputClass}
+            />
+          </label>
+          <span aria-hidden className="text-xs text-slate-400 dark:text-slate-500">
+            –
+          </span>
+          <input
+            type="date"
+            value={isoToDateInputValue(deliveredToIso)}
+            disabled={loading}
+            onChange={(e) => onDeliveredToChange(dateInputValueToIso(e.target.value, 'to'))}
+            title="Filtra por fecha de entrega (hasta)"
+            aria-label="Entregadas hasta"
+            className={inputClass}
+          />
+          {deliveredFromIso || deliveredToIso ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                onDeliveredFromChange('')
+                onDeliveredToChange('')
+              }}
+              title="Quitar el rango de fechas"
+              aria-label="Quitar el rango de fechas de entrega"
+              className={pagerBtnClass}
+            >
+              <X className="size-3.5" strokeWidth={2} aria-hidden />
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">

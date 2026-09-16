@@ -64,6 +64,8 @@ export function useWorkOrdersPageModel() {
     customerIdFilter,
     vehiclePlateLabel,
     textSearch,
+    deliveredFromIso,
+    deliveredToIso,
   } = listFilters
 
   const [page, setPage] = useState(1)
@@ -89,6 +91,8 @@ export function useWorkOrdersPageModel() {
           vehicleId: vehicleIdFilter || undefined,
           customerId: customerIdFilter || undefined,
           search: textSearch || undefined,
+          from: deliveredFromIso || undefined,
+          to: deliveredToIso || undefined,
           page,
           pageSize,
         },
@@ -378,6 +382,29 @@ export function useWorkOrdersPageModel() {
     [searchParams, setSearchParams],
   )
 
+  /** Rango por fecha de entrega (`from`/`to` en la URL, ISO). '' limpia el extremo. */
+  const setDeliveredFrom = useCallback(
+    (iso: string) => {
+      const nextParams = new URLSearchParams(searchParams)
+      if (iso) nextParams.set('from', iso)
+      else nextParams.delete('from')
+      nextParams.delete('page')
+      setSearchParams(nextParams, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
+
+  const setDeliveredTo = useCallback(
+    (iso: string) => {
+      const nextParams = new URLSearchParams(searchParams)
+      if (iso) nextParams.set('to', iso)
+      else nextParams.delete('to')
+      nextParams.delete('page')
+      setSearchParams(nextParams, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
+
   const clearListFilters = useCallback(() => {
     setSearchParams({}, { replace: true })
   }, [setSearchParams])
@@ -507,6 +534,8 @@ export function useWorkOrdersPageModel() {
     customerIdFilter,
     vehiclePlateLabel,
     textSearch,
+    deliveredFromIso,
+    deliveredToIso,
     hasActiveFetchFilters,
     rows,
     total,
@@ -552,6 +581,8 @@ export function useWorkOrdersPageModel() {
     runVehicleSearch,
     setStatus,
     setTextSearch,
+    setDeliveredFrom,
+    setDeliveredTo,
     clearListFilters,
     submitCreate,
     handlePostCreateSigned,

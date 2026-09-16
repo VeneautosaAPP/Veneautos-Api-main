@@ -9,9 +9,13 @@ import { ConfirmProvider } from './components/confirm/ConfirmProvider'
 import { createAppQueryClient } from './lib/queryClient'
 import { PanelThemeProvider } from './theme/PanelThemeProvider'
 import { ThemeProvider } from './theme/ThemeContext'
+import { installUppercaseTyping } from './utils/uppercaseTyping'
 import './index.css'
 
 const queryClient = createAppQueryClient()
+
+/** Lo que se escribe en mayúscula (ver `index.css`) también se guarda en mayúscula. */
+installUppercaseTyping()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -487,6 +487,18 @@ export function WorkOrderDetailPage() {
   /** Saldo pendiente (numérico) para el resumen financiero del banner superior. */
   const woAmountDueNum = wo?.amountDue != null ? Number(wo.amountDue) : 0
 
+  /**
+   * Utilidad (numérica) del banner: precio unitario − precio proveedor, por cantidad y sin
+   * IVA/INC. `null` cuando el API no la envía (perfil sin `reports:read` o algún repuesto sin
+   * P. proveedor cargado) y ahí se muestra “—”.
+   */
+  const woProfitNum = useMemo(() => {
+    const raw = wo?.totals?.workshopProfit
+    if (raw == null) return null
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : null
+  }, [wo])
+
   /** Cobros en OT: la lista siempre es visible para consultar/eliminar; el aviso gana con caja cerrada. */
   const showCobrosCajaBlocked = !hideWorkOrderCashUi && cashOpen !== true
 
@@ -580,8 +592,66 @@ export function WorkOrderDetailPage() {
    * coincide con su posición en reposo: el banner no se desplaza al scrollear.
    */
   const stickyHeaderClass = isSaas
-    ? `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 shrink-0 shadow-sm`
-    : `va-hero-sticky sticky top-[calc(var(--va-app-header-h,0px)+1rem)] sm:top-[calc(var(--va-app-header-h,0px)+1.5rem)] xl:top-[calc(var(--va-app-header-h,0px)+1.75rem)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900`
+    ? `va-hero-sticky sticky top-[var(--va-wo-hero-top)] z-20 shrink-0 shadow-sm`
+    : `va-hero-sticky sticky top-[var(--va-wo-hero-top)] z-20 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900`
+  /**
+   * Punto exacto donde debe anclarse la cabecera de la tabla de líneas: el **borde inferior
+   * real del banner** ya anclado (0px de separación). Se mide en vez de calcularlo con
+   * variables porque el alto del banner cambia con píldoras, acciones y ancho, y porque el
+   * ancla del banner depende del tema y del breakpoint.
+   */
+  const detailRootRef = useRef<HTMLDivElement | null>(null)
+  const heroRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const hero = heroRef.current
+    if (!hero) return
+
+    /** `top` resuelto del banner (px) y origen del contenedor que scrollea, para hablar el
+     * mismo sistema de coordenadas que usa `position: sticky` en la cabecera. */
+    const scrollportTop = () => {
+      let el = hero.parentElement
+      while (el) {
+        const overflowY = getComputedStyle(el).overflowY
+        if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+          return el.getBoundingClientRect().top
+        }
+        el = el.parentElement
+      }
+      return 0
+    }
+
+    let frame = 0
+    const publish = () => {
+      const root = detailRootRef.current
+      if (!root) return
+      const anchorTop = parseFloat(getComputedStyle(hero).top) || 0
+      const rect = hero.getBoundingClientRect()
+      // Con el banner ya pegado, su borde inferior es el punto exacto; si todavía no llegó,
+      // se proyecta dónde quedará al anclarse.
+      const stuck = rect.top <= anchorTop + 1
+      const bottom = stuck ? rect.bottom : anchorTop + rect.height
+      root.style.setProperty('--va-wo-lines-sticky-top', `${Math.round(bottom - scrollportTop())}px`)
+    }
+    const schedule = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        publish()
+      })
+    }
+
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(hero)
+    window.addEventListener('scroll', schedule, true)
+    window.addEventListener('resize', schedule)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('scroll', schedule, true)
+      window.removeEventListener('resize', schedule)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [wo, isSaas, isDesktop])
   const backLinkClass = isSaas
     ? 'text-sm font-medium text-brand-700 underline-offset-2 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
     : 'text-sm font-medium text-brand-700 hover:underline dark:text-brand-300 dark:hover:text-brand-200'
@@ -615,7 +685,7 @@ export function WorkOrderDetailPage() {
     ? `va-wo-lines va-saas-page-section va-saas-page-section--flush flex-1 min-h-0 overflow-auto lg:flex-none lg:overflow-visible ${
         canMutateLines ? 'va-wo-lines--bar' : ''
       }`
-    : 'va-card-flush overflow-hidden'
+    : 'va-wo-lines va-card-flush overflow-hidden lg:overflow-visible'
 
   const canReopenDelivered =
     wo?.status === 'DELIVERED' && can('work_orders:reopen_delivered') && !cashierOnly
@@ -1497,8 +1567,9 @@ export function WorkOrderDetailPage() {
   ]
 
   return (
-    <div className={detailRootClass}>
+    <div ref={detailRootRef} className={detailRootClass}>
       <PageHeader
+        ref={heroRef}
         rootClassName={stickyHeaderClass}
         actionsTop
         beforeTitle={
@@ -1663,16 +1734,39 @@ export function WorkOrderDetailPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Saldo pendiente
                   </p>
-                  <p
+                    <p
                     className={`font-mono text-2xl font-semibold tabular-nums sm:text-3xl ${
                       woAmountDueNum > 0
                         ? 'text-amber-700 dark:text-amber-300'
                         : 'text-emerald-700 dark:text-emerald-400'
                     }`}
                   >
-${formatCopFromString(wo.amountDue ?? '0')}
+                    ${formatCopFromString(wo.amountDue ?? '0')}
                   </p>
                 </div>
+                {canViewWoCosts ? (
+                  <div className="text-left">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Utilidad
+                    </p>
+                    <p
+                      className={`font-mono text-2xl font-semibold tabular-nums sm:text-3xl ${
+                        woProfitNum === null
+                          ? 'text-slate-400 dark:text-slate-500'
+                          : woProfitNum > 0
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : woProfitNum < 0
+                              ? 'text-rose-700 dark:text-rose-400'
+                              : 'text-slate-900 dark:text-slate-50'
+                      }`}
+                      title="Repuestos: precio unitario − precio proveedor. Mano de obra: 50%. No incluye IVA/INC ni descuentos."
+                    >
+                      {wo.totals?.workshopProfit == null
+                        ? '—'
+                        : `$${formatCopFromString(wo.totals.workshopProfit)}`}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -1711,6 +1805,32 @@ ${formatCopFromString(wo.amountDue ?? '0')}
                     ${formatCopFromString(wo.amountDue ?? '0')}
                   </span>
                 </span>
+                {canViewWoCosts ? (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">
+                      ·
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400">Utilidad</span>
+                      <span
+                        className={`font-semibold tabular-nums ${
+                          woProfitNum === null
+                            ? 'text-slate-400 dark:text-slate-500'
+                            : woProfitNum > 0
+                              ? 'text-emerald-700 dark:text-emerald-400'
+                              : woProfitNum < 0
+                                ? 'text-rose-700 dark:text-rose-400'
+                                : 'text-slate-800 dark:text-slate-100'
+                        }`}
+                        title="Repuestos: precio unitario − precio proveedor. Mano de obra: 50%."
+                      >
+                        {wo.totals?.workshopProfit == null
+                          ? '—'
+                          : `$${formatCopFromString(wo.totals.workshopProfit)}`}
+                      </span>
+                    </span>
+                  </>
+                ) : null}
               </div>
             ) : null}
 
