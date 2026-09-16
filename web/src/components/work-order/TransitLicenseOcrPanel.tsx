@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { parseTransitLicenseFromRecognizeData } from '../../utils/parseTransitLicenseLayout'
 import {
-  collectRecognizeBoxLines,
-  parseTransitLicenseFromRecognizeData,
-} from '../../utils/parseTransitLicenseLayout'
-import {
+  fillMissingTransitLicenseFields,
   mergeTransitLicenseLayoutAndText,
   parseTransitLicenseOcrText,
   parsedTransitLicenseHasAny,
   type ParsedTransitLicenseFields,
 } from '../../utils/parseTransitLicenseOcr'
-import { downscaleImageForOcr, isMobileLike } from '../../utils/imageDownscale'
+import { downscaleImageForOcr, isMobileLike, readImageSize } from '../../utils/imageDownscale'
 import {
   clearOcrImage,
   loadOcrImage,
@@ -54,6 +52,10 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
   const [err, setErr] = useState<string | null>(null)
   const [lastParsed, setLastParsed] = useState<ParsedTransitLicenseFields | null>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  /** Versión sin realce (sólo escritorio): segunda pasada, rescata lo que el realce pierde. */
+  const [plainFile, setPlainFile] = useState<File | null>(null)
+  /** Foto con poca resolución: avisamos antes de gastar 30 s en un OCR que no va a leer. */
+  const [lowRes, setLowRes] = useState(false)
   const [recovered, setRecovered] = useState(false)
 
   /**
@@ -126,8 +128,20 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
     setRecovered(false)
     setProgress('Optimizando imagen…')
     try {
-      const small = await downscaleImageForOcr(f, 1600)
+      // Reescala a 1600px y aplica gris + autocontraste (mejor confianza que la foto cruda).
+      const small = await downscaleImageForOcr(f, 1600, 0.85, true)
       setPendingFile(small)
+      /**
+       * Aviso temprano: con menos de ~800px en el lado corto (foto comprimida o tomada
+       * de lejos) el OCR no llega a leer las etiquetas y no vale la pena esperarlo.
+       */
+      const size = await readImageSize(small).catch(() => null)
+      setLowRes(Boolean(size) && Math.min(size!.width, size!.height) < 800)
+      // En escritorio guardamos también la versión sin realce: la segunda pasada la usa y
+      // rescata campos que el realce se lleva (p. ej. la M inicial de una placa).
+      if (!isMobileLike()) {
+        setPlainFile(await downscaleImageForOcr(f, 1600, 0.85, false))
+      }
       // Persistimos en IDB para sobrevivir un reinicio del tab. Es best-effort:
       // si IDB está bloqueado (modo privado en Safari), seguimos en RAM.
       void saveOcrImage(small).catch(() => {
@@ -150,35 +164,76 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
       const worker = await ensureWorker()
       const { PSM } = await import('tesseract.js')
       type TessPsm = NonNullable<Parameters<typeof worker.setParameters>[0]['tessedit_pageseg_mode']>
-      const pageModes: TessPsm[] = isMobileLike()
-        ? [(PSM?.SINGLE_BLOCK ?? '6') as TessPsm]
+      /**
+       * Pasadas: en escritorio dos (imagen realzada + imagen sin realce) porque cada una
+       * rescata campos distintos; en móvil una sola (el realce) para no duplicar memoria.
+       */
+      const passes: Array<{ file: File; psm: TessPsm }> = isMobileLike()
+        ? [{ file: pendingFile, psm: (PSM?.SINGLE_BLOCK ?? '6') as TessPsm }]
         : [
-            (PSM?.SINGLE_BLOCK ?? '6') as TessPsm,
-            (PSM?.SPARSE_TEXT ?? '11') as TessPsm,
+            { file: pendingFile, psm: (PSM?.SINGLE_BLOCK ?? '6') as TessPsm },
+            {
+              file: plainFile ?? pendingFile,
+              psm: (PSM?.SPARSE_TEXT ?? '11') as TessPsm,
+            },
           ]
 
+      /**
+       * Nos quedamos con la **mejor pasada** (por confianza de Tesseract), no con la
+       * concatenación de ambas: al pegar los dos textos el parser repetía valores
+       * ("JETTA EUROPA JETTA EUROPA", "BLANCO CANDY BLANCO").
+       */
       let combinedText = ''
+      let bestText = ''
       let bestLayoutSource: TransitRecognizePageData | null = null
-      let bestLineCount = -1
+      let bestConfidence = -1
+      let fallbackText = ''
 
-      for (let pass = 0; pass < pageModes.length; pass++) {
-        const psm = pageModes[pass]
+      for (let pass = 0; pass < passes.length; pass++) {
+        const { file, psm } = passes[pass]
         await worker.setParameters({ tessedit_pageseg_mode: psm })
         setProgress(pass === 0 ? 'Extrayendo texto…' : 'Segunda lectura (refuerzo)…')
-        const { data } = await worker.recognize(pendingFile, { rotateAuto: true })
+        const { data } = await worker.recognize(file, { rotateAuto: true })
         const chunk = typeof data.text === 'string' ? data.text : ''
         combinedText = combinedText ? `${combinedText}\n${chunk}` : chunk
-        const n = collectRecognizeBoxLines(data).length
-        if (n > bestLineCount) {
-          bestLineCount = n
+        const confidence = typeof data.confidence === 'number' ? data.confidence : 0
+        if (confidence > bestConfidence) {
+          bestConfidence = confidence
           bestLayoutSource = data
+          fallbackText = bestText
+          bestText = chunk
+        } else if (!fallbackText) {
+          fallbackText = chunk
         }
       }
 
+      /**
+       * Primero parseamos la **mejor pasada** (la de mayor confianza): es la que menos
+       * caracteres inventa. Sólo para los campos que quedaron vacíos caemos al texto de
+       * las dos pasadas, que tiene más recall pero también más ruido.
+       */
       const layoutData = bestLayoutSource ?? {}
       const fromLayout = parseTransitLicenseFromRecognizeData(layoutData)
-      const fromText = parseTransitLicenseOcrText(combinedText)
-      const parsed = mergeTransitLicenseLayoutAndText(fromLayout, fromText, combinedText)
+      const parsedBest = mergeTransitLicenseLayoutAndText(
+        fromLayout,
+        parseTransitLicenseOcrText(bestText),
+        bestText,
+      )
+      const parsedAll = mergeTransitLicenseLayoutAndText(
+        fromLayout,
+        parseTransitLicenseOcrText(combinedText),
+        combinedText,
+      )
+      // Relleno en cascada: lo que falta lo aporta la otra pasada y, si aún falta, el
+      // texto combinado de las dos.
+      const parsed = fillMissingTransitLicenseFields(
+        fillMissingTransitLicenseFields(parsedBest, parsedAll),
+        mergeTransitLicenseLayoutAndText(
+          fromLayout,
+          parseTransitLicenseOcrText(fallbackText),
+          fallbackText,
+        ),
+      )
       if (!parsedTransitLicenseHasAny(parsed)) {
         setErr('No se detectaron campos reconocibles. Probá otra foto (más luz, menos reflejo).')
         setProgress(null)
@@ -197,7 +252,7 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
     } finally {
       setBusy(false)
     }
-  }, [pendingFile, disabled, ensureWorker])
+  }, [pendingFile, plainFile, disabled, ensureWorker])
 
   const apply = useCallback(() => {
     if (lastParsed) onApply(lastParsed)
@@ -208,6 +263,7 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
     setRecovered(false)
     setProgress(null)
     setErr(null)
+    setLowRes(false)
     if (inputRef.current) inputRef.current.value = ''
     void clearOcrImage().catch(() => {
       /* ignore */
@@ -254,6 +310,13 @@ export function TransitLicenseOcrPanel({ disabled, onApply }: Props) {
         </button>
       </div>
       {progress ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{progress}</p> : null}
+      {lowRes && !err ? (
+        <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-100">
+          La foto tiene poca resolución (lado corto &lt; 800px): el OCR probablemente no lea nada.
+          Si podés, pedí la imagen <b>original</b> (por WhatsApp enviala como documento) o sacá una
+          foto más cerca y con luz.
+        </p>
+      ) : null}
       {err ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{err}</p> : null}
       {lastParsed && parsedTransitLicenseHasAny(lastParsed) ? (
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-600 dark:bg-slate-950">

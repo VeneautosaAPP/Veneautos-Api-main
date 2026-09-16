@@ -35,3 +35,6 @@ docs/AUDITORIA_VENE_AUTOS.md
 
 # Resultados de pruebas locales (Playwright)
 /test-results/
+
+# Corpus de OCR: fotos reales de licencias de tránsito (datos personales; nunca versionar)
+/tmp/

@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Datos y caché de Tesseract (se descargan solos; no versionar)
+spa.traineddata
+.tessdata/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

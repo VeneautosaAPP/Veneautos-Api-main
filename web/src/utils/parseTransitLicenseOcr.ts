@@ -710,17 +710,183 @@ function fillModelField(out: ParsedTransitLicenseFields, rawOcrText?: string | n
   if (year && isPlausibleVehicleModelYear(year)) out.model = year
 }
 
+const ALL_FIELDS: (keyof ParsedTransitLicenseFields)[] = [
+  'plate',
+  'cylinderCc',
+  'brand',
+  'line',
+  'model',
+  'color',
+]
+
+/**
+ * Etiquetas de la tarjeta que el OCR deja pegadas al valor:
+ * "CILINDRADA CC COLOR VOLKSWAGEN" -> "VOLKSWAGEN"; "MARCA LINEA MODELO" -> "" (se descarta).
+ */
+const LEADING_LABEL_NOISE = String.raw`^(?:\s*(?:PLACA|MARCA|L[ÍI]NEA|LINEA|MODELO|MODEL0|M[O0]DELO|MOD[EÉ]LO|COLOR|CILINDRADA|CILINDR[AE]JE|COLINDRAJE|CC|CLASE|SERVICIO|CIL|DEL|VEH[ÍI]CULO|VEHICULO)\s*(?:[:.\-–—·|]?\s*)?)+`
+
+export function stripLeadingLabels(raw: string): string {
+  let v = raw.replace(/\s+/g, ' ').trim()
+  let prev = ''
+  while (v && v !== prev) {
+    prev = v
+    v = v.replace(new RegExp(LEADING_LABEL_NOISE, 'i'), '').trim()
+  }
+  return v.replace(/^[\s:.\-–—·|]+/, '').trim()
+}
+
+/** Palabras de etiqueta que el OCR arrastra al final ("ESCAPE SERVICIO"). */
+const TRAILING_LABEL_NOISE =
+  /(?:\s+(?:SERVICIO|PARTICULAR|P[ÚU]BLICO|PUBLICO|CLASE|CARROCER[ÍI]A|COMBUSTIBLE|CAPACIDAD|KGS?|CC|MODELO|MARCA|COLOR|PLACA|CILINDRADA|COLINDRAJE)\s*[:.–—·|-]?)+$/i
+
+export function stripTrailingLabels(raw: string): string {
+  let v = raw.replace(/\s+/g, ' ').trim()
+  let prev = ''
+  while (v && v !== prev) {
+    prev = v
+    v = v.replace(TRAILING_LABEL_NOISE, '').trim()
+  }
+  return v.replace(/[\s:.\-–—·|]+$/, '').trim()
+}
+
+/** Etiquetas al inicio y al final ("CILINDRADA CC COLOR VOLKSWAGEN", "ESCAPE SERVICIO"). */
+export function stripLabelNoise(raw: string): string {
+  return stripTrailingLabels(stripLeadingLabels(raw))
+}
+
+/** "JETTA EUROPA JETTA EUROPA" -> "JETTA EUROPA"; "BLANCO CANDY BLANCO" -> "BLANCO CANDY". */
+export function dedupeRepeatedWords(raw: string): string {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const w of raw.split(/\s+/)) {
+    if (!w) continue
+    const k = w.toUpperCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(w)
+  }
+  return out.join(' ').trim()
+}
+
+/** Placa CO: auto `ABC123`, moto `ABC12D`. Admitimos formatos viejos `AB1234`. */
+const PLATE_RE = /^(?:[A-Z]{3}\d{3}|[A-Z]{3}\d{2}[A-Z]|[A-Z]{2}\d{4})$/
+
+export function isValidColombianPlate(v: string): boolean {
+  return PLATE_RE.test(v.toUpperCase().replace(/[\s-]/g, ''))
+}
+
+/**
+ * Si la placa quedó con un carácter de más por ruido del OCR (p. ej. "MWRE651"),
+ * prueba quitando uno y se queda con la primera combinación válida.
+ */
+export function normalizePlateFormat(raw: string | undefined): string | undefined {
+  if (!raw) return raw
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!compact || isValidColombianPlate(compact)) return compact || undefined
+  if (compact.length === 7) {
+    for (let i = 0; i < compact.length; i++) {
+      const candidate = compact.slice(0, i) + compact.slice(i + 1)
+      if (isValidColombianPlate(candidate)) return candidate
+    }
+  }
+  return compact
+}
+
+/** Quita la placa cuando el OCR la dejó pegada a la marca ("MWR651NISSAN NISSAN"). */
+function stripPlateFromBrand(out: ParsedTransitLicenseFields) {
+  const plate = (out.plate ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!plate || !out.brand) return
+  const cleaned = out.brand
+    .replace(new RegExp(escapeRegExp(out.plate ?? ''), 'gi'), ' ')
+    .replace(new RegExp(escapeRegExp(plate), 'gi'), ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (cleaned.length >= 2) out.brand = cleaned.slice(0, 80)
+  else delete out.brand
+}
+
+const DISPLACEMENT_RE = /^\d{1,2}[.,]\d{3}$/
+
+/** Cada campo con su tipo: evita "cilindraje: GRIS" o "color: 1.6500". */
+function enforceFieldTypes(out: ParsedTransitLicenseFields) {
+  const swap = (from: keyof ParsedTransitLicenseFields, to: keyof ParsedTransitLicenseFields) => {
+    const v = out[from]
+    if (!v) return
+    if (!out[to]) out[to] = v
+    delete out[from]
+  }
+
+  if (out.cylinderCc) {
+    const cc = out.cylinderCc.trim()
+    // "1.797" / "1,797" = 1797 cc (el punto es separador de miles, no decimal).
+    const grouped = cc.match(/^(\d{1,2})[.,](\d{3})$/)
+    const plain = cc.match(/^(\d{3,5})$/)
+    if (!grouped && !plain) {
+      // No es un número: es texto (casi siempre el color que se corrió).
+      swap('cylinderCc', 'color')
+    } else {
+      const value = grouped
+        ? Number.parseInt(`${grouped[1]}${grouped[2]}`, 10)
+        : Number.parseInt(cc, 10)
+      if (!Number.isFinite(value) || value < 400 || value > 8000) delete out.cylinderCc
+      else out.cylinderCc = cc.replace(',', '.')
+    }
+  }
+
+  if (out.color) {
+    const c = out.color.trim()
+    if (/^\d/.test(c) && DISPLACEMENT_RE.test(c)) swap('color', 'cylinderCc')
+    else if (!/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(c)) delete out.color
+  }
+}
+
 /** Limpia cruces típicos: placa+marca, color+cilindraje, modelo (año) faltante. */
 export function refineTransitLicenseFields(
   f: ParsedTransitLicenseFields,
   rawOcrText?: string | null,
 ): ParsedTransitLicenseFields {
   const out: ParsedTransitLicenseFields = { ...f }
+
+  // 1. Etiquetas pegadas al valor (el OCR une "CILINDRADA CC COLOR VOLKSWAGEN").
+  for (const k of ALL_FIELDS) {
+    const v = out[k]
+    if (typeof v !== 'string') continue
+    const cleaned = stripLabelNoise(v)
+    if (cleaned) out[k] = cleaned
+    else delete out[k]
+  }
+
   splitPlateBrandMixed(out)
+  stripPlateFromBrand(out)
   fillModelField(out, rawOcrText)
   applyTransitLicenseModelAsYearOnly(out, rawOcrText)
   stripKnownFieldsFromLine(out)
   splitColorCylinderTail(out)
+  enforceFieldTypes(out)
+
+  // 2. Placa con formato válido y valores sin frases repetidas.
+  let plate = normalizePlateFormat(out.plate)
+  if (!plate || !isValidColombianPlate(plate)) {
+    // Último recurso: bloque "LLL999" en el texto crudo, corrigiendo O/0, I/1, etc.
+    plate = recoverPlateFromOcrText(rawOcrText) ?? plate
+  }
+  if (plate) out.plate = plate
+  else delete out.plate
+
+  // 3. Marca: si no salió por etiqueta/geometría, búscala en el texto (catálogo conocido).
+  if (!out.brand) {
+    const known = findBrandInOcrText(rawOcrText)
+    if (known) out.brand = known
+  }
+
+  for (const k of ALL_FIELDS) {
+    const v = out[k]
+    if (typeof v !== 'string') continue
+    const deduped = dedupeRepeatedWords(stripLabelNoise(v))
+    if (deduped) out[k] = deduped
+    else delete out[k]
+  }
+
   return out
 }
 
@@ -778,4 +944,127 @@ export function mergeTransitLicenseLayoutAndText(
 
 export function parsedTransitLicenseHasAny(p: ParsedTransitLicenseFields): boolean {
   return Object.values(p).some((v) => v != null && String(v).trim() !== '')
+}
+
+/**
+ * Completa los campos que quedaron vacíos en `base` con los de `extra` (nunca pisa).
+ * Se usa para sumar el recall de la segunda pasada de Tesseract sin arrastrar sus errores.
+ */
+export function fillMissingTransitLicenseFields(
+  base: ParsedTransitLicenseFields,
+  extra: ParsedTransitLicenseFields,
+): ParsedTransitLicenseFields {
+  const out: ParsedTransitLicenseFields = { ...base }
+  for (const k of ALL_FIELDS) {
+    if (!out[k] && extra[k]) out[k] = extra[k]
+  }
+  return out
+}
+
+/** Marcas habituales en el taller: rescate cuando el parse por etiquetas falla. */
+const KNOWN_BRANDS = [
+  'CHEVROLET',
+  'VOLKSWAGEN',
+  'RENAULT',
+  'NISSAN',
+  'TOYOTA',
+  'FORD',
+  'HYUNDAI',
+  'KIA',
+  'MAZDA',
+  'MITSUBISHI',
+  'HONDA',
+  'SUZUKI',
+  'JEEP',
+  'FIAT',
+  'PEUGEOT',
+  'MERCEDES BENZ',
+  'BMW',
+  'AUDI',
+  'CHERY',
+  'JAC',
+  'DFSK',
+  'FOTON',
+  'ISUZU',
+  'VOLVO',
+  'SUBARU',
+  'DODGE',
+  'CHRYSLER',
+  'SEAT',
+  'SKODA',
+]
+
+/** Si la marca no salió del parse, búscala como palabra en el texto crudo del OCR. */
+export function findBrandInOcrText(raw: string | null | undefined): string | null {
+  if (!raw || !ocrTextHasLicenseLabels(raw)) return null
+  const flat = raw.toUpperCase().replace(/\s+/g, ' ')
+  for (const brand of KNOWN_BRANDS) {
+    if (new RegExp(`\\b${brand.replace(/\s+/g, '\\s+')}\\b`).test(flat)) return brand
+  }
+  return null
+}
+
+/** Letras que el OCR confunde con dígitos dentro del bloque numérico de la placa. */
+function plateDigitsFix(block: string): string {
+  return block
+    .replace(/[OoQqD]/g, '0')
+    .replace(/[IlL|!]/g, '1')
+    .replace(/[Zz]/g, '2')
+    .replace(/[Ss]/g, '5')
+    .replace(/[Bb]/g, '8')
+    .replace(/[Gg]/g, '6')
+    .replace(/[Tt]/g, '7')
+    .replace(/[Aa]/g, '4')
+}
+
+/**
+ * Último recurso para la placa: busca un bloque tipo "LLL999" en el texto crudo y
+ * corrige las letras que en realidad son dígitos ("MOMI61" -> "MOM161").
+ */
+/**
+ * El texto tiene al menos una etiqueta de la tarjeta. Si el OCR devolvió puro ruido
+ * (foto borrosa/comprimida), los "rescates" terminan inventando placas: no se aplican.
+ */
+export function ocrTextHasLicenseLabels(raw: string | null | undefined): boolean {
+  if (!raw) return false
+  return /\b(PLACA|MARCA|L[IÍ]NEA|LINEA|MODELO|MODEL0|M[O0]DELO|MOD[EÉ]LO|COLOR|CILINDRADA|CILINDR[AE]JE|COLINDRAJE|CLASE|SERVICIO)\b/i.test(
+    raw,
+  )
+}
+
+export function recoverPlateFromOcrText(raw: string | null | undefined): string | null {
+  if (!raw || !ocrTextHasLicenseLabels(raw)) return null
+  const flat = raw.toUpperCase().replace(/\s+/g, ' ')
+
+  /** Prioridad: lo que venga justo después de la etiqueta PLACA. */
+  const labelAt = flat.search(/\bPLACA\b/)
+  const window = labelAt >= 0 ? flat.slice(labelAt, labelAt + 70) : ''
+
+  const scan = (text: string, allowMoto: boolean): string | null => {
+    const tokens = text.replace(/[\s-]+/g, '').match(/[A-Z0-9]{5,8}/g) ?? []
+    for (const token of tokens) {
+      const auto = token.match(/([A-Z]{3})([A-Z0-9]{3})/)
+      if (auto) {
+        // Al menos 2 dígitos reales: evita aceptar "HFI44E" como placa.
+        const digits = (auto[2].match(/\d/g) ?? []).length
+        const fixed = plateDigitsFix(auto[2])
+        const plate = `${auto[1]}${fixed}`
+        if (digits >= 2 && /^[A-Z]{3}\d{3}$/.test(plate)) return plate
+      }
+      if (allowMoto) {
+        const moto = token.match(/([A-Z]{3})([A-Z0-9]{2})([A-Z])/)
+        if (moto) {
+          const digits = (moto[2].match(/\d/g) ?? []).length
+          const plate = `${moto[1]}${plateDigitsFix(moto[2])}${moto[3]}`
+          if (digits >= 1 && /^[A-Z]{3}\d{2}[A-Z]$/.test(plate)) return plate
+        }
+      }
+    }
+    return null
+  }
+
+  return (
+    scan(window, true) ??
+    (labelAt >= 0 ? null : scan(flat.slice(0, 400), false))
+  )
 }
