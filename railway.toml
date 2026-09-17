@@ -2,7 +2,12 @@
 buildCommand = "npm install --prefix api --include=dev --no-audit --no-fund --production=false && cd api && npm run build && npx tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2021 --esModuleInterop --skipLibCheck"
 
 [deploy]
-startCommand = "cd api && (./node_modules/.bin/prisma migrate deploy || echo 'WARN: migrate deploy'); (./node_modules/.bin/prisma db push --skip-generate || echo 'WARN: db push'); for d in prisma/migrations/*/; do ./node_modules/.bin/prisma migrate resolve --applied \"$(basename $d)\" >/dev/null 2>&1 || true; done; node dist-seed/seed.js && node dist/main"
+# Sincronización del esquema al iniciar:
+#   1. `migrate deploy` (con historial). Si falla,
+#   2. `db push` como red (empuja el esquema sin migraciones).
+#   3. Si AMBOS fallan, el deploy se detiene (exit 1): antes el contenedor arrancaba
+#      igual y el API respondía «La base de datos no coincide con el esquema esperado».
+startCommand = "cd api && (./node_modules/.bin/prisma migrate deploy || ./node_modules/.bin/prisma db push --skip-generate) || { echo 'ERROR: no se pudo sincronizar el esquema de la base (migrate deploy y db push fallaron)'; exit 1; }; for d in prisma/migrations/*/; do ./node_modules/.bin/prisma migrate resolve --applied \"$(basename $d)\" >/dev/null 2>&1 || true; done; node dist-seed/seed.js && node dist/main"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
