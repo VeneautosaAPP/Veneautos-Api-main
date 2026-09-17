@@ -416,6 +416,12 @@ const CASH_CATEGORIES: Array<{
     direction: CashMovementDirection.EXPENSE,
     sortOrder: 40,
   },
+  {
+    slug: 'reverso_cobro_ot',
+    name: 'Reverso de cobro · OT reabierta',
+    direction: CashMovementDirection.EXPENSE,
+    sortOrder: 50,
+  },
   /**
    * Medios de pago operativos (Fase 8). `ingreso_cobro` queda como la categoría histórica /
    * efectivo genérico para compatibilidad con movimientos anteriores; las categorías por

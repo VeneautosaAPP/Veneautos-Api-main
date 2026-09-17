@@ -970,10 +970,17 @@ export function WorkOrderDetailPage() {
       setMsg(`Nota de reapertura: al menos ${notesMinGeneral} caracteres.`)
       return
     }
+    /** Cobrado hasta ahora: al reabrir se reversa en caja (egreso en la sesión abierta). */
+    const paidNow = Number(wo.paymentSummary?.totalPaid ?? 0)
+    const paidLabel =
+      paidNow > 0 ? `$${formatCopFromString(wo.paymentSummary?.totalPaid ?? '0')}` : null
     const ok = await confirm({
       title: `Reabrir orden ${wo.publicCode}`,
       message:
-        'La orden volverá a estado Lista para permitir editar líneas y montos. La justificación y la nota quedarán registradas.',
+        'La orden volverá a estado Lista para permitir editar líneas y montos. La justificación y la nota quedarán registradas.' +
+        (paidLabel
+          ? `\n\nAdemás se revertirán ${paidLabel} en caja: se genera un egreso en la sesión abierta y el saldo de la orden vuelve a estar pendiente.`
+          : ''),
       confirmLabel: 'Reabrir',
       variant: 'danger',
     })
@@ -984,7 +991,11 @@ export function WorkOrderDetailPage() {
       await reopenDelivered.mutateAsync({ justification: j, note: n })
       setReopenNote('')
       setReopenJustification('')
-      setMsg('Orden reabierta a Lista')
+      setMsg(
+        paidLabel
+          ? `Orden reabierta a Lista. Se revirtió el cobro (${paidLabel}) en caja.`
+          : 'Orden reabierta a Lista',
+      )
       await load()
     } catch (err) {
       if (!(await showBlockingConflictModal(err))) {

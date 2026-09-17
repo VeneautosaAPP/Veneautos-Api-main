@@ -5,7 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { Prisma, WorkOrderLineType, WorkOrderStatus } from '@prisma/client';
+import {
+  CashMovementDirection,
+  Prisma,
+  WorkOrderLineType,
+  WorkOrderPaymentKind,
+  WorkOrderStatus,
+} from '@prisma/client';
 import { NotesPolicyService } from '../../common/notes-policy/notes-policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -21,6 +27,8 @@ describe('WorkOrdersService', () => {
     user: { findUnique: jest.Mock };
     vehicle: { findUnique: jest.Mock };
     $transaction: jest.Mock;
+    $executeRaw: jest.Mock;
+    $queryRaw: jest.Mock;
     workOrder: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -32,7 +40,14 @@ describe('WorkOrdersService', () => {
     workOrderLine: {
       create: jest.Mock;
     };
-    workOrderPayment: { aggregate: jest.Mock; groupBy: jest.Mock };
+    workOrderPayment: {
+      aggregate: jest.Mock;
+      groupBy: jest.Mock;
+      delete: jest.Mock;
+    };
+    cashSession: { findFirst: jest.Mock };
+    cashMovement: { create: jest.Mock };
+    cashMovementCategory: { upsert: jest.Mock };
   };
   let audit: { recordDomain: jest.Mock };
   let notes: { requireOperationalNote: jest.Mock };
@@ -65,6 +80,8 @@ describe('WorkOrdersService', () => {
       user: { findUnique: jest.fn() },
       vehicle: { findUnique: jest.fn() },
       $transaction: jest.fn(async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma as never)),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      $queryRaw: jest.fn().mockResolvedValue([{ '1': 1 }]),
       workOrder: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -76,7 +93,16 @@ describe('WorkOrdersService', () => {
       workOrderLine: {
         create: jest.fn().mockResolvedValue({ id: 'seeded-labor' }),
       },
-      workOrderPayment: { aggregate: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
+      workOrderPayment: {
+        aggregate: jest.fn(),
+        groupBy: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({ id: 'pay-1' }),
+      },
+      cashSession: { findFirst: jest.fn().mockResolvedValue({ id: 'session-1' }) },
+      cashMovement: { create: jest.fn().mockResolvedValue({ id: 'mv-1' }) },
+      cashMovementCategory: {
+        upsert: jest.fn().mockResolvedValue({ id: 'cat-reverso', slug: 'reverso_cobro_ot' }),
+      },
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -682,14 +708,13 @@ describe('WorkOrdersService', () => {
     });
 
     it('reabre ENTREGADA a LISTA y audita', async () => {
-      prisma.workOrder.findFirst
-        .mockResolvedValueOnce({ id: 'wo1' })
-        .mockResolvedValueOnce({
-          id: 'wo1',
-          status: WorkOrderStatus.DELIVERED,
-          orderNumber: 9,
-          internalNotes: null,
-        });
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.DELIVERED,
+        orderNumber: 9,
+        internalNotes: null,
+        payments: [],
+      });
       prisma.workOrder.update.mockResolvedValue({
         id: 'wo1',
         status: WorkOrderStatus.READY,
@@ -719,6 +744,84 @@ describe('WorkOrdersService', () => {
       expect(audit.recordDomain).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'work_orders.reopened_from_delivered' }),
       );
+    });
+
+    it('reversa los cobros en caja: egreso espejo y borra el pago', async () => {
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.DELIVERED,
+        orderNumber: 9,
+        internalNotes: null,
+        payments: [
+          {
+            id: 'pay-1',
+            kind: WorkOrderPaymentKind.FULL_SETTLEMENT,
+            amount: new Prisma.Decimal('150000'),
+            cashMovement: { id: 'mv-original', amount: new Prisma.Decimal('150000'), createdAt: null },
+          },
+        ],
+      });
+      prisma.workOrder.update.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.READY,
+        orderNumber: 9,
+        publicCode: 'VEN-0009',
+        createdBy: {},
+        assignedTo: null,
+        vehicle: { customer: {} },
+      });
+
+      await service.reopenDelivered(
+        'wo1',
+        actorReopen,
+        { note: `${LONG} nota`, justification: `${LONG} just` },
+        {},
+      );
+
+      // Egreso espejo en la sesión abierta, por el mismo monto y referido a la OT.
+      expect(prisma.cashMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            sessionId: 'session-1',
+            direction: CashMovementDirection.EXPENSE,
+            amount: new Prisma.Decimal('150000'),
+            referenceType: 'WorkOrder',
+            referenceId: 'wo1',
+          }),
+        }),
+      );
+      // El pago desaparece (la orden vuelve a deber) y el ingreso original NO se borra.
+      expect(prisma.workOrderPayment.delete).toHaveBeenCalledWith({ where: { id: 'pay-1' } });
+      expect(audit.recordDomain).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'work_orders.reopened_from_delivered',
+          nextPayload: expect.objectContaining({ reversedTotal: '150000' }),
+        }),
+      );
+    });
+
+    it('con cobros y sin caja abierta: Conflict (no deja reabrir)', async () => {
+      prisma.cashSession.findFirst.mockResolvedValue(null);
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.DELIVERED,
+        orderNumber: 9,
+        internalNotes: null,
+        payments: [
+          {
+            id: 'pay-1',
+            kind: WorkOrderPaymentKind.PARTIAL,
+            amount: new Prisma.Decimal('50000'),
+            cashMovement: { id: 'mv-original', amount: new Prisma.Decimal('50000'), createdAt: null },
+          },
+        ],
+      });
+
+      await expect(
+        service.reopenDelivered('wo1', actorReopen, { note: LONG, justification: LONG }, {}),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.workOrder.update).not.toHaveBeenCalled();
+      expect(prisma.workOrderPayment.delete).not.toHaveBeenCalled();
     });
   });
 
