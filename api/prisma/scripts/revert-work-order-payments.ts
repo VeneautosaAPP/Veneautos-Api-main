@@ -20,11 +20,40 @@ const CATEGORY_SLUG = 'reverso_cobro_ot'
 const CATEGORY_NAME = 'Reverso de cobro Â· OT reabierta'
 const ADMIN_EMAIL = 'admin@veneautos.local'
 
-const prisma = new PrismaClient()
+let prisma: PrismaClient
+
+/**
+ * Por defecto usa DATABASE_URL (local). Si aparece el argumento "production" usa
+ * DIRECT_URL, igual que `db-restore.ts`. Antes de escribir siempre muestra el destino.
+ */
+function resolveTarget(): { url: string | undefined; label: string } {
+  // Acepta el destino en cualquier posición: `... 309 SI production`
+  const target = process.argv
+    .slice(3)
+    .some((a) => String(a).toLowerCase() === 'production')
+    ? 'production'
+    : 'local'
+  if (target === 'production') {
+    return { url: process.env.DIRECT_URL, label: 'PRODUCCIÓN (DIRECT_URL)' }
+  }
+  return { url: process.env.DATABASE_URL, label: 'LOCAL (DATABASE_URL)' }
+}
 
 async function main() {
   const rawOrder = process.argv[2]
   const apply = (process.argv[3] ?? '').toUpperCase() === 'SI'
+  const { url, label } = resolveTarget()
+  if (!url) {
+    throw new Error(
+      `No encontré la URL de conexión para ${label}. Revisá el .env (o corré el script en el entorno que tenga las variables).`,
+    )
+  }
+  const parsed = new URL(url)
+  console.log(`\nDestino: ${label} → ${parsed.hostname}${parsed.port ? `:${parsed.port}` : ''}/${parsed.pathname.slice(1)}`)
+  // El cliente se crea recién acá: tiene que nacer apuntando al destino elegido
+  // (si se creara al importar el módulo, usaría el .env local).
+  prisma = new PrismaClient({ datasourceUrl: url })
+
   const orderNumber = Number(rawOrder)
   if (!Number.isFinite(orderNumber)) {
     throw new Error('IndicÃ¡ el nÃºmero de orden, ej: ... revert-work-order-payments.ts 309 SI')
