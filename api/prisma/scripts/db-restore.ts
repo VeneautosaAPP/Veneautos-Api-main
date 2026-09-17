@@ -57,6 +57,12 @@ function askConfirmation(message: string): Promise<boolean> {
   });
 }
 
+/** Espera bloqueante (sin dependencias y multiplataforma) entre reintentos del DROP. */
+function sleepSync(ms: number): void {
+  const shared = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(shared), 0, 0, ms);
+}
+
 async function restoreDatabase(archivo: string, type: 'local' | 'production'): Promise<void> {
   loadEnv();
 
@@ -92,45 +98,78 @@ async function restoreDatabase(archivo: string, type: 'local' | 'production'): P
     PGPASSWORD: db.password,
   };
 
-  // Paso 1: Desconectar todas las conexiones activas
-  console.log('\n🔌 Desconectando conexiones activas...');
-  const dropConnections = [
+  const psqlBase = [
     `"${PSQL_PATH}"`,
     `--host=${db.host}`,
     `--port=${db.port}`,
     `--username=${db.user}`,
+  ].join(' ');
+
+  const countActiveConnections = (): number => {
+    try {
+      const raw = execSync(
+        `${psqlBase} --dbname=postgres -t -c "SELECT count(*) FROM pg_stat_activity WHERE datname='${db.database}';"`,
+        { env, stdio: 'pipe' },
+      ).toString();
+      return Number(raw.trim()) || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // Paso 1: Desconectar todas las conexiones activas
+  console.log('\n🔌 Desconectando conexiones activas...');
+  const dropConnections = [
+    psqlBase,
     `--dbname=postgres`,
     `-c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${db.database}' AND pid <> pg_backend_pid();"`,
   ].join(' ');
 
-  try {
-    execSync(dropConnections, { env, stdio: 'pipe' });
-  } catch {
-    // Ignorar errores de desconexión
+  /**
+   * El pool del API se reconecta al instante, así que el DROP puede fallar con “la base de
+   * datos está siendo accedida por otros usuarios”. Reintentamos cortando conexiones antes
+   * de cada intento y, si sigue fallando, avisamos de que hay que detener el API.
+   */
+  const dropWithRetry = (): void => {
+    const dropDb = `${psqlBase} --dbname=postgres -c "DROP DATABASE IF EXISTS ${db.database};"`;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        execSync(dropConnections, { env, stdio: 'pipe' });
+      } catch {
+        // Ignorar errores de desconexión
+      }
+      try {
+        execSync(dropDb, { env, stdio: 'pipe' });
+        return;
+      } catch (error) {
+        if (attempt === 5) {
+          throw new Error(
+            `No se pudo eliminar la base «${db.database}» porque sigue teniendo conexiones activas (${countActiveConnections()}). Detené el API (Ctrl+C donde corre "npm run start:dev") y volvé a intentar. Detalle: ${String(error)}`,
+          );
+        }
+        const pending = countActiveConnections();
+        console.log(
+          `   Reintento ${attempt}/5: la base sigue en uso (${pending} conexión/es). Si el API está corriendo, detenelo.`,
+        );
+        sleepSync(2000);
+      }
+    }
+  };
+
+  // Paso 0: aviso temprano si hay conexiones (causa #1 de restore fallido)
+  const active = countActiveConnections();
+  if (active > 0) {
+    console.log(
+      `\n⚠️  Hay ${active} conexión(es) activa(s) a «${db.database}». Si el API está corriendo (npm run start:dev), detenelo antes de restaurar: el pool se reconecta y bloquea el DROP.`,
+    );
   }
 
   // Paso 2: Eliminar y recrear la base de datos
   console.log('🗑️  Eliminando base de datos existente...');
-  const dropDb = [
-    `"${PSQL_PATH}"`,
-    `--host=${db.host}`,
-    `--port=${db.port}`,
-    `--username=${db.user}`,
-    `--dbname=postgres`,
-    `-c "DROP DATABASE IF EXISTS ${db.database};"`,
-  ].join(' ');
-
-  execSync(dropDb, { env, stdio: 'pipe' });
+  dropWithRetry();
 
   console.log('🆕 Creando nueva base de datos...');
-  const createDb = [
-    `"${PSQL_PATH}"`,
-    `--host=${db.host}`,
-    `--port=${db.port}`,
-    `--username=${db.user}`,
-    `--dbname=postgres`,
-    `-c "CREATE DATABASE ${db.database} OWNER ${db.user};"`,
-  ].join(' ');
+  const createDb = `${psqlBase} --dbname=postgres -c "CREATE DATABASE ${db.database} OWNER ${db.user};"`;
 
   execSync(createDb, { env, stdio: 'pipe' });
 
@@ -157,10 +196,7 @@ async function restoreDatabase(archivo: string, type: 'local' | 'production'): P
   } else {
     // Plain SQL
     cmd = [
-      `"${PSQL_PATH}"`,
-      `--host=${db.host}`,
-      `--port=${db.port}`,
-      `--username=${db.user}`,
+      psqlBase,
       `--dbname=${db.database}`,
       `-f "${archivo}"`,
     ].join(' ');
@@ -172,11 +208,35 @@ async function restoreDatabase(archivo: string, type: 'local' | 'production'): P
       stdio: 'inherit',
       timeout: 600_000, // 10 minutos
     });
-
-    console.log('\n✅ Restore completado exitosamente.\n');
   } catch (error) {
     throw new Error(`Error al restaurar: ${error}`);
   }
+
+  /**
+   * Verificación: si la carga falló en silencio (típico: dump de PG17 con `SET
+   * transaction_timeout` sobre un servidor PG16) la base quedaba VACÍA y el API respondía
+   * “no coincide con el esquema esperado”. Nunca damos por bueno un restore sin tablas.
+   */
+  const tableCount = (() => {
+    try {
+      const raw = execSync(
+        `${psqlBase} --dbname=${db.database} -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';"`,
+        { env, stdio: 'pipe' },
+      ).toString();
+      return Number(raw.trim()) || 0;
+    } catch {
+      return 0;
+    }
+  })();
+
+  if (tableCount === 0) {
+    throw new Error(
+      'El restore terminó pero la base quedó sin tablas: el archivo no se cargó (formato incompatible? ¿versión de pg_dump más nueva que el servidor?). La base quedó vacía: volvé a restaurar con un backup compatible y después corré "npm run db:migrate".',
+    );
+  }
+
+  console.log(`\n✅ Restore completado: ${tableCount} tabla(s) en «${db.database}».`);
+  console.log('   Si la app usa migraciones nuevas, corré "npm run db:migrate" en la raíz del repo.\n');
 }
 
 // Ejecutar si se llama directamente

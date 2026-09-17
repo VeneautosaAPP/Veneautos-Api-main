@@ -770,6 +770,99 @@ export class WorkOrdersService {
    * Vuelve una OT de «Entregada» a «Lista» para permitir correcciones de importes/líneas.
    * Solo quien tenga `work_orders:reopen_delivered` (semilla: administrador/dueño).
    */
+  /**
+   * Reversa TODOS los cobros de una orden **dentro de una transacción**: por cada cobro
+   * genera un egreso espejo en la sesión de caja abierta y borra el cobro (la orden vuelve
+   * a deber). El ingreso original NO se borra: caja es append-only y su sesión puede estar
+   * cerrada, así que queda el histórico + el contra-asiento en la sesión vigente.
+   *
+   * Si hay cobros y no hay sesión abierta, lanza Conflict: el dinero no puede “salir” de
+   * una caja cerrada sin dejar el arqueo inconsistente.
+   */
+  private async reverseWorkOrderPayments(
+    tx: Prisma.TransactionClient,
+    args: {
+      workOrderId: string
+      orderNumber: number
+      publicCode: string | null
+      actor: JwtUserPayload
+      reason: 'reapertura' | 'cancelación'
+    },
+  ): Promise<{
+    reversed: Array<{
+      paymentId: string
+      kind: WorkOrderPaymentKind
+      amount: string
+      reversalMovementId: string
+    }>
+    total: Prisma.Decimal
+  }> {
+    const payments = await tx.workOrderPayment.findMany({
+      where: { workOrderId: args.workOrderId },
+    })
+    if (payments.length === 0) {
+      return { reversed: [], total: new Prisma.Decimal(0) }
+    }
+
+    // Lock de la sesión OPEN: serializa contra un cierre de caja concurrente.
+    await tx.$queryRaw`SELECT 1 FROM "cash_sessions" WHERE status::text = ${CashSessionStatus.OPEN} ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE`;
+    const session = await tx.cashSession.findFirst({
+      where: { status: CashSessionStatus.OPEN },
+      select: { id: true },
+    })
+    if (!session) {
+      const paid = payments.reduce((acc, p) => acc.plus(p.amount), new Prisma.Decimal(0));
+      throw new ConflictException(
+        `No hay sesión de caja abierta: hay $${paid.toString()} cobrados en la orden que deben revertirse. Abrí la caja y volvé a intentar.`,
+      );
+    }
+
+    const category = await tx.cashMovementCategory.upsert({
+      where: { slug: REVERSAL_CATEGORY_SLUG },
+      update: {},
+      create: {
+        slug: REVERSAL_CATEGORY_SLUG,
+        name: REVERSAL_CATEGORY_NAME,
+        direction: CashMovementDirection.EXPENSE,
+        sortOrder: 50,
+      },
+    });
+
+    const reversed: Array<{
+      paymentId: string
+      kind: WorkOrderPaymentKind
+      amount: string
+      reversalMovementId: string
+    }> = [];
+    let total = new Prisma.Decimal(0);
+
+    for (const payment of payments) {
+      const movement = await tx.cashMovement.create({
+        data: {
+          sessionId: session.id,
+          categoryId: category.id,
+          direction: CashMovementDirection.EXPENSE,
+          amount: payment.amount,
+          referenceType: CASH_WORK_ORDER_REFERENCE_TYPE,
+          referenceId: args.workOrderId,
+          note: `Reverso automático por ${args.reason} de la OT #${args.orderNumber}${args.publicCode ? ` (${args.publicCode})` : ''}: se devuelve el cobro registrado (${payment.kind === WorkOrderPaymentKind.FULL_SETTLEMENT ? 'liquidación total' : 'abono'}).`,
+          createdById: args.actor.sub,
+        },
+        select: { id: true },
+      });
+      await tx.workOrderPayment.delete({ where: { id: payment.id } });
+      reversed.push({
+        paymentId: payment.id,
+        kind: payment.kind,
+        amount: payment.amount.toString(),
+        reversalMovementId: movement.id,
+      });
+      total = total.plus(payment.amount);
+    }
+
+    return { reversed, total };
+  }
+
   async reopenDelivered(
     id: string,
     actor: JwtUserPayload,
@@ -811,13 +904,7 @@ export class WorkOrdersService {
 
         const current = await tx.workOrder.findFirst({
           where: { id, ...this.workOrderVisibilityWhere(actor) },
-          include: {
-            payments: {
-              include: {
-                cashMovement: { select: { id: true, amount: true, createdAt: true } },
-              },
-            },
-          },
+          select: { id: true, status: true, orderNumber: true, publicCode: true, internalNotes: true },
         });
         if (!current) {
           throw new NotFoundException('Orden de trabajo no encontrada');
@@ -826,63 +913,13 @@ export class WorkOrdersService {
           throw new ConflictException('Solo se puede reabrir una orden en estado Entregada.');
         }
 
-        const reversed: Array<{
-          paymentId: string
-          kind: WorkOrderPaymentKind
-          amount: string
-          reversalMovementId: string | null
-        }> = [];
-        let total = new Prisma.Decimal(0);
-
-        if (current.payments.length > 0) {
-          // Lock de la sesión OPEN: un cierre concurrente compite por la misma fila.
-          await tx.$queryRaw`SELECT 1 FROM "cash_sessions" WHERE status::text = ${CashSessionStatus.OPEN} ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE`;
-          const session = await tx.cashSession.findFirst({
-            where: { status: CashSessionStatus.OPEN },
-            select: { id: true },
-          });
-          if (!session) {
-            const paid = current.payments.reduce((acc, p) => acc.plus(p.amount), new Prisma.Decimal(0));
-            throw new ConflictException(
-              `No hay sesión de caja abierta: para reabrir esta orden hay que revertir $${paid.toString()} cobrados. Abrí la caja y volvé a intentar.`,
-            );
-          }
-
-          const category = await tx.cashMovementCategory.upsert({
-            where: { slug: REVERSAL_CATEGORY_SLUG },
-            update: {},
-            create: {
-              slug: REVERSAL_CATEGORY_SLUG,
-              name: REVERSAL_CATEGORY_NAME,
-              direction: CashMovementDirection.EXPENSE,
-              sortOrder: 50,
-            },
-          });
-
-          for (const payment of current.payments) {
-            const movement = await tx.cashMovement.create({
-              data: {
-                sessionId: session.id,
-                categoryId: category.id,
-                direction: CashMovementDirection.EXPENSE,
-                amount: payment.amount,
-                referenceType: CASH_WORK_ORDER_REFERENCE_TYPE,
-                referenceId: current.id,
-                note: `Reverso automático por reapertura de la OT #${current.orderNumber}: se devuelve el cobro registrado (${payment.kind === WorkOrderPaymentKind.FULL_SETTLEMENT ? 'liquidación total' : 'abono'}).`,
-                createdById: actor.sub,
-              },
-              select: { id: true },
-            });
-            await tx.workOrderPayment.delete({ where: { id: payment.id } });
-            reversed.push({
-              paymentId: payment.id,
-              kind: payment.kind,
-              amount: payment.amount.toString(),
-              reversalMovementId: movement.id,
-            });
-            total = total.plus(payment.amount);
-          }
-        }
+        const { reversed, total } = await this.reverseWorkOrderPayments(tx, {
+          workOrderId: current.id,
+          orderNumber: current.orderNumber,
+          publicCode: current.publicCode ?? null,
+          actor,
+          reason: 'reapertura',
+        });
 
         const stamp =
           `\n\n--- Reapertura OT #${current.orderNumber} (${new Date().toISOString()}) ---\n` +
@@ -1144,7 +1181,15 @@ export class WorkOrdersService {
       data.clientConsentSignedAt = new Date();
     }
 
-    const row = await this.prisma.workOrder.update({
+    /**
+     * Cancelar también reversa los cobros (mismo criterio que la reapertura): si la orden se
+     * cancela, el dinero no puede quedar como ingreso del taller. Va en la misma transacción
+     * que el cambio de estado: o se cancela y se compensa la caja, o no pasa nada.
+     */
+    // (si `before.status` fuese CANCELLED ya se rechazó más arriba: “la orden está cerrada”)
+    const isCancelling = dto.status === WorkOrderStatus.CANCELLED;
+
+    const updateArgs = {
       where: { id },
       data,
       include: {
@@ -1152,7 +1197,34 @@ export class WorkOrdersService {
         assignedTo: userBrief,
         vehicle: vehicleWithCustomer,
       },
-    });
+    } as const;
+
+    let row: Awaited<ReturnType<typeof this.prisma.workOrder.update>>
+    let reversedPayments: Array<Record<string, unknown>> = [];
+    let reversedTotal: string | null = null;
+
+    if (isCancelling) {
+      const result = await this.prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw(Prisma.sql`SELECT 1 FROM "work_orders" WHERE id = ${id} FOR UPDATE`);
+          const { reversed, total } = await this.reverseWorkOrderPayments(tx, {
+            workOrderId: id,
+            orderNumber: before.orderNumber,
+            publicCode: before.publicCode ?? null,
+            actor,
+            reason: 'cancelación',
+          });
+          const updated = await tx.workOrder.update(updateArgs as never);
+          return { updated, reversed, total };
+        },
+        { maxWait: 5000, timeout: 15_000 },
+      );
+      row = result.updated;
+      reversedPayments = result.reversed;
+      reversedTotal = Number(result.total) > 0 ? result.total.toString() : null;
+    } else {
+      row = await this.prisma.workOrder.update(updateArgs as never);
+    }
 
     await this.audit.recordDomain({
       actorUserId: actor.sub,
@@ -1171,6 +1243,7 @@ export class WorkOrdersService {
         assignedToId: row.assignedToId,
         vehicleId: row.vehicleId,
         fields: keys,
+        ...(reversedTotal ? { reversedPayments, reversedTotal } : {}),
       },
       ipAddress: meta.ip ?? null,
       userAgent: meta.userAgent ?? null,

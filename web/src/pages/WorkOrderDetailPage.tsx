@@ -305,7 +305,16 @@ export function WorkOrderDetailPage() {
         lines.push(`· Se quita a ${wo.assignedTo?.fullName ?? 'el técnico'} y la orden vuelve a la cola «Sin asignar».`)
       }
       if (cancelNow) {
-        lines.push('', '⚠ La orden pasará a CANCELADA. Revisá cobros y líneas antes de continuar.')
+        const paid = Number(wo.paymentSummary?.totalPaid ?? 0)
+        lines.push(
+          '',
+          '⚠ La orden pasará a CANCELADA. Revisá cobros y líneas antes de continuar.',
+          ...(paid > 0
+            ? [
+                `Además se revertirán $${formatCopFromString(wo.paymentSummary?.totalPaid ?? '0')} en caja (egreso en la sesión abierta).`,
+              ]
+            : []),
+        )
       }
       const ok = await confirm({
         title: `Orden ${wo.publicCode}`,
@@ -923,7 +932,16 @@ export function WorkOrderDetailPage() {
       )
     }
     if (cancelNow) {
-      lines.push('', '⚠ La orden pasará a CANCELADA. Revisá cobros y líneas antes de continuar.')
+      const paidNow = Number(wo.paymentSummary?.totalPaid ?? 0)
+      lines.push(
+        '',
+        '⚠ La orden pasará a CANCELADA. Revisá cobros y líneas antes de continuar.',
+        ...(paidNow > 0
+          ? [
+              `Además se revertirán $${formatCopFromString(wo.paymentSummary?.totalPaid ?? '0')} en caja (egreso en la sesión abierta).`,
+            ]
+          : []),
+      )
     }
     const okSave = await confirm({
       title: `Orden ${wo.publicCode}`,

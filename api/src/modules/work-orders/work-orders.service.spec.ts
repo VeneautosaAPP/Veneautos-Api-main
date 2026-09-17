@@ -43,6 +43,7 @@ describe('WorkOrdersService', () => {
     workOrderPayment: {
       aggregate: jest.Mock;
       groupBy: jest.Mock;
+      findMany: jest.Mock;
       delete: jest.Mock;
     };
     cashSession: { findFirst: jest.Mock };
@@ -96,6 +97,7 @@ describe('WorkOrdersService', () => {
       workOrderPayment: {
         aggregate: jest.fn(),
         groupBy: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([]),
         delete: jest.fn().mockResolvedValue({ id: 'pay-1' }),
       },
       cashSession: { findFirst: jest.fn().mockResolvedValue({ id: 'session-1' }) },
@@ -471,6 +473,58 @@ describe('WorkOrdersService', () => {
       );
     });
 
+    it('cancelar con cobros: reversa en caja (egreso espejo) y borra el cobro', async () => {
+      const closer: JwtUserPayload = {
+        ...actorOwn,
+        permissions: ['work_orders:read', 'work_orders:update', 'work_orders:set_terminal_status'],
+      };
+      prisma.workOrderPayment.findMany.mockResolvedValue([
+        { id: 'pay-9', kind: WorkOrderPaymentKind.PARTIAL, amount: new Prisma.Decimal('120000') },
+      ]);
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.READY,
+        deliveredAt: null,
+        assignedToId: actorId,
+        orderNumber: 9,
+        publicCode: 'VEN-0009',
+        authorizedAmount: null,
+      });
+      prisma.workOrder.update.mockResolvedValue({
+        id: 'wo1',
+        status: WorkOrderStatus.CANCELLED,
+        deliveredAt: null,
+        cancelledAt: new Date(),
+        vehicleId: null,
+        orderNumber: 9,
+        publicCode: 'VEN-0009',
+        assignedToId: actorId,
+        authorizedAmount: null,
+        createdBy: {},
+        assignedTo: null,
+        vehicle: null,
+      });
+
+      await service.update('wo1', closer, { status: WorkOrderStatus.CANCELLED } satisfies UpdateWorkOrderDto, {});
+
+      expect(prisma.cashMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            direction: CashMovementDirection.EXPENSE,
+            amount: new Prisma.Decimal('120000'),
+            referenceType: 'WorkOrder',
+            referenceId: 'wo1',
+          }),
+        }),
+      );
+      expect(prisma.workOrderPayment.delete).toHaveBeenCalledWith({ where: { id: 'pay-9' } });
+      expect(audit.recordDomain).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nextPayload: expect.objectContaining({ reversedTotal: '120000' }),
+        }),
+      );
+    });
+
     it('desvincula vehículo con vehicleId null', async () => {
       prisma.workOrder.findFirst.mockResolvedValue({
         id: 'wo1',
@@ -747,19 +801,19 @@ describe('WorkOrdersService', () => {
     });
 
     it('reversa los cobros en caja: egreso espejo y borra el pago', async () => {
+      prisma.workOrderPayment.findMany.mockResolvedValue([
+        {
+          id: 'pay-1',
+          kind: WorkOrderPaymentKind.FULL_SETTLEMENT,
+          amount: new Prisma.Decimal('150000'),
+        },
+      ]);
       prisma.workOrder.findFirst.mockResolvedValue({
         id: 'wo1',
         status: WorkOrderStatus.DELIVERED,
         orderNumber: 9,
+        publicCode: 'VEN-0009',
         internalNotes: null,
-        payments: [
-          {
-            id: 'pay-1',
-            kind: WorkOrderPaymentKind.FULL_SETTLEMENT,
-            amount: new Prisma.Decimal('150000'),
-            cashMovement: { id: 'mv-original', amount: new Prisma.Decimal('150000'), createdAt: null },
-          },
-        ],
       });
       prisma.workOrder.update.mockResolvedValue({
         id: 'wo1',
@@ -802,19 +856,19 @@ describe('WorkOrdersService', () => {
 
     it('con cobros y sin caja abierta: Conflict (no deja reabrir)', async () => {
       prisma.cashSession.findFirst.mockResolvedValue(null);
+      prisma.workOrderPayment.findMany.mockResolvedValue([
+        {
+          id: 'pay-1',
+          kind: WorkOrderPaymentKind.PARTIAL,
+          amount: new Prisma.Decimal('50000'),
+        },
+      ]);
       prisma.workOrder.findFirst.mockResolvedValue({
         id: 'wo1',
         status: WorkOrderStatus.DELIVERED,
         orderNumber: 9,
+        publicCode: 'VEN-0009',
         internalNotes: null,
-        payments: [
-          {
-            id: 'pay-1',
-            kind: WorkOrderPaymentKind.PARTIAL,
-            amount: new Prisma.Decimal('50000'),
-            cashMovement: { id: 'mv-original', amount: new Prisma.Decimal('50000'), createdAt: null },
-          },
-        ],
       });
 
       await expect(
