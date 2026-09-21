@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BarChart3,
   ChevronLeft,
@@ -109,6 +109,12 @@ function writeSidebarCollapsed(collapsed: boolean) {
   }
 }
 
+/** Menú móvil: se abre deslizando desde el borde izquierdo; se cierra deslizando a la izquierda. */
+const SWIPE_EDGE_PX = 56
+const SWIPE_TAKEOVER_PX = 14
+const SWIPE_DIST = 48
+const SWIPE_VERTICAL_RATIO = 1.25
+
 function AppShellInner() {
   const panelTheme = usePanelTheme()
   const isSaas = panelUsesModernShell(panelTheme)
@@ -155,39 +161,69 @@ function AppShellInner() {
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
 
-  /** Gestos táctiles (patrón autopiezas-tegui): abrir deslizando desde el borde izq., cerrar deslizando a la izq. */
-  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+  /** Gestos táctiles del menú lateral móvil (patrón autopiezas-tegui): abrir deslizando desde el borde izq., cerrar deslizando a la izq.
+   *  Se usan listeners nativos (no pasivos) para cancelar el gesto "atrás" del navegador al abrir desde el borde. */
+  const shellRef = useRef<HTMLDivElement | null>(null)
   const isTouchViewport = useCallback(() => {
     if (typeof window === 'undefined') return false
     return !window.matchMedia('(min-width: 1024px)').matches
   }, [])
-  const onShellTouchStart = useCallback(
-    (e: TouchEvent) => {
+
+  useEffect(() => {
+    const el = shellRef.current
+    if (!el || !isSaas) return
+
+    let start: { x: number; y: number; edge: boolean } | null = null
+
+    const onStart = (e: TouchEvent) => {
       if (!isTouchViewport()) return
       const touch = e.touches[0]
       if (!touch) return
-      swipeStart.current = { x: touch.clientX, y: touch.clientY }
-    },
-    [isTouchViewport],
-  )
-  const onShellTouchEnd = useCallback(
-    (e: TouchEvent) => {
-      if (!isTouchViewport()) return
-      const start = swipeStart.current
-      swipeStart.current = null
-      const touch = e.changedTouches[0]
-      if (!start || !touch) return
+      start = { x: touch.clientX, y: touch.clientY, edge: touch.clientX <= SWIPE_EDGE_PX }
+    }
+
+    const onMove = (e: TouchEvent) => {
+      if (!start || mobileMenuOpen) return
+      const touch = e.touches[0]
+      if (!touch) return
       const dx = touch.clientX - start.x
-      const dy = touch.clientY - start.y
-      if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.2) return
+      const dy = Math.abs(touch.clientY - start.y)
+      if (start.edge && dx > dy * SWIPE_VERTICAL_RATIO && dx >= SWIPE_TAKEOVER_PX) {
+        e.preventDefault()
+      }
+    }
+
+    const onEnd = (e: TouchEvent) => {
+      const s = start
+      start = null
+      if (!s || !isTouchViewport()) return
+      const touch = e.changedTouches[0]
+      if (!touch) return
+      const dx = touch.clientX - s.x
+      const dy = Math.abs(touch.clientY - s.y)
+      if (Math.abs(dx) < SWIPE_DIST || Math.abs(dx) < dy * SWIPE_VERTICAL_RATIO) return
       if (mobileMenuOpen) {
         if (dx < 0) setMobileMenuOpen(false)
-      } else if (start.x <= 24 && dx > 0) {
+      } else if (s.edge && dx > 0) {
         setMobileMenuOpen(true)
       }
-    },
-    [isTouchViewport, mobileMenuOpen],
-  )
+    }
+
+    const onCancel = () => {
+      start = null
+    }
+
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    el.addEventListener('touchcancel', onCancel, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onCancel)
+    }
+  }, [isSaas, isTouchViewport, mobileMenuOpen])
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -505,9 +541,8 @@ function AppShellInner() {
 
   return (
     <div
+      ref={shellRef}
       className={`va-app-shell flex min-h-dvh flex-col bg-slate-100 dark:bg-slate-950 ${isSaas ? 'lg:flex-row lg:items-stretch' : ''}`}
-      onTouchStart={onShellTouchStart}
-      onTouchEnd={onShellTouchEnd}
     >
       <a
         href="#app-main-content"
