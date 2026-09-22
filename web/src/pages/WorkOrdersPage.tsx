@@ -1,5 +1,6 @@
-import { useCallback, useMemo, type MouseEvent } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { PostCreateConsentModal } from '../components/work-order/PostCreateConsentModal'
+import { ModalAccordionSection } from '../features/work-orders/components/ModalAccordionSection'
 import { QuickCreateCustomerSection } from '../features/work-orders/components/QuickCreateCustomerSection'
 import { VehiclePlateAutocomplete } from '../features/work-orders/components/VehiclePlateAutocomplete'
 import { WorkOrdersList } from '../features/work-orders/components/WorkOrdersList'
@@ -10,6 +11,190 @@ import {
   type WoPageSize,
 } from '../features/work-orders/components/WorkOrdersToolbar'
 import { useWorkOrdersPageModel } from '../features/work-orders/hooks/useWorkOrdersPageModel'
+
+type NewOrderModalProps = {
+  m: ReturnType<typeof useWorkOrdersPageModel>
+  onCancel: () => void
+  vehicleSearch: (q: string) => Promise<WorkOrdersVehicleHit[]>
+  onPickVehicle: (v: WorkOrdersVehicleHit) => void
+  onVehicleTyping: () => void
+}
+
+function NewOrderModal({ m, onCancel, vehicleSearch, onPickVehicle, onVehicleTyping }: NewOrderModalProps) {
+  const [openSection, setOpenSection] = useState<'workOrder' | 'newClient'>('workOrder')
+  return (
+    <div className="va-modal-overlay" role="presentation">
+      <div
+        className="va-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="wo-create-title"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <h2
+          id="wo-create-title"
+          className={
+            m.isSaas ? 'va-section-title text-base' : 'text-lg font-semibold text-slate-900 dark:text-slate-50'
+          }
+        >
+          {m.warrantyParentId ? 'Nueva orden de garantía' : 'Nueva orden de trabajo'}
+        </h2>
+        {m.warrantyParentId ? (
+          <div className="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-100">
+            <p>
+              Se vinculará como <strong>garantía o seguimiento</strong> a la orden origen{' '}
+              {m.warrantyParentOrderNumber != null ? (
+                <>
+                  <strong>#{m.warrantyParentOrderNumber}</strong>{' '}
+                </>
+              ) : null}
+              (debe estar <strong>entregada</strong>). El vehículo por defecto es el de esa orden; si el titular
+              tiene más unidades en el maestro, podés cambiarla abajo.
+            </p>
+            {m.warrantyVehicleLoading ? (
+              <p className="text-violet-800 dark:text-violet-200">Cargando vehículo de la orden origen…</p>
+            ) : null}
+            {m.warrantyVehicleError ? (
+              <p className="font-medium text-red-700 dark:text-red-300">{m.warrantyVehicleError}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {m.createMsg && <p className="va-alert-error mt-2">{m.createMsg}</p>}
+        <div className="mt-4 space-y-3">
+          <ModalAccordionSection
+            title="Nueva orden de trabajo"
+            open={openSection === 'workOrder'}
+            onToggle={() => setOpenSection('workOrder')}
+            contentId="wo-create-workorder"
+          >
+            <form className="space-y-3" onSubmit={m.submitCreate}>
+              <label className="block text-sm">
+                <span className="va-label">Descripción del trabajo</span>
+                <textarea
+                  required
+                  minLength={3}
+                  value={m.desc}
+                  onChange={(e) => m.setDesc(e.target.value)}
+                  rows={3}
+                  className="va-field mt-1"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="va-label">
+                  Vehículo{' '}
+                  {!m.warrantyParentId ? <span className="text-red-600 dark:text-red-400">(obligatorio)</span> : null}
+                </span>
+                {m.warrantyParentId && m.warrantyVehicleOptions.length > 1 ? (
+                  <>
+                    <select
+                      value={m.vehicleId}
+                      onChange={(e) => {
+                        const opt = m.warrantyVehicleOptions.find((o) => o.id === e.target.value)
+                        if (!opt) return
+                        m.setVehicleId(opt.id)
+                        m.setVehiclePlate(opt.plate)
+                      }}
+                      className="va-field mt-1 w-full"
+                    >
+                      {m.warrantyVehicleOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.plate}
+                          {(o.brand || o.model) ? ` · ${[o.brand, o.model].filter(Boolean).join(' ')}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                      Por defecto: el mismo vehículo de la orden en garantía. Cambiá solo si el seguimiento corresponde
+                      a otra unidad del mismo titular.
+                    </p>
+                  </>
+                ) : m.warrantyParentId &&
+                  m.vehicleId &&
+                  !m.warrantyVehicleLoading &&
+                  m.warrantyVehicleOptions.length <= 1 ? (
+                  <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    <span className="font-mono font-medium">{m.vehiclePlate}</span>
+                    {m.warrantyVehicleOptions[0] &&
+                    (m.warrantyVehicleOptions[0].brand || m.warrantyVehicleOptions[0].model) ? (
+                      <span className="ml-2 text-slate-600 dark:text-slate-300">
+                        {[m.warrantyVehicleOptions[0].brand, m.warrantyVehicleOptions[0].model].filter(Boolean).join(' ')}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="mt-1 flex gap-2">
+                    {m.can('vehicles:read') ? (
+                      <VehiclePlateAutocomplete
+                        selectedPlate={m.vehiclePlate}
+                        onPick={onPickVehicle}
+                        onTyping={onVehicleTyping}
+                        search={vehicleSearch}
+                      />
+                    ) : (
+                      <input
+                        readOnly
+                        value={m.vehiclePlate}
+                        placeholder="No tenés permiso para buscar vehículos"
+                        className="va-field min-w-0 flex-1 font-mono text-sm"
+                      />
+                    )}
+                  </div>
+                )}
+                {m.customerName.trim() || m.customerPhone.trim() ? (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                    Titular: {m.customerName.trim()}
+                    {m.customerPhone.trim() ? ` · ${m.customerPhone.trim()}` : ''}
+                  </p>
+                ) : null}
+                {m.warrantyParentId && !m.warrantyVehicleLoading && !m.vehicleId && m.warrantyParentMissingVehicle ? (
+                  <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                    La orden origen no tiene vehículo en el maestro. Escribí su placa arriba para vincular uno antes de
+                    crear la garantía.
+                  </p>
+                ) : null}
+                {m.warrantyParentId && !m.warrantyVehicleLoading && !m.vehicleId && !m.warrantyParentMissingVehicle && !m.can('work_orders:read') && !m.can('work_orders:read_portal') ? (
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    No tenés permiso para leer la orden origen: elegí el vehículo del maestro escribiendo su placa.
+                  </p>
+                ) : null}
+              </label>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" className="va-btn-primary">
+                  Crear y abrir
+                </button>
+                <button type="button" onClick={onCancel} className="va-btn-secondary">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </ModalAccordionSection>
+          <ModalAccordionSection
+            title="¿Cliente nuevo? Crearlo rápido"
+            open={openSection === 'newClient'}
+            onToggle={() => setOpenSection('newClient')}
+            contentId="wo-create-newclient"
+          >
+            {m.can('customers:create') && m.can('vehicles:create') ? (
+              <QuickCreateCustomerSection
+                busy={m.quickBusy}
+                msg={m.quickMsg}
+                name={m.quickName}
+                phone={m.quickPhone}
+                plate={m.quickPlate}
+                brand={m.quickBrand}
+                onNameChange={m.setQuickName}
+                onPhoneChange={m.setQuickPhone}
+                onPlateChange={m.setQuickPlate}
+                onBrandChange={m.setQuickBrand}
+                onSubmit={m.quickCreate}
+              />
+            ) : null}
+          </ModalAccordionSection>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function WorkOrdersPage() {
   const m = useWorkOrdersPageModel()
@@ -22,15 +207,10 @@ export function WorkOrdersPage() {
     setCreateOpen,
     resetCreateWarrantyState,
     resetQuickCreate,
-    vehiclePlate,
     setVehicleId,
     setVehiclePlate,
     setCustomerName,
     setCustomerPhone,
-    setQuickName,
-    setQuickPhone,
-    setQuickPlate,
-    setQuickBrand,
   } = m
 
   const createMsgClass = useMemo(
@@ -72,10 +252,6 @@ export function WorkOrdersPage() {
   }, [clearListFiltersAction])
 
   const canCreateWorkOrder = useMemo(() => can('work_orders:create'), [can])
-
-  const handleModalPanelClick = useCallback((ev: MouseEvent) => {
-    ev.stopPropagation()
-  }, [])
 
   const handleCancelCreate = useCallback(() => {
     setCreateOpen(false)
@@ -154,163 +330,15 @@ export function WorkOrdersPage() {
         </p>
       )}
 
-      {m.createOpen && (
-        <div className="va-modal-overlay" role="presentation">
-          <div
-            className="va-modal-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="wo-create-title"
-            onClick={handleModalPanelClick}
-          >
-            <h2
-              id="wo-create-title"
-              className={
-                m.isSaas ? 'va-section-title text-base' : 'text-lg font-semibold text-slate-900 dark:text-slate-50'
-              }
-            >
-              {m.warrantyParentId ? 'Nueva orden de garantía' : 'Nueva orden de trabajo'}
-            </h2>
-            {m.warrantyParentId ? (
-              <div className="mt-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-100">
-                <p>
-                  Se vinculará como <strong>garantía o seguimiento</strong> a la orden origen{' '}
-                  {m.warrantyParentOrderNumber != null ? (
-                    <>
-                      <strong>#{m.warrantyParentOrderNumber}</strong>{' '}
-                    </>
-                  ) : null}
-                  (debe estar <strong>entregada</strong>). El vehículo por defecto es el de esa orden; si el titular
-                  tiene más unidades en el maestro, podés cambiarla abajo.
-                </p>
-                {m.warrantyVehicleLoading ? (
-                  <p className="text-violet-800 dark:text-violet-200">Cargando vehículo de la orden origen…</p>
-                ) : null}
-                {m.warrantyVehicleError ? (
-                  <p className="font-medium text-red-700 dark:text-red-300">{m.warrantyVehicleError}</p>
-                ) : null}
-              </div>
-            ) : null}
-            {m.createMsg && <p className="va-alert-error mt-2">{m.createMsg}</p>}
-            <form className="mt-4 space-y-3" onSubmit={m.submitCreate}>
-              <label className="block text-sm">
-                <span className="va-label">Descripción del trabajo</span>
-                <textarea
-                  required
-                  minLength={3}
-                  value={m.desc}
-                  onChange={(e) => m.setDesc(e.target.value)}
-                  rows={3}
-                  className="va-field mt-1"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="va-label">
-                  Vehículo{' '}
-                  {!m.warrantyParentId ? <span className="text-red-600 dark:text-red-400">(obligatorio)</span> : null}
-                </span>
-                {m.warrantyParentId && m.warrantyVehicleOptions.length > 1 ? (
-                  <>
-                    <select
-                      value={m.vehicleId}
-                      onChange={(e) => {
-                        const opt = m.warrantyVehicleOptions.find((o) => o.id === e.target.value)
-                        if (!opt) return
-                        m.setVehicleId(opt.id)
-                        m.setVehiclePlate(opt.plate)
-                      }}
-                      className="va-field mt-1 w-full"
-                    >
-                      {m.warrantyVehicleOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.plate}
-                          {(o.brand || o.model) ? ` · ${[o.brand, o.model].filter(Boolean).join(' ')}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                      Por defecto: el mismo vehículo de la orden en garantía. Cambiá solo si el seguimiento corresponde
-                      a otra unidad del mismo titular.
-                    </p>
-                  </>
-                ) : m.warrantyParentId &&
-                  m.vehicleId &&
-                  !m.warrantyVehicleLoading &&
-                  m.warrantyVehicleOptions.length <= 1 ? (
-                  <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                    <span className="font-mono font-medium">{m.vehiclePlate}</span>
-                    {m.warrantyVehicleOptions[0] &&
-                    (m.warrantyVehicleOptions[0].brand || m.warrantyVehicleOptions[0].model) ? (
-                      <span className="ml-2 text-slate-600 dark:text-slate-300">
-                        {[m.warrantyVehicleOptions[0].brand, m.warrantyVehicleOptions[0].model].filter(Boolean).join(' ')}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="mt-1 flex gap-2">
-                    {m.can('vehicles:read') ? (
-                      <VehiclePlateAutocomplete
-                        selectedPlate={vehiclePlate}
-                        onPick={handlePickVehicle}
-                        onTyping={handleVehicleTyping}
-                        search={vehicleSearch}
-                      />
-                    ) : (
-                      <input
-                        readOnly
-                        value={vehiclePlate}
-                        placeholder="No tenés permiso para buscar vehículos"
-                        className="va-field min-w-0 flex-1 font-mono text-sm"
-                      />
-                    )}
-                  </div>
-                )}
-                {m.customerName.trim() || m.customerPhone.trim() ? (
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                    Titular: {m.customerName.trim()}
-                    {m.customerPhone.trim() ? ` · ${m.customerPhone.trim()}` : ''}
-                  </p>
-                ) : null}
-                {m.warrantyParentId && !m.warrantyVehicleLoading && !m.vehicleId && m.warrantyParentMissingVehicle ? (
-                  <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                    La orden origen no tiene vehículo en el maestro. Escribí su placa arriba para vincular uno antes de
-                    crear la garantía.
-                  </p>
-                ) : null}
-                {m.warrantyParentId && !m.warrantyVehicleLoading && !m.vehicleId && !m.warrantyParentMissingVehicle && !m.can('work_orders:read') && !m.can('work_orders:read_portal') ? (
-                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-                    No tenés permiso para leer la orden origen: elegí el vehículo del maestro escribiendo su placa.
-                  </p>
-                ) : null}
-              </label>
-              <div className="flex gap-2 pt-1">
-                <button type="submit" className="va-btn-primary">
-                  Crear y abrir
-                </button>
-                <button type="button" onClick={handleCancelCreate} className="va-btn-secondary">
-                  Cancelar
-                </button>
-              </div>
-              {m.can('customers:create') && m.can('vehicles:create') ? (
-                <QuickCreateCustomerSection
-                  isSaas={m.isSaas}
-                  busy={m.quickBusy}
-                  msg={m.quickMsg}
-                  name={m.quickName}
-                  phone={m.quickPhone}
-                  plate={m.quickPlate}
-                  brand={m.quickBrand}
-                  onNameChange={setQuickName}
-                  onPhoneChange={setQuickPhone}
-                  onPlateChange={setQuickPlate}
-                  onBrandChange={setQuickBrand}
-                  onSubmit={m.quickCreate}
-                />
-              ) : null}
-            </form>
-          </div>
-        </div>
-      )}
+{m.createOpen ? (
+        <NewOrderModal
+          m={m}
+          onCancel={handleCancelCreate}
+          vehicleSearch={vehicleSearch}
+          onPickVehicle={handlePickVehicle}
+          onVehicleTyping={handleVehicleTyping}
+        />
+) : null}
 
       {m.postCreateConsent && (
         <PostCreateConsentModal
