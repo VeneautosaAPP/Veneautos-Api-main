@@ -86,7 +86,7 @@ export function VehiclePlateAutocomplete({ selectedPlate, onPick, onTyping, sear
   }
 
   return (
-    <div ref={rootRef} className="relative min-w-0 flex-1">
+    <div ref={rootRef} className="va-plate-ac relative min-w-0 flex-1">
       <input
         type="text"
         value={text}
@@ -123,7 +123,7 @@ export function VehiclePlateAutocomplete({ selectedPlate, onPick, onTyping, sear
       {open && (
         <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-600 bg-slate-800 shadow-xl">
           {showLoading ? (
-            <p className="px-3 py-2 text-xs text-slate-200">Buscando…</p>
+            <p className="px-3 py-2 text-xs text-white">Buscando…</p>
           ) : showResults ? (
             <ul role="listbox" className="max-h-60 overflow-y-auto">
               {results.map((v, i) => (
@@ -136,22 +136,22 @@ export function VehiclePlateAutocomplete({ selectedPlate, onPick, onTyping, sear
                     }}
                     onMouseEnter={() => setHl(i)}
                     className={`w-full px-3 py-2 text-left text-sm ${
-                      i === hl ? 'bg-slate-600' : 'hover:bg-slate-700'
+                      i === hl ? 'bg-slate-700' : 'bg-slate-800 hover:bg-slate-700'
                     }`}
                   >
                     <span className="font-mono font-medium text-white">{v.plate}</span>
                     {(v.brand || v.model) && (
-                      <span className="mt-0.5 block text-xs text-slate-200">
+                      <span className="mt-0.5 block text-xs text-white">
                         {[v.brand, v.model].filter(Boolean).join(' ')}
                       </span>
                     )}
-                    <span className="mt-0.5 block text-xs text-slate-200">{v.customer.displayName}</span>
+                    <span className="mt-0.5 block text-xs text-white">{v.customer.displayName}</span>
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="px-3 py-2 text-xs text-slate-200">Sin coincidencias.</p>
+            <p className="px-3 py-2 text-xs text-white">Sin coincidencias.</p>
           )}
         </div>
       )}

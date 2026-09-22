@@ -901,6 +901,24 @@ html.dark [role='listbox'] [role='option'][aria-selected='true'] span {
   color: #1a1d27 !important;
 }
 
+/* --- Autocompletado de placa (Nueva OT): gris oscuro + letra blanca siempre --- */
+html.dark .va-plate-ac [role='listbox'] {
+  background-color: #1a1d27 !important;
+  border-color: #2a2e3a !important;
+}
+html.dark .va-plate-ac [role='listbox'] [role='option'] {
+  color: #ffffff !important;
+}
+html.dark .va-plate-ac [role='listbox'] [role='option']:hover,
+html.dark .va-plate-ac [role='listbox'] [role='option'][aria-selected='true'] {
+  background-color: #2a2e3a !important;
+  color: #ffffff !important;
+}
+html.dark .va-plate-ac [role='listbox'] [role='option']:hover span,
+html.dark .va-plate-ac [role='listbox'] [role='option'][aria-selected='true'] span {
+  color: #ffffff !important;
+}
+
 /* --- Segmentados / pestañas activas: accent sólido (equivalente a [aria-pressed]) --- */
 html.dark [aria-selected='true'] {
   background-color: #ff7a33 !important;
