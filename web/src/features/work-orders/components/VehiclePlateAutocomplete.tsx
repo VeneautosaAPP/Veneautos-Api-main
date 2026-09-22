@@ -121,9 +121,9 @@ export function VehiclePlateAutocomplete({ selectedPlate, onPick, onTyping, sear
         aria-label="Buscar vehículo por placa"
       />
       {open && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-600 dark:bg-slate-800">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-600 bg-slate-800 shadow-xl">
           {showLoading ? (
-            <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-300">Buscando…</p>
+            <p className="px-3 py-2 text-xs text-slate-200">Buscando…</p>
           ) : showResults ? (
             <ul role="listbox" className="max-h-60 overflow-y-auto">
               {results.map((v, i) => (
@@ -136,38 +136,22 @@ export function VehiclePlateAutocomplete({ selectedPlate, onPick, onTyping, sear
                     }}
                     onMouseEnter={() => setHl(i)}
                     className={`w-full px-3 py-2 text-left text-sm ${
-                      i === hl
-                        ? 'bg-slate-700'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-600'
+                      i === hl ? 'bg-slate-600' : 'hover:bg-slate-700'
                     }`}
                   >
-                    <span
-                      className={`font-mono font-medium ${i === hl ? 'text-white' : 'text-slate-900 dark:text-slate-50'}`}
-                    >
-                      {v.plate}
-                    </span>
+                    <span className="font-mono font-medium text-white">{v.plate}</span>
                     {(v.brand || v.model) && (
-                      <span
-                        className={`mt-0.5 block text-xs ${
-                          i === hl ? 'text-white' : 'text-slate-500 dark:text-slate-300'
-                        }`}
-                      >
+                      <span className="mt-0.5 block text-xs text-slate-200">
                         {[v.brand, v.model].filter(Boolean).join(' ')}
                       </span>
                     )}
-                    <span
-                      className={`mt-0.5 block text-xs ${
-                        i === hl ? 'text-white' : 'text-slate-500 dark:text-slate-300'
-                      }`}
-                    >
-                      {v.customer.displayName}
-                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-200">{v.customer.displayName}</span>
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="px-3 py-2 text-xs text-slate-500 dark:text-slate-300">Sin coincidencias.</p>
+            <p className="px-3 py-2 text-xs text-slate-200">Sin coincidencias.</p>
           )}
         </div>
       )}
