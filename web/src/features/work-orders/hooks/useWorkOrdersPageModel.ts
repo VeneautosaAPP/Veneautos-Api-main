@@ -33,6 +33,8 @@ import {
 } from '../selectors/workOrderListSelectors'
 import {
   cancelWorkOrderToTerminal,
+  createCustomerQuick,
+  createVehicleQuick,
   createWorkOrderFromList,
   fetchCustomerVehiclesForWorkOrderList,
   fetchWorkOrderDetailForList,
@@ -41,6 +43,31 @@ import {
 } from '../services/workOrdersListApi'
 import type { WorkOrdersVehicleHit, WorkOrdersWarrantyVehicleOption } from '../types'
 import { useWorkOrderListFilters } from './useWorkOrderListFilters'
+
+/** Normaliza a solo letras y números en mayúsculas (compara sin guiones/espacios). */
+function plateAlphaNorm(s: string): string {
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/** Coincidencia exacta por placa normalizada (insensible a guiones/espacios). */
+function findExactPlateHit(hits: WorkOrdersVehicleHit[], norm: string): WorkOrdersVehicleHit | undefined {
+  const want = plateAlphaNorm(norm)
+  return hits.find((v) => plateAlphaNorm(v.plate) === want)
+}
+
+/** Variantes de consulta para localizar una placa existente (la búsqueda del API es substring). */
+function plateSearchVariants(norm: string): string[] {
+  const variants = new Set<string>()
+  const clean = plateAlphaNorm(norm)
+  variants.add(norm)
+  variants.add(clean)
+  if (clean.length >= 4) {
+    for (let i = 1; i < clean.length; i++) {
+      variants.add(`${clean.slice(0, i)}-${clean.slice(i)}`)
+    }
+  }
+  return [...variants]
+}
 
 export function useWorkOrdersPageModel() {
   const panelTheme = usePanelTheme()
@@ -161,17 +188,121 @@ export function useWorkOrdersPageModel() {
   const [warrantyVehicleError, setWarrantyVehicleError] = useState<string | null>(null)
   const [warrantyParentMissingVehicle, setWarrantyParentMissingVehicle] = useState(false)
 
-  const [vehModalOpen, setVehModalOpen] = useState(false)
-  const [vehQ, setVehQ] = useState('')
-  const [vehLoading, setVehLoading] = useState(false)
-  const [vehResults, setVehResults] = useState<WorkOrdersVehicleHit[] | null>(null)
-  const [vehErr, setVehErr] = useState<string | null>(null)
+  const [quickName, setQuickName] = useState('')
+  const [quickPhone, setQuickPhone] = useState('')
+  const [quickPlate, setQuickPlate] = useState('')
+  const [quickBrand, setQuickBrand] = useState('')
+  const [quickBusy, setQuickBusy] = useState(false)
+  const [quickMsg, setQuickMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!createOpen) {
-      setVehModalOpen(false)
+  /** Limpia el formulario de alta rápida (previo a cerrar/reabrir o tras crear). */
+  const resetQuickCreate = useCallback(() => {
+    setQuickName('')
+    setQuickPhone('')
+    setQuickPlate('')
+    setQuickBrand('')
+    setQuickMsg(null)
+  }, [])
+
+  /** Alta rápida: crea cliente + vehículo y los vincula a la orden en formulación. */
+  const quickCreate = useCallback(async () => {
+    setQuickMsg(null)
+    const name = quickName.trim()
+    const phone = quickPhone.trim()
+    const plateText = quickPlate.trim()
+    const brand = quickBrand.trim()
+    if (name.length < 2) {
+      setQuickMsg('Escribí el nombre del cliente (mín. 2 caracteres).')
+      return
     }
-  }, [createOpen])
+    if (!phone) {
+      setQuickMsg('Escribí el teléfono del cliente.')
+      return
+    }
+    if (plateText.length < 2) {
+      setQuickMsg('Escribí la placa del vehículo.')
+      return
+    }
+    if (!brand) {
+      setQuickMsg('Escribí la marca del vehículo.')
+      return
+    }
+    setQuickBusy(true)
+    try {
+      const norm = plateText.toUpperCase().replace(/\s+/g, '')
+      if (can('vehicles:read')) {
+        const hits = await searchVehiclesForWorkOrder(norm)
+        const exact = findExactPlateHit(hits, norm)
+        if (exact) {
+          setVehicleId(exact.id)
+          setVehiclePlate(exact.plate)
+          setCustomerName(exact.customer.displayName)
+          setCustomerPhone(exact.customer.primaryPhone ?? '')
+          setQuickMsg(
+            `La placa ${exact.plate} ya está registrada: se vinculó el vehículo de ${exact.customer.displayName}.`,
+          )
+          return
+        }
+      }
+      const cust = await createCustomerQuick({ displayName: name, primaryPhone: phone })
+      const veh = await createVehicleQuick({ customerId: cust.id, plate: plateText, brand })
+      setVehicleId(veh.id)
+      setVehiclePlate(veh.plate)
+      setCustomerName(name)
+      setCustomerPhone(phone)
+      resetQuickCreate()
+      setQuickMsg(`Cliente y vehículo creados: ${name} · ${veh.plate}. Podés crear la orden.`)
+    } catch (e) {
+      const conflict = e instanceof ApiError && (e.status === 409 || /placa/.test(e.message))
+      if (!conflict) {
+        setQuickMsg(e instanceof Error ? e.message : 'No se pudo crear el cliente.')
+        return
+      }
+      // Placa existente que la búsqueda directa no alcanzó (p. ej. formato de guión):
+      // intentar localizarla para vincularla en vez de fallar.
+      const norm = plateText.toUpperCase().replace(/\s+/g, '')
+      let bound: WorkOrdersVehicleHit | undefined
+      if (can('vehicles:read')) {
+        for (const variant of plateSearchVariants(norm)) {
+          try {
+            const hit = findExactPlateHit(await searchVehiclesForWorkOrder(variant), norm)
+            if (hit) {
+              bound = hit
+              break
+            }
+          } catch {
+            /* seguir con la siguiente variante */
+          }
+        }
+      }
+      if (bound) {
+        setVehicleId(bound.id)
+        setVehiclePlate(bound.plate)
+        setCustomerName(bound.customer.displayName)
+        setCustomerPhone(bound.customer.primaryPhone ?? '')
+        setQuickMsg(
+          `La placa ${bound.plate} ya está registrada: se vinculó el vehículo de ${bound.customer.displayName} (el cliente quedó creado).`,
+        )
+      } else {
+        setQuickMsg(
+          'Ya existe un vehículo con esa placa. Buscala en el campo Vehículo para vincularlo; el cliente nuevo quedó creado.',
+        )
+      }
+    } finally {
+      setQuickBusy(false)
+    }
+  }, [
+    can,
+    quickName,
+    quickPhone,
+    quickPlate,
+    quickBrand,
+    resetQuickCreate,
+    setVehicleId,
+    setVehiclePlate,
+    setCustomerName,
+    setCustomerPhone,
+  ])
 
   useEffect(() => {
     try {
@@ -182,26 +313,6 @@ export function useWorkOrdersPageModel() {
   }, [pageSize])
 
   const listFilterRef = useRef<string | null>(null)
-
-  const runVehicleSearch = useCallback(async () => {
-    const q = vehQ.trim()
-    if (q.length < 2) {
-      setVehErr('Escribí al menos 2 caracteres')
-      setVehResults(null)
-      return
-    }
-    setVehErr(null)
-    setVehLoading(true)
-    try {
-      const list = await searchVehiclesForWorkOrder(q)
-      setVehResults(list)
-    } catch (e) {
-      setVehResults(null)
-      setVehErr(e instanceof Error ? e.message : 'Error al buscar')
-    } finally {
-      setVehLoading(false)
-    }
-  }, [vehQ])
 
   /** Invalida/refresca la lista (misma firma que antes para compatibilidad exportada). */
   const loadPage = useCallback(
@@ -244,6 +355,7 @@ export function useWorkOrdersPageModel() {
     const vid = searchParams.get('vehicleId')?.trim()
     if (oc !== '1' || !vid || !can('work_orders:create')) return
     setCreateMsg(null)
+    resetQuickCreate()
     setWarrantyParentId(null)
     setWarrantyParentOrderNumber(null)
     setWarrantyVehicleOptions([])
@@ -261,7 +373,7 @@ export function useWorkOrdersPageModel() {
     next.delete('vehicleId')
     next.delete('plate')
     setSearchParams(next, { replace: true })
-  }, [searchParams, can, setSearchParams])
+  }, [searchParams, can, setSearchParams, resetQuickCreate])
 
   useEffect(() => {
     const wf = searchParams.get('warrantyFrom')?.trim()
@@ -281,6 +393,7 @@ export function useWorkOrdersPageModel() {
     setWarrantyVehicleOptions([])
     setWarrantyVehicleError(null)
     setWarrantyParentMissingVehicle(false)
+    resetQuickCreate()
     setCreateOpen(true)
     setDesc((prev) => (prev.trim() ? prev : 'Garantía / seguimiento vinculado. '))
     setVehicleId('')
@@ -344,7 +457,7 @@ export function useWorkOrdersPageModel() {
     return () => {
       cancelled = true
     }
-  }, [searchParams, can, setSearchParams])
+  }, [searchParams, can, setSearchParams, resetQuickCreate])
 
   useEffect(() => {
     const onWoChanged = (ev: Event) => {
@@ -415,29 +528,18 @@ export function useWorkOrdersPageModel() {
       setCreateMsg(null)
       const vid = vehicleId.trim()
       if (!warrantyParentId && !vid) {
-        setCreateMsg('Elegí un vehículo del maestro con la lupa (la orden debe quedar vinculada).')
+        setCreateMsg('Elegí un vehículo del maestro escribiendo su placa (la orden debe quedar vinculada).')
         return
       }
       if (warrantyParentId && !vid) {
         setCreateMsg(
-          'Falta el vehículo: si la orden origen no tiene uno en maestro, buscá con la lupa. Si podés leer la orden origen, debería cargarse solo.',
+          'Falta el vehículo: si la orden origen no tiene uno en el maestro, buscá la placa arriba. Si podés leer la orden origen, debería cargarse solo.',
         )
         return
       }
       const body: CreateWorkOrderPayload = { description: desc.trim() }
       if (vid) body.vehicleId = vid
       if (warrantyParentId) body.parentWorkOrderId = warrantyParentId
-      const vb = vehicleBrandCreate.trim()
-      if (vb) body.vehicleBrand = vb
-      const ikm = intakeKmCreate.trim()
-      if (ikm !== '') {
-        const n = Number(ikm)
-        if (!Number.isInteger(n) || n < 0 || n > 9_999_999) {
-          setCreateMsg('Kilometraje: entero entre 0 y 9.999.999 o vacío.')
-          return
-        }
-        body.intakeOdometerKm = n
-      }
       try {
         const created = await createWorkOrderMutation.mutateAsync(body)
         setCreateOpen(false)
@@ -454,6 +556,7 @@ export function useWorkOrdersPageModel() {
         setWarrantyVehicleError(null)
         setWarrantyParentMissingVehicle(false)
         setWarrantyVehicleLoading(false)
+        resetQuickCreate()
         setPostCreateConsent({
           id: created.id,
           orderNumber: typeof created.orderNumber === 'number' ? created.orderNumber : null,
@@ -466,8 +569,7 @@ export function useWorkOrdersPageModel() {
     [
       createWorkOrderMutation,
       desc,
-      intakeKmCreate,
-      vehicleBrandCreate,
+      resetQuickCreate,
       vehicleId,
       warrantyParentId,
     ],
@@ -516,9 +618,10 @@ export function useWorkOrdersPageModel() {
 
   const openNewOrderModal = useCallback(() => {
     setCreateMsg(null)
+    resetQuickCreate()
     resetCreateWarrantyState()
     setCreateOpen(true)
-  }, [resetCreateWarrantyState])
+  }, [resetCreateWarrantyState, resetQuickCreate])
 
   const prefetchWorkOrderDetailNav = useCallback(
     (workOrderId: string) => prefetchWorkOrderDetail(queryClient, workOrderId),
@@ -569,16 +672,20 @@ export function useWorkOrdersPageModel() {
     warrantyVehicleLoading,
     warrantyVehicleError,
     warrantyParentMissingVehicle,
-    vehModalOpen,
-    setVehModalOpen,
-    vehQ,
-    setVehQ,
-    vehLoading,
-    vehResults,
-    vehErr,
+    quickName,
+    setQuickName,
+    quickPhone,
+    setQuickPhone,
+    quickPlate,
+    setQuickPlate,
+    quickBrand,
+    setQuickBrand,
+    quickBusy,
+    quickMsg,
+    quickCreate,
+    resetQuickCreate,
     listBusy,
     loadPage,
-    runVehicleSearch,
     setStatus,
     setTextSearch,
     setDeliveredFrom,

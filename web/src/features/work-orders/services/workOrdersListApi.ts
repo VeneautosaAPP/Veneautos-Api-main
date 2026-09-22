@@ -40,6 +40,31 @@ export async function searchVehiclesForWorkOrder(q: string): Promise<WorkOrdersV
   return api<WorkOrdersVehicleHit[]>(`/vehicles/search?q=${encodeURIComponent(q)}`)
 }
 
+/** Alta rápida de cliente desde la ventana Nueva OT. */
+export async function createCustomerQuick(
+  input: { displayName: string; primaryPhone?: string },
+): Promise<{ id: string }> {
+  return api<{ id: string }>('/customers', {
+    method: 'POST',
+    body: JSON.stringify({
+      displayName: input.displayName,
+      primaryPhone: input.primaryPhone || undefined,
+    }),
+  })
+}
+
+/** Alta rápida de vehículo para el cliente recién creado. */
+export async function createVehicleQuick(input: {
+  customerId: string
+  plate: string
+  brand: string
+}): Promise<{ id: string; plate: string }> {
+  return api<{ id: string; plate: string }>('/vehicles', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
 /**
  * BEFORE: Usaba `_=${Date.now()}` → cache busting → nunca cachea.
  * NOW: Sin busting → TanStack Query puede reutilizar data.

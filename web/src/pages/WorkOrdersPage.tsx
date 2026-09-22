@@ -1,7 +1,9 @@
 import { useCallback, useMemo, type MouseEvent } from 'react'
 import { PostCreateConsentModal } from '../components/work-order/PostCreateConsentModal'
-import { LoupeButton } from '../features/work-orders/components/LoupeButton'
+import { QuickCreateCustomerSection } from '../features/work-orders/components/QuickCreateCustomerSection'
+import { VehiclePlateAutocomplete } from '../features/work-orders/components/VehiclePlateAutocomplete'
 import { WorkOrdersList } from '../features/work-orders/components/WorkOrdersList'
+import { searchVehiclesForWorkOrder } from '../features/work-orders/services/workOrdersListApi'
 import type { WorkOrdersVehicleHit } from '../features/work-orders/types'
 import {
   WorkOrdersToolbar,
@@ -19,15 +21,16 @@ export function WorkOrdersPage() {
     can,
     setCreateOpen,
     resetCreateWarrantyState,
-    setVehQ,
-    setVehModalOpen,
+    resetQuickCreate,
     vehiclePlate,
-    vehicleId,
-    runVehicleSearch,
     setVehicleId,
     setVehiclePlate,
     setCustomerName,
     setCustomerPhone,
+    setQuickName,
+    setQuickPhone,
+    setQuickPlate,
+    setQuickBrand,
   } = m
 
   const createMsgClass = useMemo(
@@ -77,20 +80,10 @@ export function WorkOrdersPage() {
   const handleCancelCreate = useCallback(() => {
     setCreateOpen(false)
     resetCreateWarrantyState()
-  }, [resetCreateWarrantyState, setCreateOpen])
+    resetQuickCreate()
+  }, [resetCreateWarrantyState, resetQuickCreate, setCreateOpen])
 
-  const openLoupeVehicleSearch = useCallback(() => {
-    setVehQ(vehiclePlate.trim() || vehicleId.trim())
-    setVehModalOpen(true)
-  }, [setVehModalOpen, setVehQ, vehicleId, vehiclePlate])
-
-  const handleRunVehicleSearch = useCallback(() => {
-    void runVehicleSearch()
-  }, [runVehicleSearch])
-
-  const handleCloseVehModal = useCallback(() => {
-    setVehModalOpen(false)
-  }, [setVehModalOpen])
+  const vehicleSearch = useCallback((q: string) => searchVehiclesForWorkOrder(q), [])
 
   const handlePickVehicle = useCallback(
     (v: WorkOrdersVehicleHit) => {
@@ -98,10 +91,16 @@ export function WorkOrdersPage() {
       setVehiclePlate(v.plate)
       setCustomerName(v.customer.displayName)
       setCustomerPhone(v.customer.primaryPhone ?? '')
-      setVehModalOpen(false)
     },
-    [setCustomerName, setCustomerPhone, setVehicleId, setVehiclePlate, setVehModalOpen],
+    [setCustomerName, setCustomerPhone, setVehicleId, setVehiclePlate],
   )
+
+  /** El usuario editó el campo de vehículo sin elegir: la selección previa queda inválida. */
+  const handleVehicleTyping = useCallback(() => {
+    setVehicleId('')
+    setCustomerName('')
+    setCustomerPhone('')
+  }, [setCustomerName, setCustomerPhone, setVehicleId])
 
   return (
     <div className="space-y-6">
@@ -194,7 +193,7 @@ export function WorkOrdersPage() {
             ) : (
               <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                 La orden debe quedar <strong>vinculada a un vehículo del maestro</strong> (cliente y placa se toman de
-                ahí). Usá la lupa para buscar por placa.
+                ahí). Escribí la placa en el campo Vehículo: las coincidencias aparecen en tiempo real.
               </p>
             )}
             {m.createMsg && <p className="va-alert-error mt-2">{m.createMsg}</p>}
@@ -254,16 +253,19 @@ export function WorkOrdersPage() {
                   </div>
                 ) : (
                   <div className="mt-1 flex gap-2">
-                    <input
-                      readOnly
-                      value={m.vehiclePlate ? `${m.vehiclePlate} · ${m.vehicleId}` : m.vehicleId}
-                      placeholder="Buscá con la lupa…"
-                      className="va-field min-w-0 flex-1 font-mono text-sm"
-                    />
-                    {m.can('vehicles:read') && (
-                      <LoupeButton
-                        title="Buscar vehículo por placa (maestro)"
-                        onClick={openLoupeVehicleSearch}
+                    {m.can('vehicles:read') ? (
+                      <VehiclePlateAutocomplete
+                        selectedPlate={vehiclePlate}
+                        onPick={handlePickVehicle}
+                        onTyping={handleVehicleTyping}
+                        search={vehicleSearch}
+                      />
+                    ) : (
+                      <input
+                        readOnly
+                        value={vehiclePlate}
+                        placeholder="No tenés permiso para buscar vehículos"
+                        className="va-field min-w-0 flex-1 font-mono text-sm"
                       />
                     )}
                   </div>
@@ -276,35 +278,32 @@ export function WorkOrdersPage() {
                 ) : null}
                 {m.warrantyParentId && !m.warrantyVehicleLoading && !m.vehicleId && m.warrantyParentMissingVehicle ? (
                   <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-                    La orden origen no tiene vehículo en el maestro. Usá la lupa para vincular uno antes de crear la
-                    garantía.
+                    La orden origen no tiene vehículo en el maestro. Escribí su placa arriba para vincular uno antes de
+                    crear la garantía.
                   </p>
                 ) : null}
                 {m.warrantyParentId && !m.warrantyVehicleLoading && !m.vehicleId && !m.warrantyParentMissingVehicle && !m.can('work_orders:read') && !m.can('work_orders:read_portal') ? (
                   <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-                    No tenés permiso para leer la orden origen: usá la lupa para elegir el vehículo del maestro.
+                    No tenés permiso para leer la orden origen: elegí el vehículo del maestro escribiendo su placa.
                   </p>
                 ) : null}
               </label>
-              <label className="block text-sm">
-                <span className="va-label">Marca (opcional)</span>
-                <input
-                  value={m.vehicleBrandCreate}
-                  onChange={(e) => m.setVehicleBrandCreate(e.target.value)}
-                  maxLength={80}
-                  placeholder="Si no la mandás, se usa la del maestro al vincular"
-                  className="va-field mt-1"
+              {m.can('customers:create') && m.can('vehicles:create') ? (
+                <QuickCreateCustomerSection
+                  isSaas={m.isSaas}
+                  busy={m.quickBusy}
+                  msg={m.quickMsg}
+                  name={m.quickName}
+                  phone={m.quickPhone}
+                  plate={m.quickPlate}
+                  brand={m.quickBrand}
+                  onNameChange={setQuickName}
+                  onPhoneChange={setQuickPhone}
+                  onPlateChange={setQuickPlate}
+                  onBrandChange={setQuickBrand}
+                  onSubmit={m.quickCreate}
                 />
-              </label>
-              <label className="block text-sm">
-                <span className="va-label">Km al ingreso (opcional)</span>
-                <input
-                  inputMode="numeric"
-                  value={m.intakeKmCreate}
-                  onChange={(e) => m.setIntakeKmCreate(e.target.value.replace(/\D/g, ''))}
-                  className="va-field mt-1"
-                />
-              </label>
+              ) : null}
               <div className="flex gap-2 pt-2">
                 <button type="submit" className="va-btn-primary">
                   Crear y abrir
@@ -328,67 +327,6 @@ export function WorkOrdersPage() {
           onSigned={m.handlePostCreateSigned}
           onAbandon={m.handlePostCreateAbandon}
         />
-      )}
-
-      {m.vehModalOpen && (
-        <div className="va-modal-overlay-nested" role="presentation">
-          <div
-            className="va-modal-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="wo-veh-search-title"
-            onClick={handleModalPanelClick}
-          >
-            <h3 id="wo-veh-search-title" className="text-base font-semibold text-slate-900 dark:text-slate-50">
-              Buscar vehículo
-            </h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-              Por placa. Al elegir, se completan patente, ID de vehículo y datos del titular en el formulario.
-            </p>
-            <div className="mt-3 flex gap-2">
-              <input
-                value={m.vehQ}
-                onChange={(e) => m.setVehQ(e.target.value)}
-                className="va-field min-w-0 flex-1 font-mono"
-                placeholder="Ej. ABC12"
-              />
-              <button type="button" onClick={handleRunVehicleSearch} className="va-btn-primary !min-h-0 px-3 py-2">
-                Buscar
-              </button>
-            </div>
-            {m.vehErr && <p className="mt-2 text-xs text-red-600 dark:text-red-300">{m.vehErr}</p>}
-            {m.vehLoading && <p className="mt-2 text-xs text-slate-500">Buscando…</p>}
-            {m.vehResults && m.vehResults.length === 0 && (
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">Sin resultados.</p>
-            )}
-            <ul className="mt-3 max-h-60 space-y-2 overflow-y-auto">
-              {m.vehResults?.map((v) => (
-                <li key={v.id}>
-                  <button
-                    type="button"
-                    onClick={() => handlePickVehicle(v)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left text-sm hover:border-brand-300 hover:bg-brand-50 dark:border-slate-600 dark:hover:border-brand-600 dark:hover:bg-slate-800"
-                  >
-                    <span className="font-mono font-medium text-slate-900 dark:text-slate-50">{v.plate}</span>
-                    {(v.brand || v.model) && (
-                      <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-300">
-                        {[v.brand, v.model].filter(Boolean).join(' ')}
-                      </span>
-                    )}
-                    <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-300">{v.customer.displayName}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              className="mt-4 w-full rounded-xl border border-slate-200 py-2 text-sm dark:border-slate-600"
-              onClick={handleCloseVehModal}
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
       )}
 
       <WorkOrdersList
