@@ -99,7 +99,7 @@ Lista derivada de `PERMISSIONS` en `seed.ts` (orden lógico por dominio). La des
 
 | Código | Descripción (resumen) |
 |--------|------------------------|
-| `customers:read` / `create` / `update` | ABM clientes |
+| `customers:read` / `create` / `update` / `delete` | ABM clientes; `delete` solo permite borrar clientes **sin vehículos registrados** |
 | `vehicles:read` / `create` / `update` | ABM vehículos |
 | `inventory_items:read` / `create` / `update` | Inventario repuestos |
 | `measurement_units:read` | Unidades de medida |

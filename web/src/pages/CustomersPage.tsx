@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { WorkOrderDetail, WorkOrderListResponse, WorkOrderStatus } from '../api/types'
 import { portalPath } from '../constants/portalPath'
 import { useAuth } from '../auth/AuthContext'
+import { useConfirm } from '../components/confirm/ConfirmProvider'
 import { panelUsesModernShell } from '../config/operationalNotes'
 import { usePanelTheme } from '../theme/PanelThemeProvider'
 import { formatCopFromString } from '../utils/copFormat'
@@ -46,10 +47,10 @@ type CustomerFile = {
 
 type CustomerPatch = {
   displayName: string
-  primaryPhone: string | null
-  email: string | null
-  documentId: string | null
-  notes: string | null
+  primaryPhone?: string | null
+  email?: string | null
+  documentId?: string | null
+  notes?: string | null
   isActive: boolean
 }
 
@@ -111,14 +112,17 @@ function CustomerEditForm({
     e.preventDefault()
     setSaving(true)
     try {
-      const ok = await onSave({
+      const patch: CustomerPatch = {
         displayName: name.trim(),
-        primaryPhone: phone.trim() || null,
-        email: email.trim() || null,
-        documentId: doc.trim() || null,
-        notes: notes.trim() || null,
         isActive: active,
-      })
+      }
+      // Solo se envían los campos que cambiaron de verdad: así un email/documento
+      // heredado con formato raro no impide guardar el nombre (PATCH parcial).
+      if (phone.trim() !== (customer.primaryPhone ?? '').trim()) patch.primaryPhone = phone.trim() || null
+      if (email.trim() !== (customer.email ?? '').trim()) patch.email = email.trim() || null
+      if (doc.trim() !== (customer.documentId ?? '').trim()) patch.documentId = doc.trim() || null
+      if (notes.trim() !== (customer.notes ?? '').trim()) patch.notes = notes.trim() || null
+      const ok = await onSave(patch)
       if (ok) onCancel()
     } finally {
       setSaving(false)
@@ -230,20 +234,25 @@ function NewOrderConfirmModal({
 function CustomerFilePanel({
   file,
   loading,
+  totalVehicles,
   onClose,
   onNewOrder,
   onSaveCustomer,
   onAddVehicle,
+  onDeleteCustomer,
 }: {
   file: CustomerFile | null
   loading: boolean
+  totalVehicles: number
   onClose: () => void
   onNewOrder: (vehicleId: string, plate: string, brand: string | null) => void
   onSaveCustomer: (id: string, data: CustomerPatch) => Promise<boolean>
   onAddVehicle: (id: string, plate: string, brand: string) => Promise<boolean>
+  onDeleteCustomer: (id: string) => Promise<boolean>
 }) {
   const navigate = useNavigate()
   const { can } = useAuth()
+  const confirm = useConfirm()
   const c = file?.customer
   const vehicles = c?.vehicles ?? []
   const summary = file?.summary
@@ -252,6 +261,22 @@ function CustomerFilePanel({
   const [newBrand, setNewBrand] = useState('')
   const [addingVehicle, setAddingVehicle] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  async function confirmDelete() {
+    if (!c) return
+    const ok = await confirm({
+      title: 'Eliminar cliente',
+      message: [
+        `¿Eliminar definitivamente a «${c.displayName}»?`,
+        '',
+        'Solo se eliminan clientes sin vehículos registrados. Esta acción no se puede deshacer.',
+      ].join('\n'),
+      confirmLabel: 'Eliminar',
+      variant: 'danger',
+    })
+    if (!ok) return
+    await onDeleteCustomer(c.id)
+  }
 
   async function submitVehicle(e: React.FormEvent) {
     e.preventDefault()
@@ -348,6 +373,21 @@ function CustomerFilePanel({
           >
             WhatsApp
           </a>
+        )}
+        {can('customers:delete') && c && (
+          <button
+            type="button"
+            disabled={totalVehicles > 0}
+            title={
+              totalVehicles > 0
+                ? 'Solo se eliminan clientes sin vehículos registrados'
+                : 'Eliminar este cliente'
+            }
+            className="va-btn-danger disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => void confirmDelete()}
+          >
+            Eliminar…
+          </button>
         )}
         <button type="button" onClick={onClose} className="va-btn-secondary ml-auto">
           Cerrar
@@ -661,6 +701,26 @@ export function CustomersPage() {
     }
   }
 
+  async function deleteCustomer(id: string): Promise<boolean> {
+    setMsg(null)
+    try {
+      await api(`/customers/${id}`, { method: 'DELETE' })
+      setRows((prev) => (prev ? prev.filter((r) => r.id !== id) : prev))
+      setFiles((prev) => {
+        if (!(id in prev)) return prev
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setExpandedId((cur) => (cur === id ? null : cur))
+      setMsg('Cliente eliminado')
+      return true
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Error al eliminar el cliente')
+      return false
+    }
+  }
+
   async function addVehicle(id: string, plate: string, brand: string): Promise<boolean> {
     setMsg(null)
     try {
@@ -780,10 +840,12 @@ export function CustomersPage() {
                             <CustomerFilePanel
                               file={files[c.id] ?? null}
                               loading={loadingId === c.id}
+                              totalVehicles={c._count?.vehicles ?? 0}
                               onClose={() => setExpandedId(null)}
                               onNewOrder={(vehicleId, plate, brand) => void quickOrder(vehicleId, plate, brand)}
                               onSaveCustomer={saveCustomer}
                               onAddVehicle={addVehicle}
+                              onDeleteCustomer={deleteCustomer}
                             />
                           </td>
                         </tr>

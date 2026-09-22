@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -57,6 +57,19 @@ export class CustomersController {
     @Req() req: Request,
   ) {
     return this.customers.update(id, actor.sub, dto, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+  }
+
+  @Delete(':id')
+  @RequirePermissions('customers:delete')
+  remove(
+    @Param('id') id: string,
+    @CurrentUser() actor: JwtUserPayload,
+    @Req() req: Request,
+  ) {
+    return this.customers.remove(id, actor.sub, {
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
     });

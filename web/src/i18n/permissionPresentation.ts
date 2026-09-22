@@ -106,6 +106,11 @@ export const PERMISSION_GUIDE_ES: Record<string, { title: string; detail: string
     detail:
       'Modifica datos de clientes existentes. Puede alterar contacto, documentos o notas; revisar quién debe mantener la ficha al día.',
   },
+  'customers:delete': {
+    title: 'Eliminar clientes',
+    detail:
+      'Borra definitivamente una ficha de cliente. El API solo permite eliminar clientes sin vehículos registrados, para no perder histórico de órdenes.',
+  },
   'inventory_items:create': {
     title: 'Crear ítems de inventario',
     detail:

@@ -4,6 +4,8 @@ import { AuditService } from '../audit/audit.service';
 import type { CreateCustomerDto } from './dto/create-customer.dto';
 import type { UpdateCustomerDto } from './dto/update-customer.dto';
 
+const PRISMA_FK_VIOLATION = 'P2003';
+
 @Injectable()
 export class CustomersService {
   constructor(
@@ -147,5 +149,50 @@ export class CustomersService {
         isActive: true,
       },
     });
+  }
+
+  /**
+   * Elimina un cliente solo si no tiene vehículos registrados (ni activos ni inactivos).
+   * Un cliente con vehículos arrastra histórico de OT (por vehículo) y no debe borrarse.
+   */
+  async remove(
+    id: string,
+    actorUserId: string,
+    meta: { ip?: string; userAgent?: string },
+  ) {
+    const before = await this.prisma.customer.findUnique({
+      where: { id },
+      include: { _count: { select: { vehicles: true } } },
+    });
+    if (!before) {
+      throw new NotFoundException('Cliente no encontrado');
+    }
+    if (before._count.vehicles > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar: este cliente tiene ${before._count.vehicles} vehículo(s) registrados.`,
+      );
+    }
+    try {
+      await this.prisma.customer.delete({ where: { id } });
+    } catch (err) {
+      const code = typeof err === 'object' && err !== null ? (err as { code?: string }).code : undefined;
+      if (code === PRISMA_FK_VIOLATION) {
+        throw new BadRequestException(
+          'No se puede eliminar: el cliente tiene registros vinculados (facturas o usuarios de portal).',
+        );
+      }
+      throw err;
+    }
+    await this.audit.recordDomain({
+      actorUserId,
+      action: 'customers.deleted',
+      entityType: 'Customer',
+      entityId: id,
+      previousPayload: { displayName: before.displayName, isActive: before.isActive },
+      nextPayload: null,
+      ipAddress: meta.ip ?? null,
+      userAgent: meta.userAgent ?? null,
+    });
+    return { id, deleted: true };
   }
 }
