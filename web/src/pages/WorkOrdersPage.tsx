@@ -283,6 +283,14 @@ export function WorkOrdersPage() {
                   </p>
                 ) : null}
               </label>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" className="va-btn-primary">
+                  Crear y abrir
+                </button>
+                <button type="button" onClick={handleCancelCreate} className="va-btn-secondary">
+                  Cancelar
+                </button>
+              </div>
               {m.can('customers:create') && m.can('vehicles:create') ? (
                 <QuickCreateCustomerSection
                   isSaas={m.isSaas}
@@ -299,14 +307,6 @@ export function WorkOrdersPage() {
                   onSubmit={m.quickCreate}
                 />
               ) : null}
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="va-btn-primary">
-                  Crear y abrir
-                </button>
-                <button type="button" onClick={handleCancelCreate} className="va-btn-secondary">
-                  Cancelar
-                </button>
-              </div>
             </form>
           </div>
         </div>
