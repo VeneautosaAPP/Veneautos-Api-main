@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateCustomerDto {
   @IsOptional()
@@ -13,8 +13,11 @@ export class UpdateCustomerDto {
   primaryPhone?: string;
 
   @IsOptional()
-  @IsEmail()
+  @IsString()
   @MaxLength(120)
+  @Matches(/^$|^[^\s]+$/, {
+    message: 'email no puede contener espacios',
+  })
   email?: string;
 
   @IsOptional()

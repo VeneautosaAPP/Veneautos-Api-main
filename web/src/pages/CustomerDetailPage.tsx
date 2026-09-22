@@ -97,16 +97,16 @@ export function CustomerDetailPage() {
     if (!id) return
     setMsg(null)
     try {
+      const patch: Record<string, unknown> = { displayName: dn.trim(), isActive: active }
+      // PATCH parcial: solo se envían los campos que cambiaron de verdad, para que un
+      // correo/teléfono heredado con formato raro no impida guardar el resto.
+      if (c && phone.trim() !== (c.primaryPhone ?? '').trim()) patch.primaryPhone = phone.trim() || null
+      if (c && email.trim() !== (c.email ?? '').trim()) patch.email = email.trim() || null
+      if (c && doc.trim() !== (c.documentId ?? '').trim()) patch.documentId = doc.trim() || null
+      if (c && notes.trim() !== (c.notes ?? '').trim()) patch.notes = notes.trim() || null
       await api(`/customers/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          displayName: dn.trim(),
-          primaryPhone: phone.trim() || null,
-          email: email.trim() || null,
-          documentId: doc.trim() || null,
-          notes: notes.trim() || null,
-          isActive: active,
-        }),
+        body: JSON.stringify(patch),
       })
       setMsg('Cliente actualizado')
       await load()
