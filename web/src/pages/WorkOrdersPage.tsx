@@ -190,12 +190,7 @@ export function WorkOrdersPage() {
                   <p className="font-medium text-red-700 dark:text-red-300">{m.warrantyVehicleError}</p>
                 ) : null}
               </div>
-            ) : (
-              <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                La orden debe quedar <strong>vinculada a un vehículo del maestro</strong> (cliente y placa se toman de
-                ahí). Escribí la placa en el campo Vehículo: las coincidencias aparecen en tiempo real.
-              </p>
-            )}
+            ) : null}
             {m.createMsg && <p className="va-alert-error mt-2">{m.createMsg}</p>}
             <form className="mt-4 space-y-3" onSubmit={m.submitCreate}>
               <label className="block text-sm">

@@ -136,16 +136,30 @@ export function VehiclePlateAutocomplete({ selectedPlate, onPick, onTyping, sear
                     }}
                     onMouseEnter={() => setHl(i)}
                     className={`w-full px-3 py-2 text-left text-sm ${
-                      i === hl ? 'bg-brand-50 dark:bg-slate-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700'
+                      i === hl
+                        ? 'bg-brand-600 dark:bg-brand-700'
+                        : 'hover:bg-brand-50 dark:hover:bg-slate-700'
                     }`}
                   >
-                    <span className="font-mono font-medium text-slate-900 dark:text-slate-50">{v.plate}</span>
+                    <span
+                      className={`font-mono font-medium ${i === hl ? 'text-white' : 'text-slate-900 dark:text-slate-50'}`}
+                    >
+                      {v.plate}
+                    </span>
                     {(v.brand || v.model) && (
-                      <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-300">
+                      <span
+                        className={`mt-0.5 block text-xs ${
+                          i === hl ? 'text-white/90' : 'text-slate-500 dark:text-slate-300'
+                        }`}
+                      >
                         {[v.brand, v.model].filter(Boolean).join(' ')}
                       </span>
                     )}
-                    <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-300">
+                    <span
+                      className={`mt-0.5 block text-xs ${
+                        i === hl ? 'text-white/90' : 'text-slate-500 dark:text-slate-300'
+                      }`}
+                    >
                       {v.customer.displayName}
                     </span>
                   </button>
